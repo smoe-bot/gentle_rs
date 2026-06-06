@@ -54,6 +54,28 @@ Release acceptance:
 
 Release cut line:
 
+- Add a GENtle-owned Clariom-D isoform-support report before treating
+  microarray evidence as only projected genome intervals. The motivating case
+  is PATZ1 in the TP73 isoform system: TP73 overexpression upregulates PATZ1,
+  and Western blots suggest DNp73beta may induce a shorter PATZ1 protein
+  isoform than full-length TP73. GENtle should help decide whether the
+  Clariom-D oligonucleotide/probeset annotation can support that at RNA level.
+  Preferred shell shape:
+  `arrays inspect-gene-isoform-support MANIFEST GENE_SYMBOL --contrasts CSV --level probeset`.
+  The report should:
+  - load the existing Clariom-D microarray track manifest and per-contrast TSVs,
+  - filter rows by gene symbol, transcript cluster, exon id, junction metadata,
+    probeset id, and genomic interval,
+  - summarize per-contrast logFC and adjusted P values across PATZ1 probesets,
+  - flag probesets or junction probes that distinguish transcript regions or
+    shorter-vs-longer isoform structure,
+  - cross-reference loaded transcript/exon annotations when a matching
+    genome/transcript context is available,
+  - return a cautious verdict: gene-level support, exon/junction-level support,
+    insufficient array resolution, or discordant protein-only evidence.
+  Keep PATZ1 as a fixture/test target, but implement the command generically
+  for any gene symbol with Clariom-D probeset rows.
+
 Post-release scope:
 
 ## Next Session Priorities
