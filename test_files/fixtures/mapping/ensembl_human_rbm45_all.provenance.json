@@ -1,0 +1,64 @@
+{
+  "schema": "gentle.ensembl_cdna_fixture_provenance.v1",
+  "generated_at_utc": "2026-05-08T14:32:12Z",
+  "gene": "RBM45",
+  "species": "homo_sapiens",
+  "species_label": "human",
+  "entry_id": "ensembl_human_rbm45",
+  "locus_seq_id": "ensembl_human_rbm45_locus",
+  "output_fasta": "/home/clawbio/GENtle/test_files/fixtures/mapping/ensembl_human_rbm45_all.fasta",
+  "transcript_count": 16,
+  "transcript_seq_ids": [
+    "ensembl_human_rbm45__cdna__f2__enst00000424000",
+    "ensembl_human_rbm45__cdna__f12__enst00000286070",
+    "ensembl_human_rbm45__cdna__f24__enst00000493048",
+    "ensembl_human_rbm45__cdna__f29__enst00000455903",
+    "ensembl_human_rbm45__cdna__f35__enst00000424099",
+    "ensembl_human_rbm45__cdna__f40__enst00000464647",
+    "ensembl_human_rbm45__cdna__f44__enst00000861654",
+    "ensembl_human_rbm45__cdna__f57__enst00000861655",
+    "ensembl_human_rbm45__cdna__f69__enst00000861656",
+    "ensembl_human_rbm45__cdna__f81__enst00000861657",
+    "ensembl_human_rbm45__cdna__f93__enst00000861658",
+    "ensembl_human_rbm45__cdna__f104__enst00000861659",
+    "ensembl_human_rbm45__cdna__f114__enst00000914888",
+    "ensembl_human_rbm45__cdna__f126__enst00000953979",
+    "ensembl_human_rbm45__cdna__f138__enst00000953980",
+    "ensembl_human_rbm45__cdna__f150__enst00000953981"
+  ],
+  "gentle": {
+    "binary": "/home/clawbio/GENtle/target/release/gentle_cli",
+    "version": "GENtle 0.1.0-internal.6\nBuild 1778192348329\nCross-platform DNA cloning workbench",
+    "state_path": "/home/clawbio/work/tp73_pancreas_benchmark/gene_screens/tardbp_pancreas_screen_20260508T141628Z_seed_only/resources/ensembl_cdna_fixtures/ensembl_human_rbm45/ensembl_human_rbm45.gentle.json",
+    "commands": {
+      "fetch_gene": [
+        "ensembl-gene",
+        "fetch",
+        "RBM45",
+        "--species",
+        "homo_sapiens",
+        "--entry-id",
+        "ensembl_human_rbm45"
+      ],
+      "import_sequence": [
+        "ensembl-gene",
+        "import-sequence",
+        "ensembl_human_rbm45",
+        "--output-id",
+        "ensembl_human_rbm45_locus"
+      ],
+      "derive_transcripts": [
+        "transcripts",
+        "derive",
+        "ensembl_human_rbm45_locus",
+        "--output-prefix",
+        "ensembl_human_rbm45__cdna"
+      ]
+    },
+    "reports": {
+      "fetch_gene": "/home/clawbio/work/tp73_pancreas_benchmark/gene_screens/tardbp_pancreas_screen_20260508T141628Z_seed_only/resources/ensembl_cdna_fixtures/ensembl_human_rbm45/fetch_ensembl_gene.json",
+      "import_sequence": "/home/clawbio/work/tp73_pancreas_benchmark/gene_screens/tardbp_pancreas_screen_20260508T141628Z_seed_only/resources/ensembl_cdna_fixtures/ensembl_human_rbm45/import_ensembl_gene_sequence.json",
+      "derive_transcripts": "/home/clawbio/work/tp73_pancreas_benchmark/gene_screens/tardbp_pancreas_screen_20260508T141628Z_seed_only/resources/ensembl_cdna_fixtures/ensembl_human_rbm45/derive_transcripts.json"
+    }
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "schema": "gentle.ensembl_cdna_fixture_provenance.v1",
+  "generated_at_utc": "2026-05-07T22:18:20Z",
+  "gene": "E2F5",
+  "species": "homo_sapiens",
+  "species_label": "human",
+  "entry_id": "ensembl_human_e2f5",
+  "locus_seq_id": "ensembl_human_e2f5_locus",
+  "output_fasta": "test_files/fixtures/mapping/ensembl_human_e2f5_all.fasta",
+  "transcript_count": 9,
+  "transcript_seq_ids": [
+    "ensembl_human_e2f5__cdna__f2__enst00000416274",
+    "ensembl_human_e2f5__cdna__f12__enst00000418930",
+    "ensembl_human_e2f5__cdna__f22__enst00000256117",
+    "ensembl_human_e2f5__cdna__f32__enst00000517476",
+    "ensembl_human_e2f5__cdna__f42__enst00000521429",
+    "ensembl_human_e2f5__cdna__f52__enst00000521234",
+    "ensembl_human_e2f5__cdna__f55__enst00000518234",
+    "ensembl_human_e2f5__cdna__f63__enst00000520225",
+    "ensembl_human_e2f5__cdna__f68__enst00000955915"
+  ],
+  "gentle": {
+    "binary": "/home/clawbio/GENtle/target/release/gentle_cli",
+    "version": "GENtle 0.1.0-internal.6\nBuild 1778183690065\nCross-platform DNA cloning workbench",
+    "state_path": "/home/clawbio/GENtle/target/ensembl_cdna_fixtures/ensembl_human_e2f5/ensembl_human_e2f5.gentle.json",
+    "commands": {
+      "fetch_gene": [
+        "ensembl-gene",
+        "fetch",
+        "E2F5",
+        "--species",
+        "homo_sapiens",
+        "--entry-id",
+        "ensembl_human_e2f5"
+      ],
+      "import_sequence": [
+        "ensembl-gene",
+        "import-sequence",
+        "ensembl_human_e2f5",
+        "--output-id",
+        "ensembl_human_e2f5_locus"
+      ],
+      "derive_transcripts": [
+        "transcripts",
+        "derive",
+        "ensembl_human_e2f5_locus",
+        "--output-prefix",
+        "ensembl_human_e2f5__cdna"
+      ]
+    },
+    "reports": {
+      "fetch_gene": "/home/clawbio/GENtle/target/ensembl_cdna_fixtures/ensembl_human_e2f5/fetch_ensembl_gene.json",
+      "import_sequence": "/home/clawbio/GENtle/target/ensembl_cdna_fixtures/ensembl_human_e2f5/import_ensembl_gene_sequence.json",
+      "derive_transcripts": "/home/clawbio/GENtle/target/ensembl_cdna_fixtures/ensembl_human_e2f5/derive_transcripts.json"
+    }
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "schema": "gentle.ensembl_cdna_fixture_provenance.v1",
+  "generated_at_utc": "2026-05-07T22:18:20Z",
+  "gene": "E2F6",
+  "species": "homo_sapiens",
+  "species_label": "human",
+  "entry_id": "ensembl_human_e2f6",
+  "locus_seq_id": "ensembl_human_e2f6_locus",
+  "output_fasta": "test_files/fixtures/mapping/ensembl_human_e2f6_all.fasta",
+  "transcript_count": 16,
+  "transcript_seq_ids": [
+    "ensembl_human_e2f6__cdna__f2__enst00000428221",
+    "ensembl_human_e2f6__cdna__f11__enst00000444832",
+    "ensembl_human_e2f6__cdna__f21__enst00000381525",
+    "ensembl_human_e2f6__cdna__f30__enst00000307236",
+    "ensembl_human_e2f6__cdna__f40__enst00000542100",
+    "ensembl_human_e2f6__cdna__f51__enst00000546212",
+    "ensembl_human_e2f6__cdna__f59__enst00000455198",
+    "ensembl_human_e2f6__cdna__f70__enst00000471343",
+    "ensembl_human_e2f6__cdna__f74__enst00000437573",
+    "ensembl_human_e2f6__cdna__f84__enst00000421117",
+    "ensembl_human_e2f6__cdna__f91__enst00000468775",
+    "ensembl_human_e2f6__cdna__f96__enst00000498701",
+    "ensembl_human_e2f6__cdna__f99__enst00000908571",
+    "ensembl_human_e2f6__cdna__f108__enst00000908572",
+    "ensembl_human_e2f6__cdna__f113__enst00000938567",
+    "ensembl_human_e2f6__cdna__f122__enst00000938568"
+  ],
+  "gentle": {
+    "binary": "/home/clawbio/GENtle/target/release/gentle_cli",
+    "version": "GENtle 0.1.0-internal.6\nBuild 1778183690065\nCross-platform DNA cloning workbench",
+    "state_path": "/home/clawbio/GENtle/target/ensembl_cdna_fixtures/ensembl_human_e2f6/ensembl_human_e2f6.gentle.json",
+    "commands": {
+      "fetch_gene": [
+        "ensembl-gene",
+        "fetch",
+        "E2F6",
+        "--species",
+        "homo_sapiens",
+        "--entry-id",
+        "ensembl_human_e2f6"
+      ],
+      "import_sequence": [
+        "ensembl-gene",
+        "import-sequence",
+        "ensembl_human_e2f6",
+        "--output-id",
+        "ensembl_human_e2f6_locus"
+      ],
+      "derive_transcripts": [
+        "transcripts",
+        "derive",
+        "ensembl_human_e2f6_locus",
+        "--output-prefix",
+        "ensembl_human_e2f6__cdna"
+      ]
+    },
+    "reports": {
+      "fetch_gene": "/home/clawbio/GENtle/target/ensembl_cdna_fixtures/ensembl_human_e2f6/fetch_ensembl_gene.json",
+      "import_sequence": "/home/clawbio/GENtle/target/ensembl_cdna_fixtures/ensembl_human_e2f6/import_ensembl_gene_sequence.json",
+      "derive_transcripts": "/home/clawbio/GENtle/target/ensembl_cdna_fixtures/ensembl_human_e2f6/derive_transcripts.json"
+    }
+  }
+}

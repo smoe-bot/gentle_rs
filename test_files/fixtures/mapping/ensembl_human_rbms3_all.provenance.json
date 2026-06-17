@@ -1,0 +1,84 @@
+{
+  "schema": "gentle.ensembl_cdna_fixture_provenance.v1",
+  "generated_at_utc": "2026-05-08T14:32:25Z",
+  "gene": "RBMS3",
+  "species": "homo_sapiens",
+  "species_label": "human",
+  "entry_id": "ensembl_human_rbms3",
+  "locus_seq_id": "ensembl_human_rbms3_locus",
+  "output_fasta": "/home/clawbio/GENtle/test_files/fixtures/mapping/ensembl_human_rbms3_all.fasta",
+  "transcript_count": 36,
+  "transcript_seq_ids": [
+    "ensembl_human_rbms3__cdna__f2__enst00000432518",
+    "ensembl_human_rbms3__cdna__f8__enst00000636680",
+    "ensembl_human_rbms3__cdna__f27__enst00000443912",
+    "ensembl_human_rbms3__cdna__f32__enst00000445077",
+    "ensembl_human_rbms3__cdna__f36__enst00000636900",
+    "ensembl_human_rbms3__cdna__f42__enst00000636582",
+    "ensembl_human_rbms3__cdna__f48__enst00000637842",
+    "ensembl_human_rbms3__cdna__f65__enst00000434693",
+    "ensembl_human_rbms3__cdna__f82__enst00000471426",
+    "ensembl_human_rbms3__cdna__f86__enst00000383767",
+    "ensembl_human_rbms3__cdna__f103__enst00000445033",
+    "ensembl_human_rbms3__cdna__f113__enst00000273139",
+    "ensembl_human_rbms3__cdna__f128__enst00000383766",
+    "ensembl_human_rbms3__cdna__f144__enst00000452462",
+    "ensembl_human_rbms3__cdna__f160__enst00000456853",
+    "ensembl_human_rbms3__cdna__f176__enst00000497205",
+    "ensembl_human_rbms3__cdna__f181__enst00000478716",
+    "ensembl_human_rbms3__cdna__f184__enst00000497319",
+    "ensembl_human_rbms3__cdna__f191__enst00000473799",
+    "ensembl_human_rbms3__cdna__f197__enst00000497274",
+    "ensembl_human_rbms3__cdna__f200__enst00000874343",
+    "ensembl_human_rbms3__cdna__f215__enst00000874344",
+    "ensembl_human_rbms3__cdna__f231__enst00000874345",
+    "ensembl_human_rbms3__cdna__f247__enst00000874346",
+    "ensembl_human_rbms3__cdna__f262__enst00000874347",
+    "ensembl_human_rbms3__cdna__f279__enst00000874348",
+    "ensembl_human_rbms3__cdna__f293__enst00000914497",
+    "ensembl_human_rbms3__cdna__f310__enst00000963905",
+    "ensembl_human_rbms3__cdna__f327__enst00000963906",
+    "ensembl_human_rbms3__cdna__f342__enst00000963907",
+    "ensembl_human_rbms3__cdna__f357__enst00000963908",
+    "ensembl_human_rbms3__cdna__f372__enst00000963909",
+    "ensembl_human_rbms3__cdna__f390__enst00000963910",
+    "ensembl_human_rbms3__cdna__f407__enst00000963911",
+    "ensembl_human_rbms3__cdna__f424__enst00000963912",
+    "ensembl_human_rbms3__cdna__f440__enst00000963913"
+  ],
+  "gentle": {
+    "binary": "/home/clawbio/GENtle/target/release/gentle_cli",
+    "version": "GENtle 0.1.0-internal.6\nBuild 1778192348329\nCross-platform DNA cloning workbench",
+    "state_path": "/home/clawbio/work/tp73_pancreas_benchmark/gene_screens/tardbp_pancreas_screen_20260508T141628Z_seed_only/resources/ensembl_cdna_fixtures/ensembl_human_rbms3/ensembl_human_rbms3.gentle.json",
+    "commands": {
+      "fetch_gene": [
+        "ensembl-gene",
+        "fetch",
+        "RBMS3",
+        "--species",
+        "homo_sapiens",
+        "--entry-id",
+        "ensembl_human_rbms3"
+      ],
+      "import_sequence": [
+        "ensembl-gene",
+        "import-sequence",
+        "ensembl_human_rbms3",
+        "--output-id",
+        "ensembl_human_rbms3_locus"
+      ],
+      "derive_transcripts": [
+        "transcripts",
+        "derive",
+        "ensembl_human_rbms3_locus",
+        "--output-prefix",
+        "ensembl_human_rbms3__cdna"
+      ]
+    },
+    "reports": {
+      "fetch_gene": "/home/clawbio/work/tp73_pancreas_benchmark/gene_screens/tardbp_pancreas_screen_20260508T141628Z_seed_only/resources/ensembl_cdna_fixtures/ensembl_human_rbms3/fetch_ensembl_gene.json",
+      "import_sequence": "/home/clawbio/work/tp73_pancreas_benchmark/gene_screens/tardbp_pancreas_screen_20260508T141628Z_seed_only/resources/ensembl_cdna_fixtures/ensembl_human_rbms3/import_ensembl_gene_sequence.json",
+      "derive_transcripts": "/home/clawbio/work/tp73_pancreas_benchmark/gene_screens/tardbp_pancreas_screen_20260508T141628Z_seed_only/resources/ensembl_cdna_fixtures/ensembl_human_rbms3/derive_transcripts.json"
+    }
+  }
+}

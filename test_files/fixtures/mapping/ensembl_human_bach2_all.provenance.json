@@ -1,0 +1,64 @@
+{
+  "schema": "gentle.ensembl_cdna_fixture_provenance.v1",
+  "generated_at_utc": "2026-05-08T01:51:12Z",
+  "gene": "BACH2",
+  "species": "homo_sapiens",
+  "species_label": "human",
+  "entry_id": "ensembl_human_bach2",
+  "locus_seq_id": "ensembl_human_bach2_locus",
+  "output_fasta": "/home/clawbio/GENtle/test_files/fixtures/mapping/ensembl_human_bach2_all.fasta",
+  "transcript_count": 16,
+  "transcript_seq_ids": [
+    "ensembl_human_bach2__cdna__f2__enst00000257749",
+    "ensembl_human_bach2__cdna__f13__enst00000406998",
+    "ensembl_human_bach2__cdna__f22__enst00000343122",
+    "ensembl_human_bach2__cdna__f31__enst00000695952",
+    "ensembl_human_bach2__cdna__f40__enst00000453877",
+    "ensembl_human_bach2__cdna__f50__enst00000695953",
+    "ensembl_human_bach2__cdna__f58__enst00000695954",
+    "ensembl_human_bach2__cdna__f62__enst00000481150",
+    "ensembl_human_bach2__cdna__f65__enst00000470301",
+    "ensembl_human_bach2__cdna__f70__enst00000493201",
+    "ensembl_human_bach2__cdna__f74__enst00000472023",
+    "ensembl_human_bach2__cdna__f79__enst00000494747",
+    "ensembl_human_bach2__cdna__f84__enst00000695955",
+    "ensembl_human_bach2__cdna__f90__enst00000931217",
+    "ensembl_human_bach2__cdna__f100__enst00000931218",
+    "ensembl_human_bach2__cdna__f110__enst00000968922"
+  ],
+  "gentle": {
+    "binary": "/home/clawbio/GENtle/target/release/gentle_cli",
+    "version": "GENtle 0.1.0-internal.6\nBuild 1778192348329\nCross-platform DNA cloning workbench",
+    "state_path": "/home/clawbio/work/tp73_pancreas_benchmark/gene_screens/patz1_pancreas_screen_20260508T011931Z_seed_only_patz2_control/resources/ensembl_cdna_fixtures/ensembl_human_bach2/ensembl_human_bach2.gentle.json",
+    "commands": {
+      "fetch_gene": [
+        "ensembl-gene",
+        "fetch",
+        "BACH2",
+        "--species",
+        "homo_sapiens",
+        "--entry-id",
+        "ensembl_human_bach2"
+      ],
+      "import_sequence": [
+        "ensembl-gene",
+        "import-sequence",
+        "ensembl_human_bach2",
+        "--output-id",
+        "ensembl_human_bach2_locus"
+      ],
+      "derive_transcripts": [
+        "transcripts",
+        "derive",
+        "ensembl_human_bach2_locus",
+        "--output-prefix",
+        "ensembl_human_bach2__cdna"
+      ]
+    },
+    "reports": {
+      "fetch_gene": "/home/clawbio/work/tp73_pancreas_benchmark/gene_screens/patz1_pancreas_screen_20260508T011931Z_seed_only_patz2_control/resources/ensembl_cdna_fixtures/ensembl_human_bach2/fetch_ensembl_gene.json",
+      "import_sequence": "/home/clawbio/work/tp73_pancreas_benchmark/gene_screens/patz1_pancreas_screen_20260508T011931Z_seed_only_patz2_control/resources/ensembl_cdna_fixtures/ensembl_human_bach2/import_ensembl_gene_sequence.json",
+      "derive_transcripts": "/home/clawbio/work/tp73_pancreas_benchmark/gene_screens/patz1_pancreas_screen_20260508T011931Z_seed_only_patz2_control/resources/ensembl_cdna_fixtures/ensembl_human_bach2/derive_transcripts.json"
+    }
+  }
+}

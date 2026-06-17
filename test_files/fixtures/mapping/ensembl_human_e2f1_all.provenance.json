@@ -1,0 +1,52 @@
+{
+  "schema": "gentle.ensembl_cdna_fixture_provenance.v1",
+  "generated_at_utc": "2026-05-07T22:18:20Z",
+  "gene": "E2F1",
+  "species": "homo_sapiens",
+  "species_label": "human",
+  "entry_id": "ensembl_human_e2f1",
+  "locus_seq_id": "ensembl_human_e2f1_locus",
+  "output_fasta": "test_files/fixtures/mapping/ensembl_human_e2f1_all.fasta",
+  "transcript_count": 4,
+  "transcript_seq_ids": [
+    "ensembl_human_e2f1__cdna__f2__enst00000343380",
+    "ensembl_human_e2f1__cdna__f11__enst00000888354",
+    "ensembl_human_e2f1__cdna__f20__enst00000932103",
+    "ensembl_human_e2f1__cdna__f29__enst00000932104"
+  ],
+  "gentle": {
+    "binary": "/home/clawbio/GENtle/target/release/gentle_cli",
+    "version": "GENtle 0.1.0-internal.6\nBuild 1778183690065\nCross-platform DNA cloning workbench",
+    "state_path": "/home/clawbio/GENtle/target/ensembl_cdna_fixtures/ensembl_human_e2f1/ensembl_human_e2f1.gentle.json",
+    "commands": {
+      "fetch_gene": [
+        "ensembl-gene",
+        "fetch",
+        "E2F1",
+        "--species",
+        "homo_sapiens",
+        "--entry-id",
+        "ensembl_human_e2f1"
+      ],
+      "import_sequence": [
+        "ensembl-gene",
+        "import-sequence",
+        "ensembl_human_e2f1",
+        "--output-id",
+        "ensembl_human_e2f1_locus"
+      ],
+      "derive_transcripts": [
+        "transcripts",
+        "derive",
+        "ensembl_human_e2f1_locus",
+        "--output-prefix",
+        "ensembl_human_e2f1__cdna"
+      ]
+    },
+    "reports": {
+      "fetch_gene": "/home/clawbio/GENtle/target/ensembl_cdna_fixtures/ensembl_human_e2f1/fetch_ensembl_gene.json",
+      "import_sequence": "/home/clawbio/GENtle/target/ensembl_cdna_fixtures/ensembl_human_e2f1/import_ensembl_gene_sequence.json",
+      "derive_transcripts": "/home/clawbio/GENtle/target/ensembl_cdna_fixtures/ensembl_human_e2f1/derive_transcripts.json"
+    }
+  }
+}

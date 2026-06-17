@@ -1,0 +1,77 @@
+{
+  "schema": "gentle.ensembl_cdna_fixture_provenance.v1",
+  "generated_at_utc": "2026-05-08T14:32:46Z",
+  "gene": "HNRNPR",
+  "species": "homo_sapiens",
+  "species_label": "human",
+  "entry_id": "ensembl_human_hnrnpr",
+  "locus_seq_id": "ensembl_human_hnrnpr_locus",
+  "output_fasta": "/home/clawbio/GENtle/test_files/fixtures/mapping/ensembl_human_hnrnpr_all.fasta",
+  "transcript_count": 29,
+  "transcript_seq_ids": [
+    "ensembl_human_hnrnpr__cdna__f2__enst00000464516",
+    "ensembl_human_hnrnpr__cdna__f5__enst00000641107",
+    "ensembl_human_hnrnpr__cdna__f12__enst00000302271",
+    "ensembl_human_hnrnpr__cdna__f25__enst00000470941",
+    "ensembl_human_hnrnpr__cdna__f37__enst00000463552",
+    "ensembl_human_hnrnpr__cdna__f49__enst00000478691",
+    "ensembl_human_hnrnpr__cdna__f61__enst00000374616",
+    "ensembl_human_hnrnpr__cdna__f74__enst00000476660",
+    "ensembl_human_hnrnpr__cdna__f78__enst00000374612",
+    "ensembl_human_hnrnpr__cdna__f91__enst00000476451",
+    "ensembl_human_hnrnpr__cdna__f104__enst00000675048",
+    "ensembl_human_hnrnpr__cdna__f114__enst00000606561",
+    "ensembl_human_hnrnpr__cdna__f125__enst00000490652",
+    "ensembl_human_hnrnpr__cdna__f129__enst00000882591",
+    "ensembl_human_hnrnpr__cdna__f141__enst00000882592",
+    "ensembl_human_hnrnpr__cdna__f153__enst00000882593",
+    "ensembl_human_hnrnpr__cdna__f165__enst00000882594",
+    "ensembl_human_hnrnpr__cdna__f176__enst00000882595",
+    "ensembl_human_hnrnpr__cdna__f187__enst00000882596",
+    "ensembl_human_hnrnpr__cdna__f199__enst00000882597",
+    "ensembl_human_hnrnpr__cdna__f211__enst00000934773",
+    "ensembl_human_hnrnpr__cdna__f224__enst00000934774",
+    "ensembl_human_hnrnpr__cdna__f234__enst00000934775",
+    "ensembl_human_hnrnpr__cdna__f247__enst00000934776",
+    "ensembl_human_hnrnpr__cdna__f259__enst00000934777",
+    "ensembl_human_hnrnpr__cdna__f272__enst00000934778",
+    "ensembl_human_hnrnpr__cdna__f285__enst00000934779",
+    "ensembl_human_hnrnpr__cdna__f297__enst00000947104",
+    "ensembl_human_hnrnpr__cdna__f309__enst00000947105"
+  ],
+  "gentle": {
+    "binary": "/home/clawbio/GENtle/target/release/gentle_cli",
+    "version": "GENtle 0.1.0-internal.6\nBuild 1778192348329\nCross-platform DNA cloning workbench",
+    "state_path": "/home/clawbio/work/tp73_pancreas_benchmark/gene_screens/tardbp_pancreas_screen_20260508T141628Z_seed_only/resources/ensembl_cdna_fixtures/ensembl_human_hnrnpr/ensembl_human_hnrnpr.gentle.json",
+    "commands": {
+      "fetch_gene": [
+        "ensembl-gene",
+        "fetch",
+        "HNRNPR",
+        "--species",
+        "homo_sapiens",
+        "--entry-id",
+        "ensembl_human_hnrnpr"
+      ],
+      "import_sequence": [
+        "ensembl-gene",
+        "import-sequence",
+        "ensembl_human_hnrnpr",
+        "--output-id",
+        "ensembl_human_hnrnpr_locus"
+      ],
+      "derive_transcripts": [
+        "transcripts",
+        "derive",
+        "ensembl_human_hnrnpr_locus",
+        "--output-prefix",
+        "ensembl_human_hnrnpr__cdna"
+      ]
+    },
+    "reports": {
+      "fetch_gene": "/home/clawbio/work/tp73_pancreas_benchmark/gene_screens/tardbp_pancreas_screen_20260508T141628Z_seed_only/resources/ensembl_cdna_fixtures/ensembl_human_hnrnpr/fetch_ensembl_gene.json",
+      "import_sequence": "/home/clawbio/work/tp73_pancreas_benchmark/gene_screens/tardbp_pancreas_screen_20260508T141628Z_seed_only/resources/ensembl_cdna_fixtures/ensembl_human_hnrnpr/import_ensembl_gene_sequence.json",
+      "derive_transcripts": "/home/clawbio/work/tp73_pancreas_benchmark/gene_screens/tardbp_pancreas_screen_20260508T141628Z_seed_only/resources/ensembl_cdna_fixtures/ensembl_human_hnrnpr/derive_transcripts.json"
+    }
+  }
+}

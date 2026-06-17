@@ -1,0 +1,85 @@
+{
+  "schema": "gentle.ensembl_cdna_fixture_provenance.v1",
+  "generated_at_utc": "2026-05-08T14:33:14Z",
+  "gene": "ELAVL2",
+  "species": "homo_sapiens",
+  "species_label": "human",
+  "entry_id": "ensembl_human_elavl2",
+  "locus_seq_id": "ensembl_human_elavl2_locus",
+  "output_fasta": "/home/clawbio/GENtle/test_files/fixtures/mapping/ensembl_human_elavl2_all.fasta",
+  "transcript_count": 37,
+  "transcript_seq_ids": [
+    "ensembl_human_elavl2__cdna__f2__enst00000380110",
+    "ensembl_human_elavl2__cdna__f12__enst00000223951",
+    "ensembl_human_elavl2__cdna__f20__enst00000397312",
+    "ensembl_human_elavl2__cdna__f29__enst00000544538",
+    "ensembl_human_elavl2__cdna__f38__enst00000380117",
+    "ensembl_human_elavl2__cdna__f47__enst00000423281",
+    "ensembl_human_elavl2__cdna__f53__enst00000440102",
+    "ensembl_human_elavl2__cdna__f60__enst00000462649",
+    "ensembl_human_elavl2__cdna__f63__enst00000886216",
+    "ensembl_human_elavl2__cdna__f72__enst00000886217",
+    "ensembl_human_elavl2__cdna__f80__enst00000886218",
+    "ensembl_human_elavl2__cdna__f90__enst00000886219",
+    "ensembl_human_elavl2__cdna__f98__enst00000886220",
+    "ensembl_human_elavl2__cdna__f108__enst00000886221",
+    "ensembl_human_elavl2__cdna__f117__enst00000886222",
+    "ensembl_human_elavl2__cdna__f125__enst00000886223",
+    "ensembl_human_elavl2__cdna__f135__enst00000886224",
+    "ensembl_human_elavl2__cdna__f145__enst00000886225",
+    "ensembl_human_elavl2__cdna__f154__enst00000886226",
+    "ensembl_human_elavl2__cdna__f163__enst00000886227",
+    "ensembl_human_elavl2__cdna__f171__enst00000921648",
+    "ensembl_human_elavl2__cdna__f180__enst00000921649",
+    "ensembl_human_elavl2__cdna__f188__enst00000921650",
+    "ensembl_human_elavl2__cdna__f196__enst00000921651",
+    "ensembl_human_elavl2__cdna__f204__enst00000921652",
+    "ensembl_human_elavl2__cdna__f213__enst00000921653",
+    "ensembl_human_elavl2__cdna__f222__enst00000921654",
+    "ensembl_human_elavl2__cdna__f230__enst00000921655",
+    "ensembl_human_elavl2__cdna__f238__enst00000921656",
+    "ensembl_human_elavl2__cdna__f247__enst00000921657",
+    "ensembl_human_elavl2__cdna__f255__enst00000921658",
+    "ensembl_human_elavl2__cdna__f263__enst00000921659",
+    "ensembl_human_elavl2__cdna__f272__enst00000921660",
+    "ensembl_human_elavl2__cdna__f280__enst00000921661",
+    "ensembl_human_elavl2__cdna__f289__enst00000921662",
+    "ensembl_human_elavl2__cdna__f297__enst00000921663",
+    "ensembl_human_elavl2__cdna__f305__enst00000955829"
+  ],
+  "gentle": {
+    "binary": "/home/clawbio/GENtle/target/release/gentle_cli",
+    "version": "GENtle 0.1.0-internal.6\nBuild 1778192348329\nCross-platform DNA cloning workbench",
+    "state_path": "/home/clawbio/work/tp73_pancreas_benchmark/gene_screens/tardbp_pancreas_screen_20260508T141628Z_seed_only/resources/ensembl_cdna_fixtures/ensembl_human_elavl2/ensembl_human_elavl2.gentle.json",
+    "commands": {
+      "fetch_gene": [
+        "ensembl-gene",
+        "fetch",
+        "ELAVL2",
+        "--species",
+        "homo_sapiens",
+        "--entry-id",
+        "ensembl_human_elavl2"
+      ],
+      "import_sequence": [
+        "ensembl-gene",
+        "import-sequence",
+        "ensembl_human_elavl2",
+        "--output-id",
+        "ensembl_human_elavl2_locus"
+      ],
+      "derive_transcripts": [
+        "transcripts",
+        "derive",
+        "ensembl_human_elavl2_locus",
+        "--output-prefix",
+        "ensembl_human_elavl2__cdna"
+      ]
+    },
+    "reports": {
+      "fetch_gene": "/home/clawbio/work/tp73_pancreas_benchmark/gene_screens/tardbp_pancreas_screen_20260508T141628Z_seed_only/resources/ensembl_cdna_fixtures/ensembl_human_elavl2/fetch_ensembl_gene.json",
+      "import_sequence": "/home/clawbio/work/tp73_pancreas_benchmark/gene_screens/tardbp_pancreas_screen_20260508T141628Z_seed_only/resources/ensembl_cdna_fixtures/ensembl_human_elavl2/import_ensembl_gene_sequence.json",
+      "derive_transcripts": "/home/clawbio/work/tp73_pancreas_benchmark/gene_screens/tardbp_pancreas_screen_20260508T141628Z_seed_only/resources/ensembl_cdna_fixtures/ensembl_human_elavl2/derive_transcripts.json"
+    }
+  }
+}

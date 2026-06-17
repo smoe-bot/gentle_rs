@@ -1,0 +1,51 @@
+{
+  "schema": "gentle.ensembl_cdna_fixture_provenance.v1",
+  "generated_at_utc": "2026-05-09T22:00:47Z",
+  "gene": "RBMY1E",
+  "species": "homo_sapiens",
+  "species_label": "human",
+  "entry_id": "ensembl_human_rbmy1e",
+  "locus_seq_id": "ensembl_human_rbmy1e_locus",
+  "output_fasta": "/home/clawbio/GENtle/test_files/fixtures/mapping/ensembl_human_rbmy1e_all.fasta",
+  "transcript_count": 3,
+  "transcript_seq_ids": [
+    "ensembl_human_rbmy1e__cdna__f2__enst00000358944",
+    "ensembl_human_rbmy1e__cdna__f15__enst00000382658",
+    "ensembl_human_rbmy1e__cdna__f28__enst00000382659"
+  ],
+  "gentle": {
+    "binary": "/home/clawbio/GENtle/target/release/gentle_cli",
+    "version": "GENtle 0.1.0-internal.6\nBuild 1778192348329\nCross-platform DNA cloning workbench",
+    "state_path": "/home/clawbio/work/tp73_pancreas_benchmark/gene_screens/hrnpa1_pancreas_screen_20260509T215457Z_seed_only/resources/ensembl_cdna_fixtures/ensembl_human_rbmy1e/ensembl_human_rbmy1e.gentle.json",
+    "commands": {
+      "fetch_gene": [
+        "ensembl-gene",
+        "fetch",
+        "RBMY1E",
+        "--species",
+        "homo_sapiens",
+        "--entry-id",
+        "ensembl_human_rbmy1e"
+      ],
+      "import_sequence": [
+        "ensembl-gene",
+        "import-sequence",
+        "ensembl_human_rbmy1e",
+        "--output-id",
+        "ensembl_human_rbmy1e_locus"
+      ],
+      "derive_transcripts": [
+        "transcripts",
+        "derive",
+        "ensembl_human_rbmy1e_locus",
+        "--output-prefix",
+        "ensembl_human_rbmy1e__cdna"
+      ]
+    },
+    "reports": {
+      "fetch_gene": "/home/clawbio/work/tp73_pancreas_benchmark/gene_screens/hrnpa1_pancreas_screen_20260509T215457Z_seed_only/resources/ensembl_cdna_fixtures/ensembl_human_rbmy1e/fetch_ensembl_gene.json",
+      "import_sequence": "/home/clawbio/work/tp73_pancreas_benchmark/gene_screens/hrnpa1_pancreas_screen_20260509T215457Z_seed_only/resources/ensembl_cdna_fixtures/ensembl_human_rbmy1e/import_ensembl_gene_sequence.json",
+      "derive_transcripts": "/home/clawbio/work/tp73_pancreas_benchmark/gene_screens/hrnpa1_pancreas_screen_20260509T215457Z_seed_only/resources/ensembl_cdna_fixtures/ensembl_human_rbmy1e/derive_transcripts.json"
+    }
+  }
+}

@@ -1,0 +1,93 @@
+{
+  "schema": "gentle.ensembl_cdna_fixture_provenance.v1",
+  "generated_at_utc": "2026-05-08T14:31:28Z",
+  "gene": "TARDBP",
+  "species": "homo_sapiens",
+  "species_label": "human",
+  "entry_id": "ensembl_human_tardbp",
+  "locus_seq_id": "ensembl_human_tardbp_locus",
+  "output_fasta": "/home/clawbio/GENtle/test_files/fixtures/mapping/ensembl_human_tardbp_all.fasta",
+  "transcript_count": 45,
+  "transcript_seq_ids": [
+    "ensembl_human_tardbp__cdna__f2__enst00000473118",
+    "ensembl_human_tardbp__cdna__f9__enst00000639083",
+    "ensembl_human_tardbp__cdna__f17__enst00000639599",
+    "ensembl_human_tardbp__cdna__f27__enst00000629725",
+    "ensembl_human_tardbp__cdna__f36__enst00000439080",
+    "ensembl_human_tardbp__cdna__f43__enst00000613864",
+    "ensembl_human_tardbp__cdna__f48__enst00000476201",
+    "ensembl_human_tardbp__cdna__f56__enst00000472476",
+    "ensembl_human_tardbp__cdna__f65__enst00000240185",
+    "ensembl_human_tardbp__cdna__f73__enst00000614757",
+    "ensembl_human_tardbp__cdna__f85__enst00000621715",
+    "ensembl_human_tardbp__cdna__f92__enst00000315091",
+    "ensembl_human_tardbp__cdna__f100__enst00000473869",
+    "ensembl_human_tardbp__cdna__f109__enst00000649624",
+    "ensembl_human_tardbp__cdna__f117__enst00000616545",
+    "ensembl_human_tardbp__cdna__f125__enst00000621790",
+    "ensembl_human_tardbp__cdna__f133__enst00000622057",
+    "ensembl_human_tardbp__cdna__f140__enst00000617172",
+    "ensembl_human_tardbp__cdna__f147__enst00000618606",
+    "ensembl_human_tardbp__cdna__f150__enst00000611963",
+    "ensembl_human_tardbp__cdna__f158__enst00000620632",
+    "ensembl_human_tardbp__cdna__f165__enst00000619555",
+    "ensembl_human_tardbp__cdna__f172__enst00000610369",
+    "ensembl_human_tardbp__cdna__f179__enst00000614494",
+    "ensembl_human_tardbp__cdna__f185__enst00000611136",
+    "ensembl_human_tardbp__cdna__f192__enst00000477447",
+    "ensembl_human_tardbp__cdna__f199__enst00000612542",
+    "ensembl_human_tardbp__cdna__f204__enst00000620505",
+    "ensembl_human_tardbp__cdna__f209__enst00000621573",
+    "ensembl_human_tardbp__cdna__f213__enst00000611008",
+    "ensembl_human_tardbp__cdna__f217__enst00000613177",
+    "ensembl_human_tardbp__cdna__f220__enst00000496840",
+    "ensembl_human_tardbp__cdna__f226__enst00000622108",
+    "ensembl_human_tardbp__cdna__f232__enst00000617757",
+    "ensembl_human_tardbp__cdna__f235__enst00000480464",
+    "ensembl_human_tardbp__cdna__f238__enst00000620028",
+    "ensembl_human_tardbp__cdna__f241__enst00000607145",
+    "ensembl_human_tardbp__cdna__f243__enst00000612387",
+    "ensembl_human_tardbp__cdna__f246__enst00000881691",
+    "ensembl_human_tardbp__cdna__f254__enst00000913574",
+    "ensembl_human_tardbp__cdna__f261__enst00000913575",
+    "ensembl_human_tardbp__cdna__f269__enst00000913576",
+    "ensembl_human_tardbp__cdna__f275__enst00000913577",
+    "ensembl_human_tardbp__cdna__f283__enst00000958690",
+    "ensembl_human_tardbp__cdna__f291__enst00000958691"
+  ],
+  "gentle": {
+    "binary": "/home/clawbio/GENtle/target/release/gentle_cli",
+    "version": "GENtle 0.1.0-internal.6\nBuild 1778192348329\nCross-platform DNA cloning workbench",
+    "state_path": "/home/clawbio/work/tp73_pancreas_benchmark/gene_screens/tardbp_pancreas_screen_20260508T141628Z_seed_only/resources/ensembl_cdna_fixtures/ensembl_human_tardbp/ensembl_human_tardbp.gentle.json",
+    "commands": {
+      "fetch_gene": [
+        "ensembl-gene",
+        "fetch",
+        "TARDBP",
+        "--species",
+        "homo_sapiens",
+        "--entry-id",
+        "ensembl_human_tardbp"
+      ],
+      "import_sequence": [
+        "ensembl-gene",
+        "import-sequence",
+        "ensembl_human_tardbp",
+        "--output-id",
+        "ensembl_human_tardbp_locus"
+      ],
+      "derive_transcripts": [
+        "transcripts",
+        "derive",
+        "ensembl_human_tardbp_locus",
+        "--output-prefix",
+        "ensembl_human_tardbp__cdna"
+      ]
+    },
+    "reports": {
+      "fetch_gene": "/home/clawbio/work/tp73_pancreas_benchmark/gene_screens/tardbp_pancreas_screen_20260508T141628Z_seed_only/resources/ensembl_cdna_fixtures/ensembl_human_tardbp/fetch_ensembl_gene.json",
+      "import_sequence": "/home/clawbio/work/tp73_pancreas_benchmark/gene_screens/tardbp_pancreas_screen_20260508T141628Z_seed_only/resources/ensembl_cdna_fixtures/ensembl_human_tardbp/import_ensembl_gene_sequence.json",
+      "derive_transcripts": "/home/clawbio/work/tp73_pancreas_benchmark/gene_screens/tardbp_pancreas_screen_20260508T141628Z_seed_only/resources/ensembl_cdna_fixtures/ensembl_human_tardbp/derive_transcripts.json"
+    }
+  }
+}

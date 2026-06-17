@@ -1,0 +1,82 @@
+{
+  "schema": "gentle.ensembl_cdna_fixture_provenance.v1",
+  "generated_at_utc": "2026-05-13T21:35:09Z",
+  "gene": "IVNS1ABP",
+  "species": "homo_sapiens",
+  "species_label": "human",
+  "entry_id": "ensembl_human_ivns1abp",
+  "locus_seq_id": "ensembl_human_ivns1abp_locus",
+  "output_fasta": "/home/clawbio/GENtle/test_files/fixtures/mapping/ensembl_human_ivns1abp_all.fasta",
+  "transcript_count": 34,
+  "transcript_seq_ids": [
+    "ensembl_human_ivns1abp__cdna__f2__enst00000718429",
+    "ensembl_human_ivns1abp__cdna__f19__enst00000480769",
+    "ensembl_human_ivns1abp__cdna__f28__enst00000367498",
+    "ensembl_human_ivns1abp__cdna__f45__enst00000459929",
+    "ensembl_human_ivns1abp__cdna__f63__enst00000475046",
+    "ensembl_human_ivns1abp__cdna__f70__enst00000494880",
+    "ensembl_human_ivns1abp__cdna__f76__enst00000468217",
+    "ensembl_human_ivns1abp__cdna__f80__enst00000491112",
+    "ensembl_human_ivns1abp__cdna__f83__enst00000422754",
+    "ensembl_human_ivns1abp__cdna__f87__enst00000367497",
+    "ensembl_human_ivns1abp__cdna__f94__enst00000866810",
+    "ensembl_human_ivns1abp__cdna__f111__enst00000866811",
+    "ensembl_human_ivns1abp__cdna__f128__enst00000866812",
+    "ensembl_human_ivns1abp__cdna__f145__enst00000866813",
+    "ensembl_human_ivns1abp__cdna__f162__enst00000866814",
+    "ensembl_human_ivns1abp__cdna__f179__enst00000866815",
+    "ensembl_human_ivns1abp__cdna__f196__enst00000866816",
+    "ensembl_human_ivns1abp__cdna__f213__enst00000866817",
+    "ensembl_human_ivns1abp__cdna__f229__enst00000866818",
+    "ensembl_human_ivns1abp__cdna__f246__enst00000866819",
+    "ensembl_human_ivns1abp__cdna__f261__enst00000866820",
+    "ensembl_human_ivns1abp__cdna__f278__enst00000922269",
+    "ensembl_human_ivns1abp__cdna__f295__enst00000922270",
+    "ensembl_human_ivns1abp__cdna__f312__enst00000922271",
+    "ensembl_human_ivns1abp__cdna__f328__enst00000922272",
+    "ensembl_human_ivns1abp__cdna__f345__enst00000922273",
+    "ensembl_human_ivns1abp__cdna__f362__enst00000922274",
+    "ensembl_human_ivns1abp__cdna__f379__enst00000922275",
+    "ensembl_human_ivns1abp__cdna__f394__enst00000922276",
+    "ensembl_human_ivns1abp__cdna__f411__enst00000922277",
+    "ensembl_human_ivns1abp__cdna__f427__enst00000922278",
+    "ensembl_human_ivns1abp__cdna__f442__enst00000957477",
+    "ensembl_human_ivns1abp__cdna__f459__enst00000957478",
+    "ensembl_human_ivns1abp__cdna__f476__enst00000957479"
+  ],
+  "gentle": {
+    "binary": "/home/clawbio/GENtle/target/release/gentle_cli",
+    "version": "GENtle 0.1.0-internal.7\nBuild 1778684238659\nCross-platform DNA cloning workbench",
+    "state_path": "/home/clawbio/work/tp73_pancreas_benchmark/gene_screens/bach2_pancreas_screen_20260513_1_paralogs/resources/ensembl_cdna_fixtures/ensembl_human_ivns1abp/ensembl_human_ivns1abp.gentle.json",
+    "commands": {
+      "fetch_gene": [
+        "ensembl-gene",
+        "fetch",
+        "IVNS1ABP",
+        "--species",
+        "homo_sapiens",
+        "--entry-id",
+        "ensembl_human_ivns1abp"
+      ],
+      "import_sequence": [
+        "ensembl-gene",
+        "import-sequence",
+        "ensembl_human_ivns1abp",
+        "--output-id",
+        "ensembl_human_ivns1abp_locus"
+      ],
+      "derive_transcripts": [
+        "transcripts",
+        "derive",
+        "ensembl_human_ivns1abp_locus",
+        "--output-prefix",
+        "ensembl_human_ivns1abp__cdna"
+      ]
+    },
+    "reports": {
+      "fetch_gene": "/home/clawbio/work/tp73_pancreas_benchmark/gene_screens/bach2_pancreas_screen_20260513_1_paralogs/resources/ensembl_cdna_fixtures/ensembl_human_ivns1abp/fetch_ensembl_gene.json",
+      "import_sequence": "/home/clawbio/work/tp73_pancreas_benchmark/gene_screens/bach2_pancreas_screen_20260513_1_paralogs/resources/ensembl_cdna_fixtures/ensembl_human_ivns1abp/import_ensembl_gene_sequence.json",
+      "derive_transcripts": "/home/clawbio/work/tp73_pancreas_benchmark/gene_screens/bach2_pancreas_screen_20260513_1_paralogs/resources/ensembl_cdna_fixtures/ensembl_human_ivns1abp/derive_transcripts.json"
+    }
+  }
+}

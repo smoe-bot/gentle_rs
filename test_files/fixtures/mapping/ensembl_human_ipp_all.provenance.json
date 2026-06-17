@@ -1,0 +1,57 @@
+{
+  "schema": "gentle.ensembl_cdna_fixture_provenance.v1",
+  "generated_at_utc": "2026-05-13T21:35:07Z",
+  "gene": "IPP",
+  "species": "homo_sapiens",
+  "species_label": "human",
+  "entry_id": "ensembl_human_ipp",
+  "locus_seq_id": "ensembl_human_ipp_locus",
+  "output_fasta": "/home/clawbio/GENtle/test_files/fixtures/mapping/ensembl_human_ipp_all.fasta",
+  "transcript_count": 9,
+  "transcript_seq_ids": [
+    "ensembl_human_ipp__cdna__f2__enst00000359942",
+    "ensembl_human_ipp__cdna__f14__enst00000461718",
+    "ensembl_human_ipp__cdna__f17__enst00000495072",
+    "ensembl_human_ipp__cdna__f21__enst00000396478",
+    "ensembl_human_ipp__cdna__f32__enst00000890995",
+    "ensembl_human_ipp__cdna__f44__enst00000890996",
+    "ensembl_human_ipp__cdna__f53__enst00000890997",
+    "ensembl_human_ipp__cdna__f64__enst00000964613",
+    "ensembl_human_ipp__cdna__f75__enst00000964614"
+  ],
+  "gentle": {
+    "binary": "/home/clawbio/GENtle/target/release/gentle_cli",
+    "version": "GENtle 0.1.0-internal.7\nBuild 1778684238659\nCross-platform DNA cloning workbench",
+    "state_path": "/home/clawbio/work/tp73_pancreas_benchmark/gene_screens/bach2_pancreas_screen_20260513_1_paralogs/resources/ensembl_cdna_fixtures/ensembl_human_ipp/ensembl_human_ipp.gentle.json",
+    "commands": {
+      "fetch_gene": [
+        "ensembl-gene",
+        "fetch",
+        "IPP",
+        "--species",
+        "homo_sapiens",
+        "--entry-id",
+        "ensembl_human_ipp"
+      ],
+      "import_sequence": [
+        "ensembl-gene",
+        "import-sequence",
+        "ensembl_human_ipp",
+        "--output-id",
+        "ensembl_human_ipp_locus"
+      ],
+      "derive_transcripts": [
+        "transcripts",
+        "derive",
+        "ensembl_human_ipp_locus",
+        "--output-prefix",
+        "ensembl_human_ipp__cdna"
+      ]
+    },
+    "reports": {
+      "fetch_gene": "/home/clawbio/work/tp73_pancreas_benchmark/gene_screens/bach2_pancreas_screen_20260513_1_paralogs/resources/ensembl_cdna_fixtures/ensembl_human_ipp/fetch_ensembl_gene.json",
+      "import_sequence": "/home/clawbio/work/tp73_pancreas_benchmark/gene_screens/bach2_pancreas_screen_20260513_1_paralogs/resources/ensembl_cdna_fixtures/ensembl_human_ipp/import_ensembl_gene_sequence.json",
+      "derive_transcripts": "/home/clawbio/work/tp73_pancreas_benchmark/gene_screens/bach2_pancreas_screen_20260513_1_paralogs/resources/ensembl_cdna_fixtures/ensembl_human_ipp/derive_transcripts.json"
+    }
+  }
+}

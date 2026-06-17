@@ -1,0 +1,502 @@
+<svg height="840" viewBox="0 0 1900 840" width="1900" xmlns="http://www.w3.org/2000/svg">
+<rect fill="#f9fafb" height="840" width="1900" x="0" y="0"/>
+<rect fill="#101317" height="640" rx="10" ry="10" width="1290" x="90" y="90"/>
+<rect fill="#f3f4f6" height="640" rx="10" ry="10" width="430" x="1434" y="90"/>
+<line stroke="#2d3238" stroke-width="1" x1="90" x2="1380" y1="131.33267" y2="131.33267"/>
+<text fill="#374151" font-family="monospace" font-size="12" x="1392" y="135.33267">
+250 kDa
+</text>
+<line stroke="#2d3238" stroke-width="1" x1="90" x2="1380" y1="216.86203" y2="216.86203"/>
+<text fill="#374151" font-family="monospace" font-size="12" x="1392" y="220.86203">
+150 kDa
+</text>
+<line stroke="#2d3238" stroke-width="1" x1="90" x2="1380" y1="284.75052" y2="284.75052"/>
+<text fill="#374151" font-family="monospace" font-size="12" x="1392" y="288.75052">
+100 kDa
+</text>
+<line stroke="#2d3238" stroke-width="1" x1="90" x2="1380" y1="332.91815" y2="332.91815"/>
+<text fill="#374151" font-family="monospace" font-size="12" x="1392" y="336.91815">
+75 kDa
+</text>
+<line stroke="#2d3238" stroke-width="1" x1="90" x2="1380" y1="400.80664" y2="400.80664"/>
+<text fill="#374151" font-family="monospace" font-size="12" x="1392" y="404.80664">
+50 kDa
+</text>
+<line stroke="#2d3238" stroke-width="1" x1="90" x2="1380" y1="451.22177" y2="451.22177"/>
+<text fill="#374151" font-family="monospace" font-size="12" x="1392" y="455.22177">
+37 kDa
+</text>
+<line stroke="#2d3238" stroke-width="1" x1="90" x2="1380" y1="516.8628" y2="516.8628"/>
+<text fill="#374151" font-family="monospace" font-size="12" x="1392" y="520.8628">
+25 kDa
+</text>
+<line stroke="#2d3238" stroke-width="1" x1="90" x2="1380" y1="602.39215" y2="602.39215"/>
+<text fill="#374151" font-family="monospace" font-size="12" x="1392" y="606.39215">
+15 kDa
+</text>
+<line stroke="#2d3238" stroke-width="1" x1="90" x2="1380" y1="670.28064" y2="670.28064"/>
+<text fill="#374151" font-family="monospace" font-size="12" x="1392" y="674.28064">
+10 kDa
+</text>
+<rect fill="#1a2028" height="620" rx="6" ry="6" width="68" x="199.33333" y="100"/>
+<text fill="#0f172a" font-family="monospace" font-size="11" text-anchor="middle" x="233.33333" y="756">
+Protein Ladder 10-250 kDa
+</text>
+<text fill="#334155" font-family="monospace" font-size="9" text-anchor="middle" x="233.33333" y="770">
+protein ladder
+</text>
+<rect fill="#e5e7eb" height="4.5600004" opacity="0.73600006" rx="2" ry="2" width="44.4" x="211.13333" y="656.61334"/>
+<rect fill="#e5e7eb" height="4.92" opacity="0.80200005" rx="2" ry="2" width="46.800003" x="209.93332" y="591.51495"/>
+<rect fill="#e5e7eb" height="5.2799997" opacity="0.86800003" rx="2" ry="2" width="49.2" x="208.73332" y="509.54755"/>
+<rect fill="#e5e7eb" height="5.568" opacity="0.9208" rx="2" ry="2" width="51.120003" x="207.77333" y="446.6343"/>
+<rect fill="#e5e7eb" height="5.88" opacity="0.978" rx="2" ry="2" width="53.199997" x="206.73334" y="398.26886"/>
+<rect fill="#e5e7eb" height="6" opacity="1" rx="2" ry="2" width="54" x="206.33333" y="333.2905"/>
+<rect fill="#e5e7eb" height="5.88" opacity="0.978" rx="2" ry="2" width="53.199997" x="206.73334" y="287.29016"/>
+<rect fill="#e5e7eb" height="5.568" opacity="0.9208" rx="2" ry="2" width="51.120003" x="207.77333" y="222.52783"/>
+<rect fill="#e5e7eb" height="5.0880003" opacity="0.83280003" rx="2" ry="2" width="47.920002" x="209.37332" y="140.98036"/>
+<rect fill="#1f252e" height="620" rx="6" ry="6" width="68" x="342.66666" y="100"/>
+<text fill="#0f172a" font-family="monospace" font-size="11" text-anchor="middle" x="376.66666" y="756">
+PATZ1
+</text>
+<text fill="#334155" font-family="monospace" font-size="9" text-anchor="middle" x="376.66666" y="770">
+8 isoform product(s)
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="355.66666" y="363.58688"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="416.66666" y="371.58688">
+61.7 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="355.66666" y="374.74368"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="416.66666" y="382.74368">
+57.5 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="355.66666" y="402.6781"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="416.66666" y="410.6781">
+48.3 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="355.66666" y="403.98727"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="416.66666" y="411.98727">
+47.9 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="355.66666" y="576.8257"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="416.66666" y="584.8257">
+16.3 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="355.66666" y="377.8496"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="416.66666" y="385.8496">
+56.4 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="355.66666" y="375.0532"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="416.66666" y="383.0532">
+57.4 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="355.66666" y="363.87552"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="416.66666" y="371.87552">
+61.6 kDa
+</text>
+<rect fill="#1f252e" height="620" rx="6" ry="6" width="68" x="486" y="100"/>
+<text fill="#0f172a" font-family="monospace" font-size="11" text-anchor="middle" x="520" y="756">
+TP73
+</text>
+<text fill="#334155" font-family="monospace" font-size="9" text-anchor="middle" x="520" y="770">
+14 isoform product(s)
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="499" y="372.98895"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="560" y="380.98895">
+58.2 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="499" y="444.3103"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="560" y="452.3103">
+37.3 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="499" y="391.86832"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="560" y="399.86832">
+51.7 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="499" y="396.69986"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="560" y="404.69986">
+50.2 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="499" y="412.89926"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="560" y="420.89926">
+45.3 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="499" y="372.98895"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="560" y="380.98895">
+58.2 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="499" y="372.98895"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="560" y="380.98895">
+58.2 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="499" y="432.84955"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="560" y="440.84955">
+40 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="499" y="428.92877"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="560" y="436.92877">
+41 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="499" y="385.3413"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="560" y="393.3413">
+53.8 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="499" y="391.37482"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="560" y="399.37482">
+51.9 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="499" y="391.86832"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="560" y="399.86832">
+51.7 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="499" y="391.86832"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="560" y="399.86832">
+51.7 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="499" y="372.98895"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="560" y="380.98895">
+58.2 kDa
+</text>
+<rect fill="#1f252e" height="620" rx="6" ry="6" width="68" x="629.3333" y="100"/>
+<text fill="#0f172a" font-family="monospace" font-size="11" text-anchor="middle" x="663.3333" y="756">
+TP53
+</text>
+<text fill="#334155" font-family="monospace" font-size="9" text-anchor="middle" x="663.3333" y="770">
+34 isoform product(s)
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="642.3333" y="499.38303"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="703.3333" y="507.38303">
+26.4 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="642.3333" y="467.53113"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="703.3333" y="475.53113">
+32.2 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="642.3333" y="469.89597"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="703.3333" y="477.89597">
+31.8 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="642.3333" y="539.60583"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="703.3333" y="547.60583">
+20.5 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="642.3333" y="509.1416"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="703.3333" y="517.1416">
+24.9 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="642.3333" y="544.23016"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="703.3333" y="552.23016">
+20 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="642.3333" y="560.3627"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="703.3333" y="568.3627">
+18 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="642.3333" y="565.6377"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="703.3333" y="573.6377">
+17.5 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="642.3333" y="526.10376"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="703.3333" y="534.10376">
+22.4 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="642.3333" y="464.01315"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="703.3333" y="472.01315">
+32.9 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="642.3333" y="464.01315"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="703.3333" y="472.01315">
+32.9 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="642.3333" y="470.26035"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="703.3333" y="478.26035">
+31.7 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="642.3333" y="467.33136"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="703.3333" y="475.33136">
+32.3 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="642.3333" y="486.44064"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="703.3333" y="494.44064">
+28.6 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="642.3333" y="489.74472"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="703.3333" y="497.74472">
+28.1 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="642.3333" y="447.27582"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="703.3333" y="455.27582">
+36.6 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="642.3333" y="447.27582"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="703.3333" y="455.27582">
+36.6 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="642.3333" y="447.27582"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="703.3333" y="455.27582">
+36.6 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="642.3333" y="486.78906"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="703.3333" y="494.78906">
+28.6 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="642.3333" y="447.27582"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="703.3333" y="455.27582">
+36.6 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="642.3333" y="509.1416"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="703.3333" y="517.1416">
+24.9 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="642.3333" y="450.1371"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="703.3333" y="458.1371">
+35.9 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="642.3333" y="464.01315"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="703.3333" y="472.01315">
+32.9 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="642.3333" y="447.27582"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="703.3333" y="455.27582">
+36.6 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="642.3333" y="440.28546"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="703.3333" y="448.28546">
+38.2 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="642.3333" y="458.2174"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="703.3333" y="466.2174">
+34.2 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="642.3333" y="469.46722"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="703.3333" y="477.46722">
+31.8 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="642.3333" y="447.27582"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="703.3333" y="455.27582">
+36.6 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="642.3333" y="447.27582"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="703.3333" y="455.27582">
+36.6 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="642.3333" y="447.27582"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="703.3333" y="455.27582">
+36.6 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="642.3333" y="447.27582"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="703.3333" y="455.27582">
+36.6 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="642.3333" y="447.27582"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="703.3333" y="455.27582">
+36.6 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="642.3333" y="447.27582"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="703.3333" y="455.27582">
+36.6 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="642.3333" y="446.9738"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="703.3333" y="454.9738">
+36.6 kDa
+</text>
+<rect fill="#1f252e" height="620" rx="6" ry="6" width="68" x="772.6666" y="100"/>
+<text fill="#0f172a" font-family="monospace" font-size="11" text-anchor="middle" x="806.6666" y="756">
+TP63
+</text>
+<text fill="#334155" font-family="monospace" font-size="9" text-anchor="middle" x="806.6666" y="770">
+12 isoform product(s)
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="785.6666" y="356.35147"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="846.6666" y="364.35147">
+64.5 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="785.6666" y="407.4079"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="846.6666" y="415.4079">
+46.9 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="785.6666" y="402.31372"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="846.6666" y="410.31372">
+48.4 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="785.6666" y="389.59534"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="846.6666" y="397.59534">
+52.4 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="785.6666" y="357.33817"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="846.6666" y="365.33817">
+64.1 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="785.6666" y="381.36987"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="846.6666" y="389.36987">
+55.2 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="785.6666" y="576.6511"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="846.6666" y="584.6511">
+16.3 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="785.6666" y="442.93472"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="846.6666" y="450.93472">
+37.6 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="785.6666" y="420.98798"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="846.6666" y="428.98798">
+43.1 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="785.6666" y="436.5997"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="846.6666" y="444.5997">
+39.1 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="785.6666" y="404.66815"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="846.6666" y="412.66815">
+47.7 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="785.6666" y="382.5241"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="846.6666" y="390.5241">
+54.8 kDa
+</text>
+<rect fill="#1f252e" height="620" rx="6" ry="6" width="68" x="916" y="100"/>
+<text fill="#0f172a" font-family="monospace" font-size="11" text-anchor="middle" x="950" y="756">
+SP1
+</text>
+<text fill="#334155" font-family="monospace" font-size="9" text-anchor="middle" x="950" y="770">
+5 isoform product(s)
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="929" y="610.2257"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="990" y="618.2257">
+13.2 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="929" y="351.4268"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="990" y="359.4268">
+66.6 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="929" y="353.05823"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="990" y="361.05823">
+65.9 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="929" y="553.2907"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="990" y="561.2907">
+18.9 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="929" y="494.06973"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="990" y="502.06973">
+27.3 kDa
+</text>
+<rect fill="#1f252e" height="620" rx="6" ry="6" width="68" x="1059.3333" y="100"/>
+<text fill="#0f172a" font-family="monospace" font-size="11" text-anchor="middle" x="1093.3333" y="756">
+BACH2
+</text>
+<text fill="#334155" font-family="monospace" font-size="9" text-anchor="middle" x="1093.3333" y="770">
+8 isoform product(s)
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="1072.3333" y="327.2769"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="1133.3333" y="335.2769">
+77.4 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="1072.3333" y="327.2769"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="1133.3333" y="335.2769">
+77.4 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="1072.3333" y="327.2769"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="1133.3333" y="335.2769">
+77.4 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="1072.3333" y="327.2769"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="1133.3333" y="335.2769">
+77.4 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="1072.3333" y="327.2769"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="1133.3333" y="335.2769">
+77.4 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="1072.3333" y="327.2769"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="1133.3333" y="335.2769">
+77.4 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="1072.3333" y="327.2769"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="1133.3333" y="335.2769">
+77.4 kDa
+</text>
+<rect fill="#d97706" height="8" opacity="0.934" rx="2" ry="2" width="42" x="1072.3333" y="327.2769"/>
+<text fill="#f8fafc" font-family="monospace" font-size="11" paint-order="stroke fill" stroke="#101317" stroke-width="3" x="1133.3333" y="335.2769">
+77.4 kDa
+</text>
+<rect fill="#1a2028" height="620" rx="6" ry="6" width="68" x="1202.6666" y="100"/>
+<text fill="#0f172a" font-family="monospace" font-size="11" text-anchor="middle" x="1236.6666" y="756">
+Protein Ladder 10-250 kDa
+</text>
+<text fill="#334155" font-family="monospace" font-size="9" text-anchor="middle" x="1236.6666" y="770">
+protein ladder
+</text>
+<rect fill="#e5e7eb" height="4.5600004" opacity="0.73600006" rx="2" ry="2" width="44.4" x="1214.4667" y="656.61334"/>
+<rect fill="#e5e7eb" height="4.92" opacity="0.80200005" rx="2" ry="2" width="46.800003" x="1213.2666" y="591.51495"/>
+<rect fill="#e5e7eb" height="5.2799997" opacity="0.86800003" rx="2" ry="2" width="49.2" x="1212.0667" y="509.54755"/>
+<rect fill="#e5e7eb" height="5.568" opacity="0.9208" rx="2" ry="2" width="51.120003" x="1211.1066" y="446.6343"/>
+<rect fill="#e5e7eb" height="5.88" opacity="0.978" rx="2" ry="2" width="53.199997" x="1210.0667" y="398.26886"/>
+<rect fill="#e5e7eb" height="6" opacity="1" rx="2" ry="2" width="54" x="1209.6666" y="333.2905"/>
+<rect fill="#e5e7eb" height="5.88" opacity="0.978" rx="2" ry="2" width="53.199997" x="1210.0667" y="287.29016"/>
+<rect fill="#e5e7eb" height="5.568" opacity="0.9208" rx="2" ry="2" width="51.120003" x="1211.1066" y="222.52783"/>
+<rect fill="#e5e7eb" height="5.0880003" opacity="0.83280003" rx="2" ry="2" width="47.920002" x="1212.7067" y="140.98036"/>
+<text fill="#0f172a" font-family="monospace" font-size="16" x="90" y="42">
+Protein Gel Preview (6 sample lane(s), 81 protein(s)) | ladder: Protein Ladder 10-250 kDa
+</text>
+<text fill="#334155" font-family="monospace" font-size="12" x="90" y="62">
+range 7 kDa..320 kDa | lanes: 8 | notes: 8
+</text>
+<line opacity="0.25" stroke="#d97706" stroke-width="1.5" x1="376.66666" x2="376.66666" y1="90" y2="730"/>
+<line opacity="0.25" stroke="#d97706" stroke-width="1.5" x1="520" x2="520" y1="90" y2="730"/>
+<line opacity="0.25" stroke="#d97706" stroke-width="1.5" x1="663.3333" x2="663.3333" y1="90" y2="730"/>
+<line opacity="0.25" stroke="#d97706" stroke-width="1.5" x1="806.6666" x2="806.6666" y1="90" y2="730"/>
+<line opacity="0.25" stroke="#d97706" stroke-width="1.5" x1="950" x2="950" y1="90" y2="730"/>
+<line opacity="0.25" stroke="#d97706" stroke-width="1.5" x1="1093.3333" x2="1093.3333" y1="90" y2="730"/>
+<text fill="#0f172a" font-family="monospace" font-size="12" font-weight="700" x="1452" y="122">
+Selection notes
+</text>
+<text fill="#475569" font-family="monospace" font-size="10" x="1456" y="138">
+Protein products are derived from the selected transcript features
+</text>
+<text fill="#111827" font-family="monospace" font-size="10" x="1456" y="158">
+Columns: PATZ1, TP73, TP53, TP63, SP1, BACH2
+</text>
+<text fill="#111827" font-family="monospace" font-size="10" x="1456" y="172">
+Reports: 6
+</text>
+<text fill="#111827" font-family="monospace" font-size="10" x="1456" y="186">
+PATZ1: 8 protein product(s) from patz1_ensembl_locus
+</text>
+<text fill="#111827" font-family="monospace" font-size="10" x="1456" y="200">
+TP73: 14 protein product(s) from tp73_ensembl_locus
+</text>
+<text fill="#111827" font-family="monospace" font-size="10" x="1456" y="214">
+TP53: 34 protein product(s) from tp53_ensembl_locus
+</text>
+<text fill="#111827" font-family="monospace" font-size="10" x="1456" y="228">
+TP63: 12 protein product(s) from tp63_ensembl_locus
+</text>
+<text fill="#111827" font-family="monospace" font-size="10" x="1456" y="242">
+SP1: 5 protein product(s) from sp1_ensembl_locus
+</text>
+<text fill="#111827" font-family="monospace" font-size="10" x="1456" y="256">
+BACH2: 8 protein product(s) from bach2_ensembl_locus
+</text>
+<text fill="#0f172a" font-family="monospace" font-size="12" font-weight="700" x="1452" y="292">
+Lane details
+</text>
+<text fill="#111827" font-family="monospace" font-size="10" x="1456" y="308">
+PATZ1 | 8 isoform product(s) | 8 bands: PATZ1 PATZ1-202... 61.7 kDa; PATZ1 PATZ1-203... 57.5 kDa; PATZ1 PATZ1-204... 48.3 kDa; PATZ1 PATZ1-201... 47.9 kDa; PATZ1 PATZ1-207... 16.3 kDa; PATZ1 PATZ1-208... 56.4 kDa; PATZ1 PATZ1-209... 57.4 kDa; PATZ1 PATZ1-210... 61.6 kDa
+</text>
+<text fill="#111827" font-family="monospace" font-size="10" x="1456" y="322">
+TP73 | 14 isoform product(s) | 14 bands: TP73 TP73-206 p... 58.2 kDa; TP73 TP73-209 p... 37.3 kDa; TP73 TP73-207 p... 51.7 kDa; TP73 TP73-211 p... 50.2 kDa; TP73 TP73-201 p... 45.3 kDa; TP73 TP73-213 p... 58.2 kDa; TP73 TP73-215 p... 58.2 kDa; TP73 TP73-202 p... 40 kDa; TP73 TP73-203 p... 41 kDa; TP73 TP73-204 p... 53.8 kDa; TP73 TP73-205 p... 51.9 kDa; TP73 TP73-216 p... 51.7 kDa; TP73 TP73-217 p... 51.7 kDa; TP73 TP73-218 p... 58.2 kDa
+</text>
+<text fill="#111827" font-family="monospace" font-size="10" x="1456" y="336">
+TP53 | 34 isoform product(s) | 34 bands: TP53 TP53-203 p... 26.4 kDa; TP53 TP53-228 p... 32.2 kDa; TP53 TP53-202 p... 31.8 kDa; TP53 TP53-208 p... 20.5 kDa; TP53 TP53-209 p... 24.9 kDa; TP53 TP53-213 p... 20 kDa; TP53 TP53-221 p... 18 kDa; TP53 TP53-222 p... 17.5 kDa; TP53 TP53-223 p... 22.4 kDa; TP53 TP53-219 p... 32.9 kDa; TP53 TP53-225 p... 32.9 kDa; TP53 TP53-204 p... 31.7 kDa; TP53 TP53-206 p... 32.3 kDa; TP53 TP53-220 p... 28.6 kDa; TP53 TP53-226 p... 28.1 kDa; TP53 TP53-229 p... 36.6 kDa; TP53 TP53-211 p... 36.6 kDa; TP53 TP53-207 p... 36.6 kDa; TP53 TP53-214 p... 28.6 kDa; TP53 TP53-205 p... 36.6 kDa; TP53 TP53-212 p... 24.9 kDa; TP53 TP53-218 p... 35.9 kDa; TP53 TP53-224 p... 32.9 kDa; TP53 TP53-201 p... 36.6 kDa; TP53 TP53-232 p... 38.2 kDa; TP53 TP53-233 p... 34.2 kDa; TP53 TP53-217 p... 31.8 kDa; TP53 TP53-231 p... 36.6 kDa; TP53 TP53-234 p... 36.6 kDa; TP53 TP53-235 p... 36.6 kDa; TP53 TP53-236 p... 36.6 kDa; TP53 TP53-237 p... 36.6 kDa; TP53 TP53-238 p... 36.6 kDa; TP53 TP53-239 p... 36.6 kDa
+</text>
+<text fill="#111827" font-family="monospace" font-size="10" x="1456" y="350">
+TP63 | 12 isoform product(s) | 12 bands: TP63 TP63-201 p... 64.5 kDa; TP63 TP63-207 p... 46.9 kDa; TP63 TP63-202 p... 48.4 kDa; TP63 TP63-204 p... 52.4 kDa; TP63 TP63-210 p... 64.1 kDa; TP63 TP63-203 p... 55.2 kDa; TP63 TP63-208 p... 16.3 kDa; TP63 TP63-209 p... 37.6 kDa; TP63 TP63-206 p... 43.1 kDa; TP63 TP63-205 p... 39.1 kDa; TP63 TP63-211 p... 47.7 kDa; TP63 TP63-212 p... 54.8 kDa
+</text>
+<text fill="#111827" font-family="monospace" font-size="10" x="1456" y="364">
+SP1 | 5 isoform product(s) | 5 bands: SP1 SP1-204 pro... 13.2 kDa; SP1 SP1-201 pro... 66.6 kDa; SP1 SP1-202 pro... 65.9 kDa; SP1 SP1-203 pro... 18.9 kDa; SP1 SP1-205 pro... 27.3 kDa
+</text>
+<text fill="#111827" font-family="monospace" font-size="10" x="1456" y="378">
+BACH2 | 8 isoform product(s) | 8 bands: BACH2 BACH2-201... 77.4 kDa; BACH2 BACH2-203... 77.4 kDa; BACH2 BACH2-202... 77.4 kDa; BACH2 BACH2-210... 77.4 kDa; BACH2 BACH2-204... 77.4 kDa; BACH2 BACH2-214... 77.4 kDa; BACH2 BACH2-215... 77.4 kDa; BACH2 BACH2-216... 77.4 kDa
+</text>
+</svg>

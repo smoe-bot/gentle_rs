@@ -1,0 +1,68 @@
+{
+  "schema": "gentle.ensembl_cdna_fixture_provenance.v1",
+  "generated_at_utc": "2026-05-11T01:04:44Z",
+  "gene": "SRSF9",
+  "species": "homo_sapiens",
+  "species_label": "human",
+  "entry_id": "ensembl_human_srsf9",
+  "locus_seq_id": "ensembl_human_srsf9_locus",
+  "output_fasta": "/home/clawbio/GENtle/test_files/fixtures/mapping/ensembl_human_srsf9_all.fasta",
+  "transcript_count": 20,
+  "transcript_seq_ids": [
+    "ensembl_human_srsf9__cdna__f2__enst00000706464",
+    "ensembl_human_srsf9__cdna__f8__enst00000706465",
+    "ensembl_human_srsf9__cdna__f14__enst00000706466",
+    "ensembl_human_srsf9__cdna__f20__enst00000706467",
+    "ensembl_human_srsf9__cdna__f26__enst00000706468",
+    "ensembl_human_srsf9__cdna__f32__enst00000229390",
+    "ensembl_human_srsf9__cdna__f38__enst00000706469",
+    "ensembl_human_srsf9__cdna__f44__enst00000706470",
+    "ensembl_human_srsf9__cdna__f50__enst00000548326",
+    "ensembl_human_srsf9__cdna__f52__enst00000548792",
+    "ensembl_human_srsf9__cdna__f55__enst00000603963",
+    "ensembl_human_srsf9__cdna__f62__enst00000550458",
+    "ensembl_human_srsf9__cdna__f67__enst00000546942",
+    "ensembl_human_srsf9__cdna__f70__enst00000863489",
+    "ensembl_human_srsf9__cdna__f76__enst00000863490",
+    "ensembl_human_srsf9__cdna__f82__enst00000914500",
+    "ensembl_human_srsf9__cdna__f88__enst00000914501",
+    "ensembl_human_srsf9__cdna__f94__enst00000957766",
+    "ensembl_human_srsf9__cdna__f101__enst00000957767",
+    "ensembl_human_srsf9__cdna__f108__enst00000957768"
+  ],
+  "gentle": {
+    "binary": "/home/clawbio/GENtle/target/release/gentle_cli",
+    "version": "GENtle 0.1.0-internal.6\nBuild 1778192348329\nCross-platform DNA cloning workbench",
+    "state_path": "/home/clawbio/work/tp73_pancreas_benchmark/gene_screens/srsf1_pancreas_screen_20260511_1_paralogs/resources/ensembl_cdna_fixtures/ensembl_human_srsf9/ensembl_human_srsf9.gentle.json",
+    "commands": {
+      "fetch_gene": [
+        "ensembl-gene",
+        "fetch",
+        "SRSF9",
+        "--species",
+        "homo_sapiens",
+        "--entry-id",
+        "ensembl_human_srsf9"
+      ],
+      "import_sequence": [
+        "ensembl-gene",
+        "import-sequence",
+        "ensembl_human_srsf9",
+        "--output-id",
+        "ensembl_human_srsf9_locus"
+      ],
+      "derive_transcripts": [
+        "transcripts",
+        "derive",
+        "ensembl_human_srsf9_locus",
+        "--output-prefix",
+        "ensembl_human_srsf9__cdna"
+      ]
+    },
+    "reports": {
+      "fetch_gene": "/home/clawbio/work/tp73_pancreas_benchmark/gene_screens/srsf1_pancreas_screen_20260511_1_paralogs/resources/ensembl_cdna_fixtures/ensembl_human_srsf9/fetch_ensembl_gene.json",
+      "import_sequence": "/home/clawbio/work/tp73_pancreas_benchmark/gene_screens/srsf1_pancreas_screen_20260511_1_paralogs/resources/ensembl_cdna_fixtures/ensembl_human_srsf9/import_ensembl_gene_sequence.json",
+      "derive_transcripts": "/home/clawbio/work/tp73_pancreas_benchmark/gene_screens/srsf1_pancreas_screen_20260511_1_paralogs/resources/ensembl_cdna_fixtures/ensembl_human_srsf9/derive_transcripts.json"
+    }
+  }
+}
