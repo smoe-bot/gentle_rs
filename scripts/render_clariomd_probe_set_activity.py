@@ -579,7 +579,12 @@ def write_matplotlib_figures(rows: list[dict[str, str]]) -> list[str]:
     ax.set_xticks(range(len(sample_columns)))
     ax.set_xticklabels([label for _, label in sample_columns], rotation=45, ha="right", fontsize=8)
     ax.set_yticks([])
-    ax.set_title("Individual array probe-set activity: 10-gene panel", loc="left", fontsize=14, fontweight="bold")
+    ax.set_title(
+        "Individual array probe-set activity: rows sorted within gene by mean paired TA-GFP",
+        loc="left",
+        fontsize=13,
+        fontweight="bold",
+    )
     add_gene_separators(ax, ordered, text_x=-0.8, line_color="white")
     for x in (2.5, 5.5):
         ax.axvline(x, color="white", linewidth=1.2)
@@ -588,7 +593,7 @@ def write_matplotlib_figures(rows: list[dict[str, str]]) -> list[str]:
     fig.text(
         0.02,
         0.005,
-        "Columns are grouped by paired experiment/time/person: GFP, DNp73beta, TAp73alpha for E1-E3.",
+        "Row order: genes follow --genes; probesets are sorted within each gene by mean paired TA-GFP. Columns: E1/E2/E3 as GFP, DNp73beta, TAp73alpha.",
         fontsize=8,
     )
     for extension in ("png", "pdf"):
@@ -625,7 +630,12 @@ def write_matplotlib_figures(rows: list[dict[str, str]]) -> list[str]:
     ax.set_xticks(range(len(paired_labels)))
     ax.set_xticklabels(paired_labels, rotation=45, ha="right", fontsize=8)
     ax.set_yticks([])
-    ax.set_title("Paired within-experiment probe-set contrasts", loc="left", fontsize=14, fontweight="bold")
+    ax.set_title(
+        "Paired within-experiment probe-set contrasts: same row order as individual arrays",
+        loc="left",
+        fontsize=13,
+        fontweight="bold",
+    )
     add_gene_separators(ax, ordered, text_x=-0.7, line_color="black")
     for x in (1.5, 3.5):
         ax.axvline(x, color="black", linewidth=0.8)
@@ -634,7 +644,7 @@ def write_matplotlib_figures(rows: list[dict[str, str]]) -> list[str]:
     fig.text(
         0.02,
         0.005,
-        "Each contrast is computed within replicate/experiment: log2(condition PM mean + 1) - log2(matched GFP PM mean + 1).",
+        "Row order: genes follow --genes; probesets sorted within gene by mean paired TA-GFP. Contrast: log2(condition PM mean + 1) - log2(matched GFP PM mean + 1).",
         fontsize=8,
     )
     for extension in ("png", "pdf"):
@@ -676,7 +686,7 @@ Outputs:
 - `probe_set_activity_summary.tsv`: probeset-level mean raw intensity and log2 group contrasts.
 - `probe_level_activity.tsv`: selected PM-probe raw intensities.
 - `gene_contrast_probe_set_summary.png/.svg/.pdf`: compact per-gene contrast distribution.
-- `probe_set_individual_arrays_heatmap_10_gene.png/.pdf`: individual-array heatmap ordered by paired experiment.
+- `probe_set_individual_arrays_heatmap_10_gene.png/.pdf`: individual-array heatmap. Rows follow the `--genes` order and are sorted within each gene by mean paired `TAp73alpha_i - GFP_i`; columns are `E1 GFP/DN/TA`, `E2 GFP/DN/TA`, `E3 GFP/DN/TA`.
 - `probe_set_paired_contrast_heatmap_10_gene.png/.pdf`: within-experiment paired contrast heatmap.
 - `paired_gene_level_summary.tsv`: per-gene medians for the paired contrasts.
 - `manifest.json`: machine-readable provenance.

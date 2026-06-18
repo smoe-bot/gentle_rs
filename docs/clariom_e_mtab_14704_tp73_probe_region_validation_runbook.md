@@ -146,9 +146,12 @@ Expected local-only outputs include:
 - `gene_contrast_probe_set_summary.png/.svg/.pdf`: compact per-gene contrast
   distributions.
 - `probe_set_individual_arrays_heatmap_10_gene.png/.pdf`: the nine arrays as
-  individual columns, grouped by paired experiment/time/person.
+  individual columns, grouped by paired experiment/time/person. Rows follow the
+  `--genes` order and are sorted within each gene by mean paired
+  `TAp73alpha_i - GFP_i`.
 - `probe_set_paired_contrast_heatmap_10_gene.png/.pdf`: within-experiment
-  contrasts such as `TAp73alpha_i - GFP_i` and `DNp73beta_i - GFP_i`.
+  contrasts such as `TAp73alpha_i - GFP_i` and `DNp73beta_i - GFP_i`, using the
+  same row order as the individual-array heatmap.
 - `paired_gene_level_summary.tsv`: per-gene median paired contrasts.
 
 These outputs are deliberately uncommitted derived analysis artifacts. The raw
