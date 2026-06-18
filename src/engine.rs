@@ -96,18 +96,47 @@ pub use gentle_protocol::{
     AnnotationCandidate, AnnotationCandidateSummary, AnnotationCandidateWriteback, Arrangement,
     ArrangementMode, ConstructCandidate, ConstructObjective, ConstructReasoningGraph,
     ConstructReasoningInspectionAction, ConstructReasoningInspectionActionKind,
-    ConstructReasoningStore, ConstructRole, Container, ContainerId, ContainerKind, ContainerState,
-    DecisionMethod, DesignDecisionNode, DesignEvidence, DesignFact, DotplotMode, EditableStatus,
-    EvidenceClass, EvidenceScope, ExonSkipReturnKind, ExonSkipReturnPayload,
-    ExonSkipSelectionCriterion, GelBufferModel, GelRunConditions, GelTopologyForm, LineageEdge,
-    LineageGraph, LineageMacroInstance, LineageMacroPortBinding, LineageNode, MacroInstanceStatus,
-    NodeId, OpId, OrthologAmbiguityPolicy, OrthologPromoterCohortReport,
-    OrthologPromoterComparisonReport, ProteinExternalOpinionSource, ProteinFeatureFilter, Rack,
-    RackAuthoringTemplate, RackCarrierLabelPreset, RackFillDirection, RackLabelSheetPreset,
-    RackOccupant, RackPhysicalTemplateFamily, RackPhysicalTemplateKind, RackPhysicalTemplateSpec,
+    ConstructReasoningRepeatFamilyProvenance, ConstructReasoningRiskTask,
+    ConstructReasoningSeverity, ConstructReasoningStore, ConstructReasoningTaskSeverity,
+    ConstructRole, Container, ContainerId, ContainerKind, ContainerState, DecisionMethod,
+    DesignDecisionNode, DesignEvidence, DesignFact, DotplotMode, EditableStatus, EvidenceClass,
+    EvidenceScope, ExonSkipReturnKind, ExonSkipReturnPayload, ExonSkipSelectionCriterion,
+    GelBufferModel, GelRunConditions, GelTopologyForm, LineageEdge, LineageGraph,
+    LineageMacroInstance, LineageMacroPortBinding, LineageNode, MacroInstanceStatus, NodeId, OpId,
+    OrthologAmbiguityPolicy, OrthologPromoterCohortReport, OrthologPromoterComparisonReport,
+    ProteinExternalOpinionSource, ProteinFeatureFilter, Rack, RackAuthoringTemplate,
+    RackCarrierLabelPreset, RackFillDirection, RackLabelSheetPreset, RackOccupant,
+    RackPhysicalTemplateFamily, RackPhysicalTemplateKind, RackPhysicalTemplateSpec,
     RackPlacementEntry, RackProfileKind, RackProfileSnapshot, ReadAcquisitionAnalysisFormat,
     ReadAcquisitionReadLayout, RunId, SeqId, SequenceOrigin,
 };
+
+#[derive(Clone, Debug, Default)]
+struct ConstructReasoningCuratedRepeatSupport {
+    source_kind: String,
+    label: String,
+    repeat_name: Option<String>,
+    repeat_class: Option<String>,
+    repeat_family: Option<String>,
+    evidence_ids: Vec<String>,
+    internal_evidence_ids: Vec<String>,
+    source_refs: Vec<String>,
+}
+
+impl ConstructReasoningCuratedRepeatSupport {
+    fn to_json(&self) -> serde_json::Value {
+        json!({
+            "source_kind": self.source_kind,
+            "label": self.label,
+            "repeat_name": self.repeat_name,
+            "repeat_class": self.repeat_class,
+            "repeat_family": self.repeat_family,
+            "evidence_ids": self.evidence_ids,
+            "internal_evidence_ids": self.internal_evidence_ids,
+            "source_refs": self.source_refs,
+        })
+    }
+}
 
 pub const DEFAULT_HOST_PROFILE_CATALOG_PATH: &str = "assets/host_profiles.json";
 pub const DEFAULT_CUTRUN_CATALOG_PATH: &str = "assets/cutrun.json";
@@ -382,7 +411,7 @@ const GENOME_VCF_TRACK_GENERATED_TAG: &str = "genome_vcf_track";
 pub const MICROARRAY_TRACK_MANIFEST_SCHEMA: &str = "gentle.microarray_track_manifest.v1";
 pub const MICROARRAY_PROJECTION_REPORT_SCHEMA: &str = "gentle.microarray_projection_report.v1";
 pub const PROBE_REGION_EVIDENCE_INTERPRETATION_SCHEMA: &str =
-    "gentle.probe_region_evidence_interpretation.v1";
+    "gentle.probe_region_evidence_interpretation.v2";
 pub const PROBE_REGION_PLAN_SCHEMA: &str = "gentle.probe_region_plan.v1";
 pub const PROBE_REGION_OUTPUT_INSPECTION_SCHEMA: &str = "gentle.probe_region_output_inspection.v1";
 pub const PROBE_REGION_OUTPUT_SVG_EXPORT_SCHEMA: &str = "gentle.probe_region_output_svg_export.v1";
@@ -16506,6 +16535,29 @@ impl GentleEngine {
             .collect();
         fact.based_on_evidence_ids.sort();
         fact.based_on_evidence_ids.dedup();
+        for severity in &mut fact.task_severities {
+            severity.rationale = severity.rationale.trim().to_string();
+            severity.supporting_evidence_ids = severity
+                .supporting_evidence_ids
+                .iter()
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+                .collect();
+            severity.supporting_evidence_ids.sort();
+            severity.supporting_evidence_ids.dedup();
+        }
+        fact.task_severities.retain(|severity| {
+            severity.severity != ConstructReasoningSeverity::None
+                && (!severity.rationale.is_empty() || !severity.supporting_evidence_ids.is_empty())
+        });
+        fact.task_severities.sort_by(|a, b| {
+            a.task
+                .cmp(&b.task)
+                .then(a.severity.cmp(&b.severity))
+                .then(a.rationale.cmp(&b.rationale))
+        });
+        fact.task_severities
+            .dedup_by(|a, b| a.task == b.task && a.rationale == b.rationale);
         fact.confidence = Self::normalize_confidence_score(fact.confidence);
         fact
     }
@@ -17124,6 +17176,210 @@ impl GentleEngine {
         modes
     }
 
+    fn construct_reasoning_evidence_note_value(
+        row: &DesignEvidence,
+        key: &str,
+    ) -> Option<String> {
+        let prefix = format!("{key}=");
+        row.notes
+            .iter()
+            .find_map(|note| note.strip_prefix(&prefix))
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string)
+    }
+
+    fn construct_reasoning_evidence_has_tag(row: &DesignEvidence, tag: &str) -> bool {
+        row.context_tags.iter().any(|value| value == tag)
+    }
+
+    fn construct_reasoning_evidence_is_curated_repeat_annotation(row: &DesignEvidence) -> bool {
+        matches!(
+            row.role,
+            ConstructRole::RepeatRegion | ConstructRole::MobileElement
+        ) && (Self::construct_reasoning_evidence_has_tag(row, "curated_repeat_family")
+            || Self::construct_reasoning_evidence_has_tag(row, "ucsc_rmsk")
+            || Self::construct_reasoning_evidence_note_value(row, "repeat_source").is_some())
+    }
+
+    fn construct_reasoning_evidence_repeat_support(
+        row: &DesignEvidence,
+    ) -> Option<ConstructReasoningCuratedRepeatSupport> {
+        if !Self::construct_reasoning_evidence_is_curated_repeat_annotation(row) {
+            return None;
+        }
+        let source_kind = Self::construct_reasoning_evidence_note_value(row, "repeat_source")
+            .unwrap_or_else(|| {
+                if Self::construct_reasoning_evidence_has_tag(row, "ucsc_rmsk") {
+                    "ucsc_rmsk".to_string()
+                } else {
+                    "repeat_family_annotation".to_string()
+                }
+            });
+        let repeat_name = Self::construct_reasoning_evidence_note_value(row, "repeat_name");
+        let repeat_class = Self::construct_reasoning_evidence_note_value(row, "repeat_class");
+        let repeat_family = Self::construct_reasoning_evidence_note_value(row, "repeat_family");
+        let label = Self::construct_reasoning_repeat_family_display_label(
+            repeat_name.as_deref(),
+            repeat_class.as_deref(),
+            repeat_family.as_deref(),
+        );
+        let mut source_refs = row.provenance_refs.clone();
+        source_refs.sort();
+        source_refs.dedup();
+        Some(ConstructReasoningCuratedRepeatSupport {
+            source_kind,
+            label,
+            repeat_name,
+            repeat_class,
+            repeat_family,
+            evidence_ids: vec![row.evidence_id.clone()],
+            internal_evidence_ids: vec![],
+            source_refs,
+        })
+    }
+
+    fn construct_reasoning_curated_repeat_supports_internal_signal(
+        internal: &DesignEvidence,
+        curated: &DesignEvidence,
+    ) -> bool {
+        if Self::construct_reasoning_evidence_has_tag(internal, "alu_like")
+            || Self::construct_reasoning_evidence_has_tag(internal, "sine")
+        {
+            return ["alu", "sine", "repeat_family_alu", "repeat_class_sine"]
+                .iter()
+                .any(|tag| Self::construct_reasoning_evidence_has_tag(curated, tag));
+        }
+        if Self::construct_reasoning_evidence_has_tag(internal, "line") {
+            return Self::construct_reasoning_evidence_has_tag(curated, "line")
+                || Self::construct_reasoning_evidence_has_tag(curated, "repeat_class_line");
+        }
+        if Self::construct_reasoning_evidence_has_tag(internal, "ltr") {
+            return Self::construct_reasoning_evidence_has_tag(curated, "ltr")
+                || Self::construct_reasoning_evidence_has_tag(curated, "repeat_class_ltr");
+        }
+        true
+    }
+
+    fn construct_reasoning_curated_repeat_support_for_rows(
+        internal_rows: &[&DesignEvidence],
+        curated_rows: &[&DesignEvidence],
+    ) -> Vec<ConstructReasoningCuratedRepeatSupport> {
+        let mut by_label: BTreeMap<String, ConstructReasoningCuratedRepeatSupport> =
+            BTreeMap::new();
+        for internal in internal_rows {
+            for curated in curated_rows {
+                if !Self::construct_reasoning_ranges_overlap(
+                    internal.start_0based,
+                    internal.end_0based_exclusive,
+                    curated.start_0based,
+                    curated.end_0based_exclusive,
+                ) || !Self::construct_reasoning_curated_repeat_supports_internal_signal(
+                    internal, curated,
+                ) {
+                    continue;
+                }
+                let Some(mut support) =
+                    Self::construct_reasoning_evidence_repeat_support(curated)
+                else {
+                    continue;
+                };
+                support.internal_evidence_ids.push(internal.evidence_id.clone());
+                let key = Self::normalize_id_token(&support.label);
+                let entry = by_label.entry(key).or_insert_with(|| support.clone());
+                entry.evidence_ids.extend(support.evidence_ids);
+                entry.internal_evidence_ids.extend(support.internal_evidence_ids);
+                entry.source_refs.extend(support.source_refs);
+                entry.evidence_ids.sort();
+                entry.evidence_ids.dedup();
+                entry.internal_evidence_ids.sort();
+                entry.internal_evidence_ids.dedup();
+                entry.source_refs.sort();
+                entry.source_refs.dedup();
+            }
+        }
+        by_label.into_values().collect()
+    }
+
+    fn construct_reasoning_curated_repeat_support_labels(
+        support: &[ConstructReasoningCuratedRepeatSupport],
+    ) -> Vec<String> {
+        support
+            .iter()
+            .map(|row| row.label.clone())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect()
+    }
+
+    fn construct_reasoning_curated_repeat_support_evidence_ids(
+        support: &[ConstructReasoningCuratedRepeatSupport],
+    ) -> Vec<String> {
+        support
+            .iter()
+            .flat_map(|row| row.evidence_ids.iter().cloned())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect()
+    }
+
+    fn construct_reasoning_repeat_family_provenance_for_evidence_rows(
+        rows: &[&DesignEvidence],
+    ) -> Option<ConstructReasoningRepeatFamilyProvenance> {
+        let mut supports = rows
+            .iter()
+            .filter_map(|row| Self::construct_reasoning_evidence_repeat_support(row))
+            .collect::<Vec<_>>();
+        if supports.is_empty() {
+            return None;
+        }
+        supports.sort_by(|a, b| a.label.cmp(&b.label));
+        let primary = supports.first()?;
+        let source_kind = if supports
+            .iter()
+            .any(|row| row.source_kind.eq_ignore_ascii_case("ucsc_rmsk"))
+        {
+            "ucsc_rmsk".to_string()
+        } else {
+            primary.source_kind.clone()
+        };
+        let evidence_ids = supports
+            .iter()
+            .flat_map(|row| row.evidence_ids.iter().cloned())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+        let source_refs = supports
+            .iter()
+            .flat_map(|row| row.source_refs.iter().cloned())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+        let confidence = rows
+            .iter()
+            .filter(|row| evidence_ids.iter().any(|id| id == &row.evidence_id))
+            .filter_map(|row| row.confidence)
+            .fold(None, |best: Option<f64>, value| {
+                Some(best.map_or(value, |current| current.max(value)))
+            });
+        Some(ConstructReasoningRepeatFamilyProvenance {
+            source_kind,
+            family_id: primary
+                .repeat_family
+                .as_ref()
+                .or(primary.repeat_name.as_ref())
+                .map(|value| Self::normalize_id_token(value)),
+            family_name: primary
+                .repeat_family
+                .clone()
+                .or_else(|| primary.repeat_name.clone())
+                .or_else(|| primary.repeat_class.clone()),
+            source_refs,
+            evidence_ids,
+            confidence,
+        })
+    }
+
     fn construct_reasoning_context_tags_for_evidence_rows(rows: &[&DesignEvidence]) -> Vec<String> {
         rows.iter()
             .flat_map(|row| row.context_tags.iter().cloned())
@@ -17175,9 +17431,22 @@ impl GentleEngine {
             return vec![];
         }
 
+        let focus_rows = rows
+            .iter()
+            .copied()
+            .filter(|row| !Self::construct_reasoning_evidence_is_curated_repeat_annotation(row))
+            .collect::<Vec<_>>();
+        let focus_rows = if focus_rows.is_empty() {
+            rows.clone()
+        } else {
+            focus_rows
+        };
         let focus_range = focus_range.filter(|(start, end)| end > start).or_else(|| {
-            let start = rows.iter().map(|row| row.start_0based).min()?;
-            let end = rows.iter().map(|row| row.end_0based_exclusive).max()?;
+            let start = focus_rows.iter().map(|row| row.start_0based).min()?;
+            let end = focus_rows
+                .iter()
+                .map(|row| row.end_0based_exclusive)
+                .max()?;
             (end > start).then_some((start, end))
         });
         let Some((focus_start_0based, focus_end_0based_exclusive)) = focus_range else {
@@ -17207,6 +17476,8 @@ impl GentleEngine {
         let end_1based = focus_end_0based_exclusive;
         let context_tags = Self::construct_reasoning_context_tags_for_evidence_rows(&rows);
         let driving_evidence_ids = Self::construct_reasoning_driving_ids_for_evidence_rows(&rows);
+        let repeat_family_provenance =
+            Self::construct_reasoning_repeat_family_provenance_for_evidence_rows(&rows);
         let rationale = source_rationale.trim();
         let source_fact_ids =
             Self::construct_reasoning_inspection_action_source_ids(source_fact_ids);
@@ -17257,6 +17528,7 @@ impl GentleEngine {
                     source_annotation_ids: source_annotation_ids.clone(),
                     source_summary_ids: source_summary_ids.clone(),
                     context_tags: context_tags.clone(),
+                    repeat_family_provenance: repeat_family_provenance.clone(),
                     ..ConstructReasoningInspectionAction::default()
                 }
             })
@@ -18188,6 +18460,210 @@ impl GentleEngine {
         false
     }
 
+    fn construct_reasoning_repeat_feature_value(
+        feature: &gb_io::seq::Feature,
+        keys: &[&str],
+    ) -> Option<String> {
+        Self::first_nonempty_feature_qualifier(feature, keys)
+    }
+
+    fn construct_reasoning_repeat_feature_descriptor(
+        feature: &gb_io::seq::Feature,
+    ) -> Option<(String, Option<String>, Option<String>, Option<String>)> {
+        let generated = Self::feature_qualifier_text(feature, "gentle_generated")
+            .map(|value| value.trim().to_ascii_lowercase())
+            .unwrap_or_default();
+        let repeat_name = Self::construct_reasoning_repeat_feature_value(
+            feature,
+            &[
+                "rmsk_name",
+                "repeat_name",
+                "repName",
+                "rpt_name",
+                "rptName",
+                "mobile_element_type",
+                "mobile_element",
+            ],
+        );
+        let repeat_class = Self::construct_reasoning_repeat_feature_value(
+            feature,
+            &[
+                "repeat_class",
+                "rmsk_class",
+                "repClass",
+                "rpt_class",
+                "rptClass",
+            ],
+        );
+        let repeat_family = Self::construct_reasoning_repeat_feature_value(
+            feature,
+            &[
+                "repeat_family",
+                "rmsk_family",
+                "repFamily",
+                "rpt_family",
+                "rptFamily",
+            ],
+        );
+        let has_repeat_family_fields =
+            repeat_name.is_some() || repeat_class.is_some() || repeat_family.is_some();
+        let kind = feature.kind.to_string().to_ascii_lowercase();
+        let is_repeat_kind = matches!(kind.as_str(), "repeat_region" | "repeat" | "mobile_element");
+        if generated != "ucsc_rmsk" && !(is_repeat_kind && has_repeat_family_fields) {
+            return None;
+        }
+        let source_kind = if generated == "ucsc_rmsk" {
+            "ucsc_rmsk"
+        } else {
+            "repeat_family_annotation"
+        };
+        Some((
+            source_kind.to_string(),
+            repeat_name,
+            repeat_class,
+            repeat_family,
+        ))
+    }
+
+    fn construct_reasoning_feature_is_curated_repeat_annotation(
+        feature: &gb_io::seq::Feature,
+    ) -> bool {
+        Self::construct_reasoning_repeat_feature_descriptor(feature).is_some()
+    }
+
+    fn construct_reasoning_repeat_family_display_label(
+        repeat_name: Option<&str>,
+        repeat_class: Option<&str>,
+        repeat_family: Option<&str>,
+    ) -> String {
+        let primary = repeat_name
+            .or(repeat_family)
+            .or(repeat_class)
+            .unwrap_or("repeat family");
+        match (repeat_class, repeat_family) {
+            (Some(class), Some(family)) if !primary.eq_ignore_ascii_case(family) => {
+                format!("{primary} ({class}/{family})")
+            }
+            (Some(class), Some(family)) => format!("{primary} ({class}/{family})"),
+            (Some(class), None) if !primary.eq_ignore_ascii_case(class) => {
+                format!("{primary} ({class})")
+            }
+            (None, Some(family)) if !primary.eq_ignore_ascii_case(family) => {
+                format!("{primary} ({family})")
+            }
+            _ => primary.to_string(),
+        }
+    }
+
+    fn construct_reasoning_repeat_descriptor_tags(
+        source_kind: &str,
+        repeat_name: Option<&str>,
+        repeat_class: Option<&str>,
+        repeat_family: Option<&str>,
+    ) -> Vec<String> {
+        let mut tags = vec![
+            "curated_repeat_family".to_string(),
+            "repeat_family_annotation".to_string(),
+            source_kind.to_ascii_lowercase(),
+        ];
+        if source_kind.eq_ignore_ascii_case("ucsc_rmsk") {
+            tags.push("repeatmasker".to_string());
+        }
+        for (prefix, value) in [
+            ("repeat_name", repeat_name),
+            ("repeat_class", repeat_class),
+            ("repeat_family", repeat_family),
+        ] {
+            let Some(value) = value else {
+                continue;
+            };
+            let token = Self::normalize_id_token(value);
+            if token != "region" {
+                tags.push(format!("{prefix}_{token}"));
+                for part in value
+                    .split(|c: char| !c.is_ascii_alphanumeric())
+                    .map(str::trim)
+                    .filter(|part| !part.is_empty())
+                {
+                    let part_token = Self::normalize_id_token(part);
+                    if part_token != "region" {
+                        tags.push(part_token);
+                    }
+                }
+            }
+        }
+        let joined = [repeat_name, repeat_class, repeat_family]
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>()
+            .join(" ")
+            .to_ascii_lowercase();
+        for family_tag in ["alu", "sine", "line", "ltr", "satellite"] {
+            if joined.contains(family_tag) {
+                tags.push(family_tag.to_string());
+            }
+        }
+        if joined.contains("simple") || joined.contains("low complexity") {
+            tags.push("simple_repeat".to_string());
+        }
+        tags.sort();
+        tags.dedup();
+        tags
+    }
+
+    fn construct_reasoning_repeat_feature_notes(
+        source_kind: &str,
+        repeat_name: Option<&str>,
+        repeat_class: Option<&str>,
+        repeat_family: Option<&str>,
+        feature: &gb_io::seq::Feature,
+    ) -> Vec<String> {
+        let mut notes = vec![format!("repeat_source={source_kind}")];
+        if let Some(value) = repeat_name {
+            notes.push(format!("repeat_name={value}"));
+        }
+        if let Some(value) = repeat_class {
+            notes.push(format!("repeat_class={value}"));
+        }
+        if let Some(value) = repeat_family {
+            notes.push(format!("repeat_family={value}"));
+        }
+        for key in ["rmsk_annotation_id", "rmsk_index_path", "rmsk_row_offset"] {
+            if let Some(value) = Self::feature_qualifier_text(feature, key) {
+                notes.push(format!("{key}={value}"));
+            }
+        }
+        notes
+    }
+
+    fn construct_reasoning_repeat_feature_provenance_refs(
+        source_kind: &str,
+        repeat_name: Option<&str>,
+        repeat_class: Option<&str>,
+        repeat_family: Option<&str>,
+        feature: &gb_io::seq::Feature,
+    ) -> Vec<String> {
+        let mut refs = vec![feature.kind.to_string(), source_kind.to_string()];
+        if repeat_name.is_some() || repeat_class.is_some() || repeat_family.is_some() {
+            refs.push(format!(
+                "repeat_family:{}",
+                Self::construct_reasoning_repeat_family_display_label(
+                    repeat_name,
+                    repeat_class,
+                    repeat_family
+                )
+            ));
+        }
+        for key in ["rmsk_annotation_id", "rmsk_index_path"] {
+            if let Some(value) = Self::feature_qualifier_text(feature, key) {
+                refs.push(format!("{key}={value}"));
+            }
+        }
+        refs.sort();
+        refs.dedup();
+        refs
+    }
+
     fn construct_reasoning_role_from_feature(
         feature: &gb_io::seq::Feature,
     ) -> Option<ConstructRole> {
@@ -18261,6 +18737,9 @@ impl GentleEngine {
             return EvidenceClass::SoftHypothesis;
         }
         if role == ConstructRole::MobileElement {
+            if Self::construct_reasoning_feature_is_curated_repeat_annotation(feature) {
+                return EvidenceClass::ReliableAnnotation;
+            }
             return EvidenceClass::SoftHypothesis;
         }
         if matches!(role, ConstructRole::Exon | ConstructRole::SpliceBoundary)
@@ -18291,6 +18770,16 @@ impl GentleEngine {
         {
             tags.push(variant_class);
         }
+        if let Some((source_kind, repeat_name, repeat_class, repeat_family)) =
+            Self::construct_reasoning_repeat_feature_descriptor(feature)
+        {
+            tags.extend(Self::construct_reasoning_repeat_descriptor_tags(
+                &source_kind,
+                repeat_name.as_deref(),
+                repeat_class.as_deref(),
+                repeat_family.as_deref(),
+            ));
+        }
         tags.sort();
         tags.dedup();
         tags
@@ -18316,6 +18805,18 @@ impl GentleEngine {
         }
         if role == ConstructRole::Tfbs {
             return "TFBS-style annotation is kept as a soft hypothesis because binding evidence is context-sensitive.".to_string();
+        }
+        if let Some((source_kind, repeat_name, repeat_class, repeat_family)) =
+            Self::construct_reasoning_repeat_feature_descriptor(feature)
+        {
+            let label = Self::construct_reasoning_repeat_family_display_label(
+                repeat_name.as_deref(),
+                repeat_class.as_deref(),
+                repeat_family.as_deref(),
+            );
+            return format!(
+                "Curated repeat-family annotation from {source_kind} supports '{label}' as inspectable repeat/mobile-element context."
+            );
         }
         if role == ConstructRole::MobileElement {
             return "Mobile-element style annotation is kept as a soft hypothesis until a curated repeat-family catalog confirms the family assignment.".to_string();
@@ -19620,6 +20121,29 @@ impl GentleEngine {
             let rationale =
                 Self::construct_reasoning_feature_rationale(feature, role, evidence_class);
             let context_tags = Self::construct_reasoning_feature_context_tags(feature);
+            let (feature_provenance_refs, feature_notes) =
+                if let Some((source_kind, repeat_name, repeat_class, repeat_family)) =
+                    Self::construct_reasoning_repeat_feature_descriptor(feature)
+                {
+                    (
+                        Self::construct_reasoning_repeat_feature_provenance_refs(
+                            &source_kind,
+                            repeat_name.as_deref(),
+                            repeat_class.as_deref(),
+                            repeat_family.as_deref(),
+                            feature,
+                        ),
+                        Self::construct_reasoning_repeat_feature_notes(
+                            &source_kind,
+                            repeat_name.as_deref(),
+                            repeat_class.as_deref(),
+                            repeat_family.as_deref(),
+                            feature,
+                        ),
+                    )
+                } else {
+                    (vec![feature.kind.to_string()], vec![])
+                };
             let strand = Some(
                 if feature_is_reverse(feature) {
                     "-"
@@ -19665,7 +20189,8 @@ impl GentleEngine {
                     },
                     context_tags: context_tags.clone(),
                     provenance_kind: "sequence_feature_annotation".to_string(),
-                    provenance_refs: vec![feature.kind.to_string()],
+                    provenance_refs: feature_provenance_refs.clone(),
+                    notes: feature_notes.clone(),
                     ..DesignEvidence::default()
                 });
             }
@@ -21165,6 +21690,27 @@ impl GentleEngine {
         ids
     }
 
+    fn construct_reasoning_task_severity(
+        task: ConstructReasoningRiskTask,
+        severity: ConstructReasoningSeverity,
+        rationale: impl Into<String>,
+        supporting_evidence_ids: Vec<String>,
+    ) -> ConstructReasoningTaskSeverity {
+        let mut supporting_evidence_ids = supporting_evidence_ids
+            .into_iter()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .collect::<Vec<_>>();
+        supporting_evidence_ids.sort();
+        supporting_evidence_ids.dedup();
+        ConstructReasoningTaskSeverity {
+            task,
+            severity,
+            rationale: rationale.into().trim().to_string(),
+            supporting_evidence_ids,
+        }
+    }
+
     fn construct_reasoning_build_fact(
         fact_id: &str,
         fact_type: &str,
@@ -22128,6 +22674,12 @@ impl GentleEngine {
             .copied()
             .filter(|row| has_similarity_tag(row, "mapping_ambiguity_risk"))
             .collect::<Vec<_>>();
+        let curated_repeat_family_rows = repeat_region_rows
+            .iter()
+            .chain(mobile_element_rows.iter())
+            .copied()
+            .filter(|row| Self::construct_reasoning_evidence_is_curated_repeat_annotation(row))
+            .collect::<Vec<_>>();
 
         if !low_complexity_rows.is_empty()
             || !homopolymer_rows.is_empty()
@@ -22166,7 +22718,20 @@ impl GentleEngine {
             complexity_evidence_ids.extend(similarity_ids(&tandem_rows));
             complexity_evidence_ids.sort();
             complexity_evidence_ids.dedup();
-            facts.push(Self::construct_reasoning_build_fact(
+            let pcr_complexity_severity =
+                if !homopolymer_rows.is_empty() || !tandem_rows.is_empty() {
+                    ConstructReasoningSeverity::Medium
+                } else {
+                    ConstructReasoningSeverity::Low
+                };
+            let nanopore_complexity_severity = if !homopolymer_rows.is_empty() {
+                ConstructReasoningSeverity::High
+            } else if !low_complexity_rows.is_empty() || !tandem_rows.is_empty() {
+                ConstructReasoningSeverity::Medium
+            } else {
+                ConstructReasoningSeverity::Low
+            };
+            let mut complexity_fact = Self::construct_reasoning_build_fact(
                 "fact_sequence_complexity_context",
                 "sequence_complexity_context",
                 complexity_label,
@@ -22184,7 +22749,22 @@ impl GentleEngine {
                     "max_low_complexity_risk_score": similarity_max_score(&low_complexity_rows),
                     "max_polymerase_slippage_risk_score": similarity_max_score(&slippage_risk_rows),
                 }),
-            ));
+            );
+            complexity_fact.task_severities = vec![
+                Self::construct_reasoning_task_severity(
+                    ConstructReasoningRiskTask::Pcr,
+                    pcr_complexity_severity,
+                    "Low-complexity, homopolymer, or tandem-repeat evidence can constrain primer placement and short-amplicon amplification.",
+                    complexity_evidence_ids.clone(),
+                ),
+                Self::construct_reasoning_task_severity(
+                    ConstructReasoningRiskTask::NanoporeSequencing,
+                    nanopore_complexity_severity,
+                    "Homopolymer and low-complexity evidence can affect raw-signal interpretation, basecalling, and local alignment confidence.",
+                    complexity_evidence_ids.clone(),
+                ),
+            ];
+            facts.push(complexity_fact);
             decisions.push(Self::construct_reasoning_build_decision(
                 "decision_evaluate_sequence_complexity_context",
                 "evaluate_sequence_complexity_context",
@@ -22199,26 +22779,68 @@ impl GentleEngine {
         }
 
         if !direct_repeat_rows.is_empty() || !inverted_repeat_rows.is_empty() {
-            let repeat_architecture_status = if !inverted_repeat_rows.is_empty() {
+            let mut repeat_architecture_internal_rows = direct_repeat_rows.clone();
+            repeat_architecture_internal_rows.extend(inverted_repeat_rows.clone());
+            let curated_repeat_support =
+                Self::construct_reasoning_curated_repeat_support_for_rows(
+                    &repeat_architecture_internal_rows,
+                    &curated_repeat_family_rows,
+                );
+            let repeat_architecture_status = if !curated_repeat_support.is_empty() {
+                "curated_repeat_family_supported"
+            } else if !inverted_repeat_rows.is_empty() {
                 "direct_and_inverted_repeat_clusters"
             } else {
                 "direct_repeat_clusters"
             };
-            let repeat_architecture_label = if !inverted_repeat_rows.is_empty() {
+            let repeat_architecture_label = if !curated_repeat_support.is_empty() {
+                "Repeat/similarity architecture with curated repeat-family support".to_string()
+            } else if !inverted_repeat_rows.is_empty() {
                 "Repeat/similarity architecture detected".to_string()
             } else {
                 "Direct repeat architecture detected".to_string()
             };
-            let repeat_architecture_rationale = format!(
+            let mut repeat_architecture_rationale = format!(
                 "Sequence-derived repeat scanning detected {} direct-repeat cluster(s) and {} inverted-repeat cluster(s). These exact sequence patterns are kept as generated structural context because inversion or recombination relevance depends on the workflow.",
                 direct_repeat_rows.len(),
                 inverted_repeat_rows.len()
             );
+            if !curated_repeat_support.is_empty() {
+                repeat_architecture_rationale.push_str(&format!(
+                    " Overlapping curated repeat-family annotation(s) support this context: {}.",
+                    Self::construct_reasoning_curated_repeat_support_labels(
+                        &curated_repeat_support
+                    )
+                    .join(", ")
+                ));
+            }
             let mut repeat_architecture_ids = similarity_ids(&direct_repeat_rows);
             repeat_architecture_ids.extend(similarity_ids(&inverted_repeat_rows));
+            repeat_architecture_ids.extend(
+                Self::construct_reasoning_curated_repeat_support_evidence_ids(
+                    &curated_repeat_support,
+                ),
+            );
             repeat_architecture_ids.sort();
             repeat_architecture_ids.dedup();
-            facts.push(Self::construct_reasoning_build_fact(
+            let repeat_read_mapping_severity = if !curated_repeat_support.is_empty() {
+                ConstructReasoningSeverity::Medium
+            } else {
+                ConstructReasoningSeverity::Low
+            };
+            let repeat_cloning_severity = if !inverted_repeat_rows.is_empty() {
+                ConstructReasoningSeverity::High
+            } else {
+                ConstructReasoningSeverity::Medium
+            };
+            let repeat_maintenance_severity = if !curated_repeat_support.is_empty()
+                || !inverted_repeat_rows.is_empty()
+            {
+                ConstructReasoningSeverity::Medium
+            } else {
+                ConstructReasoningSeverity::Low
+            };
+            let mut repeat_architecture_fact = Self::construct_reasoning_build_fact(
                 "fact_repeat_architecture_context",
                 "repeat_architecture_context",
                 repeat_architecture_label,
@@ -22233,8 +22855,46 @@ impl GentleEngine {
                     "inverted_repeat_labels": similarity_labels(&inverted_repeat_rows),
                     "max_direct_repeat_risk_score": similarity_max_score(&direct_repeat_rows),
                     "max_inverted_repeat_risk_score": similarity_max_score(&inverted_repeat_rows),
+                    "curated_repeat_support_count": curated_repeat_support.len(),
+                    "curated_repeat_family_labels":
+                        Self::construct_reasoning_curated_repeat_support_labels(
+                            &curated_repeat_support
+                        ),
+                    "curated_repeat_support": curated_repeat_support
+                        .iter()
+                        .map(ConstructReasoningCuratedRepeatSupport::to_json)
+                        .collect::<Vec<_>>(),
                 }),
-            ));
+            );
+            repeat_architecture_fact.task_severities = vec![
+                Self::construct_reasoning_task_severity(
+                    ConstructReasoningRiskTask::ReadMapping,
+                    repeat_read_mapping_severity,
+                    if !curated_repeat_support.is_empty() {
+                        "Curated repeat-family support makes the repeated interval less likely to be uniquely mappable without read-length or reference-context review."
+                    } else {
+                        "Exact repeat architecture can reduce local uniqueness, but without repeat-family support this remains lower priority than cloning stability review."
+                    },
+                    repeat_architecture_ids.clone(),
+                ),
+                Self::construct_reasoning_task_severity(
+                    ConstructReasoningRiskTask::CloningStability,
+                    repeat_cloning_severity,
+                    if !inverted_repeat_rows.is_empty() {
+                        "Inverted or palindromic repeat evidence raises recombination and rearrangement concern for cloning stability."
+                    } else {
+                        "Direct repeat evidence can promote recombination or deletion during construct recovery and propagation."
+                    },
+                    repeat_architecture_ids.clone(),
+                ),
+                Self::construct_reasoning_task_severity(
+                    ConstructReasoningRiskTask::ConstructMaintenance,
+                    repeat_maintenance_severity,
+                    "Repeat architecture is tracked for longer-term construct maintenance because repeated segments can rearrange under host and vector conditions.",
+                    repeat_architecture_ids.clone(),
+                ),
+            ];
+            facts.push(repeat_architecture_fact);
             decisions.push(Self::construct_reasoning_build_decision(
                 "decision_evaluate_repeat_architecture_context",
                 "evaluate_repeat_architecture_context",
@@ -22249,30 +22909,96 @@ impl GentleEngine {
         }
 
         if !mobile_element_rows.is_empty() {
-            let mobile_element_status = if !alu_like_rows.is_empty() {
+            let internal_mobile_element_rows = mobile_element_rows
+                .iter()
+                .copied()
+                .filter(|row| !Self::construct_reasoning_evidence_is_curated_repeat_annotation(row))
+                .collect::<Vec<_>>();
+            let curated_mobile_support =
+                Self::construct_reasoning_curated_repeat_support_for_rows(
+                    &internal_mobile_element_rows,
+                    &curated_repeat_family_rows,
+                );
+            let curated_mobile_annotation_rows = mobile_element_rows
+                .iter()
+                .copied()
+                .filter(|row| Self::construct_reasoning_evidence_is_curated_repeat_annotation(row))
+                .collect::<Vec<_>>();
+            let mobile_element_status = if !curated_mobile_support.is_empty()
+                && !alu_like_rows.is_empty()
+            {
+                "curated_alu_sine_supported"
+            } else if !alu_like_rows.is_empty() {
                 "alu_like_candidates_detected"
+            } else if !curated_mobile_annotation_rows.is_empty() {
+                "curated_mobile_element_annotation_detected"
             } else {
                 "mobile_element_candidates_detected"
             };
             let mobile_element_label = match mobile_element_status {
+                "curated_alu_sine_supported" => {
+                    "Alu/SINE mobile-element context backed by curated repeat annotation"
+                        .to_string()
+                }
                 "alu_like_candidates_detected" => {
                     "Alu-like mobile-element context detected".to_string()
                 }
+                "curated_mobile_element_annotation_detected" => {
+                    "Curated mobile-element annotation detected".to_string()
+                }
                 _ => "Mobile-element context detected".to_string(),
             };
-            let mobile_element_rationale = if !alu_like_rows.is_empty() {
+            let mobile_element_rationale = if !curated_mobile_support.is_empty()
+                && !alu_like_rows.is_empty()
+            {
+                format!(
+                    "Sequence-derived mobile-element heuristics detected {} Alu-like SINE candidate(s), and overlapping curated repeat-family annotation(s) support the call: {}.",
+                    alu_like_rows.len(),
+                    Self::construct_reasoning_curated_repeat_support_labels(
+                        &curated_mobile_support
+                    )
+                    .join(", ")
+                )
+            } else if !alu_like_rows.is_empty() {
                 format!(
                     "Sequence-derived mobile-element heuristics detected {} Alu-like SINE candidate(s). These remain soft hypotheses until a curated repeat-family catalog or external masker confirms the family assignment.",
                     alu_like_rows.len()
                 )
+            } else if !curated_mobile_annotation_rows.is_empty() {
+                format!(
+                    "Curated repeat-family annotation(s) mark {} mobile-element span(s): {}.",
+                    curated_mobile_annotation_rows.len(),
+                    similarity_labels(&curated_mobile_annotation_rows).join(", ")
+                )
             } else {
                 format!(
                     "Sequence-derived mobile-element heuristics detected {} candidate region(s), but none currently match the narrower Alu-like rule.",
-                    mobile_element_rows.len()
+                    internal_mobile_element_rows.len()
                 )
             };
-            let mobile_element_ids = similarity_ids(&mobile_element_rows);
-            facts.push(Self::construct_reasoning_build_fact(
+            let mut mobile_element_ids = similarity_ids(&mobile_element_rows);
+            mobile_element_ids.extend(Self::construct_reasoning_curated_repeat_support_evidence_ids(
+                &curated_mobile_support,
+            ));
+            mobile_element_ids.sort();
+            mobile_element_ids.dedup();
+            let mobile_read_mapping_severity =
+                if !curated_mobile_support.is_empty() || !curated_mobile_annotation_rows.is_empty()
+                {
+                    ConstructReasoningSeverity::High
+                } else if !alu_like_rows.is_empty() {
+                    ConstructReasoningSeverity::Medium
+                } else {
+                    ConstructReasoningSeverity::Low
+                };
+            let mobile_maintenance_severity =
+                if !curated_mobile_support.is_empty() || !curated_mobile_annotation_rows.is_empty()
+                {
+                    ConstructReasoningSeverity::Medium
+                } else {
+                    ConstructReasoningSeverity::Low
+                };
+            let mut mobile_element_fact = Self::construct_reasoning_build_fact(
                 "fact_mobile_element_context",
                 "mobile_element_context",
                 mobile_element_label,
@@ -22281,12 +23007,47 @@ impl GentleEngine {
                 json!({
                     "seq_id": seq_id,
                     "status": mobile_element_status,
-                    "mobile_element_candidate_count": mobile_element_rows.len(),
+                    "mobile_element_candidate_count": internal_mobile_element_rows.len(),
                     "alu_like_candidate_count": alu_like_rows.len(),
-                    "labels": similarity_labels(&mobile_element_rows),
-                    "max_mobile_element_score": similarity_max_score(&mobile_element_rows),
+                    "curated_mobile_element_annotation_count":
+                        curated_mobile_annotation_rows.len(),
+                    "labels": similarity_labels(&internal_mobile_element_rows),
+                    "curated_mobile_element_labels":
+                        similarity_labels(&curated_mobile_annotation_rows),
+                    "max_mobile_element_score":
+                        similarity_max_score(&internal_mobile_element_rows),
+                    "curated_repeat_support_count": curated_mobile_support.len(),
+                    "curated_repeat_family_labels":
+                        Self::construct_reasoning_curated_repeat_support_labels(
+                            &curated_mobile_support
+                        ),
+                    "curated_repeat_support": curated_mobile_support
+                        .iter()
+                        .map(ConstructReasoningCuratedRepeatSupport::to_json)
+                        .collect::<Vec<_>>(),
                 }),
-            ));
+            );
+            mobile_element_fact.task_severities = vec![
+                Self::construct_reasoning_task_severity(
+                    ConstructReasoningRiskTask::ReadMapping,
+                    mobile_read_mapping_severity,
+                    if !curated_mobile_support.is_empty()
+                        || !curated_mobile_annotation_rows.is_empty()
+                    {
+                        "Curated repeat-family or mobile-element annotation increases read-mapping ambiguity concern for this interval."
+                    } else {
+                        "Internal mobile-element-like sequence remains a mapping review cue until curated family support confirms repeat class."
+                    },
+                    mobile_element_ids.clone(),
+                ),
+                Self::construct_reasoning_task_severity(
+                    ConstructReasoningRiskTask::ConstructMaintenance,
+                    mobile_maintenance_severity,
+                    "Mobile-element-like context is tracked for construct maintenance because repeat-family sequence can contribute to rearrangement or unwanted genomic similarity.",
+                    mobile_element_ids.clone(),
+                ),
+            ];
+            facts.push(mobile_element_fact);
             decisions.push(Self::construct_reasoning_build_decision(
                 "decision_evaluate_mobile_element_context",
                 "evaluate_mobile_element_context",
@@ -22323,7 +23084,19 @@ impl GentleEngine {
             pcr_risk_ids.extend(similarity_ids(&slippage_risk_rows));
             pcr_risk_ids.sort();
             pcr_risk_ids.dedup();
-            facts.push(Self::construct_reasoning_build_fact(
+            let pcr_task_severity = if !slippage_risk_rows.is_empty()
+                && (!homopolymer_rows.is_empty() || !tandem_rows.is_empty())
+            {
+                ConstructReasoningSeverity::High
+            } else if !homopolymer_rows.is_empty()
+                || !tandem_rows.is_empty()
+                || !slippage_risk_rows.is_empty()
+            {
+                ConstructReasoningSeverity::Medium
+            } else {
+                ConstructReasoningSeverity::Low
+            };
+            let mut pcr_risk_fact = Self::construct_reasoning_build_fact(
                 "fact_pcr_operational_risk_context",
                 "pcr_operational_risk_context",
                 "PCR/amplification review suggested".to_string(),
@@ -22343,7 +23116,14 @@ impl GentleEngine {
                     "max_pcr_risk_score": similarity_max_score(&low_complexity_rows)
                         .max(similarity_max_score(&slippage_risk_rows)),
                 }),
-            ));
+            );
+            pcr_risk_fact.task_severities = vec![Self::construct_reasoning_task_severity(
+                ConstructReasoningRiskTask::Pcr,
+                pcr_task_severity,
+                "Repeat, homopolymer, tandem-repeat, or explicit slippage-risk evidence can affect primer placement, short amplicons, and polymerase behavior.",
+                pcr_risk_ids.clone(),
+            )];
+            facts.push(pcr_risk_fact);
             decisions.push(Self::construct_reasoning_build_decision(
                 "decision_evaluate_pcr_operational_risk",
                 "evaluate_pcr_operational_risk",
@@ -22372,7 +23152,12 @@ impl GentleEngine {
             nanopore_risk_ids.extend(similarity_ids(&nanopore_homopolymer_rows));
             nanopore_risk_ids.sort();
             nanopore_risk_ids.dedup();
-            facts.push(Self::construct_reasoning_build_fact(
+            let nanopore_task_severity = if !nanopore_homopolymer_rows.is_empty() {
+                ConstructReasoningSeverity::High
+            } else {
+                ConstructReasoningSeverity::Medium
+            };
+            let mut nanopore_risk_fact = Self::construct_reasoning_build_fact(
                 "fact_nanopore_operational_risk_context",
                 "nanopore_operational_risk_context",
                 "Nanopore/direct-sequencing review suggested".to_string(),
@@ -22387,7 +23172,15 @@ impl GentleEngine {
                     "homopolymer_labels": similarity_labels(&nanopore_homopolymer_rows),
                     "max_nanopore_risk_score": similarity_max_score(&nanopore_signal_rows),
                 }),
-            ));
+            );
+            nanopore_risk_fact.task_severities =
+                vec![Self::construct_reasoning_task_severity(
+                    ConstructReasoningRiskTask::NanoporeSequencing,
+                    nanopore_task_severity,
+                    "Homopolymer or low-complexity signal-risk evidence can affect nanopore basecalling and local alignment confidence.",
+                    nanopore_risk_ids.clone(),
+                )];
+            facts.push(nanopore_risk_fact);
             decisions.push(Self::construct_reasoning_build_decision(
                 "decision_evaluate_nanopore_operational_risk",
                 "evaluate_nanopore_operational_risk",
@@ -22416,7 +23209,12 @@ impl GentleEngine {
             mapping_risk_ids.extend(similarity_ids(&mobile_mapping_rows));
             mapping_risk_ids.sort();
             mapping_risk_ids.dedup();
-            facts.push(Self::construct_reasoning_build_fact(
+            let mapping_task_severity = if !mobile_mapping_rows.is_empty() {
+                ConstructReasoningSeverity::High
+            } else {
+                ConstructReasoningSeverity::Low
+            };
+            let mut mapping_risk_fact = Self::construct_reasoning_build_fact(
                 "fact_mapping_operational_risk_context",
                 "mapping_operational_risk_context",
                 "Repeat-driven mapping review suggested".to_string(),
@@ -22432,7 +23230,19 @@ impl GentleEngine {
                     "max_mapping_risk_score": similarity_max_score(&mapping_ambiguity_rows)
                         .max(similarity_max_score(&mobile_mapping_rows)),
                 }),
-            ));
+            );
+            mapping_risk_fact.task_severities =
+                vec![Self::construct_reasoning_task_severity(
+                    ConstructReasoningRiskTask::ReadMapping,
+                    mapping_task_severity,
+                    if !mobile_mapping_rows.is_empty() {
+                        "Mobile-element or repeat-family evidence can substantially reduce mapping uniqueness without read-length and reference-context review."
+                    } else {
+                        "Repeat-driven ambiguity can reduce local mapping uniqueness, but without family-backed evidence this remains a lower-priority mapping cue."
+                    },
+                    mapping_risk_ids.clone(),
+                )];
+            facts.push(mapping_risk_fact);
             decisions.push(Self::construct_reasoning_build_decision(
                 "decision_evaluate_mapping_operational_risk",
                 "evaluate_mapping_operational_risk",
@@ -22461,7 +23271,17 @@ impl GentleEngine {
             cloning_risk_ids.extend(similarity_ids(&cloning_risk_rows));
             cloning_risk_ids.sort();
             cloning_risk_ids.dedup();
-            facts.push(Self::construct_reasoning_build_fact(
+            let cloning_task_severity = if !inversion_risk_rows.is_empty() {
+                ConstructReasoningSeverity::High
+            } else {
+                ConstructReasoningSeverity::Medium
+            };
+            let maintenance_task_severity = if !inversion_risk_rows.is_empty() {
+                ConstructReasoningSeverity::High
+            } else {
+                ConstructReasoningSeverity::Medium
+            };
+            let mut cloning_risk_fact = Self::construct_reasoning_build_fact(
                 "fact_cloning_stability_context",
                 "cloning_stability_context",
                 "Cloning stability review suggested".to_string(),
@@ -22477,7 +23297,26 @@ impl GentleEngine {
                     "max_cloning_risk_score": similarity_max_score(&inversion_risk_rows)
                         .max(similarity_max_score(&cloning_risk_rows)),
                 }),
-            ));
+            );
+            cloning_risk_fact.task_severities = vec![
+                Self::construct_reasoning_task_severity(
+                    ConstructReasoningRiskTask::CloningStability,
+                    cloning_task_severity,
+                    if !inversion_risk_rows.is_empty() {
+                        "Inverted-repeat or palindromic evidence raises recombination and rearrangement concern during cloning."
+                    } else {
+                        "Direct repeat evidence can destabilize recovery or maintenance of the cloned construct."
+                    },
+                    cloning_risk_ids.clone(),
+                ),
+                Self::construct_reasoning_task_severity(
+                    ConstructReasoningRiskTask::ConstructMaintenance,
+                    maintenance_task_severity,
+                    "Repeat-derived cloning-stability evidence is also relevant for longer-term propagation and construct maintenance.",
+                    cloning_risk_ids.clone(),
+                ),
+            ];
+            facts.push(cloning_risk_fact);
             decisions.push(Self::construct_reasoning_build_decision(
                 "decision_evaluate_cloning_stability_context",
                 "evaluate_cloning_stability_context",
@@ -22516,7 +23355,38 @@ impl GentleEngine {
             similarity_risk_ids.extend(similarity_ids(&cloning_risk_rows));
             similarity_risk_ids.sort();
             similarity_risk_ids.dedup();
-            facts.push(Self::construct_reasoning_build_fact(
+            let mut similarity_task_severities = vec![];
+            if !slippage_risk_rows.is_empty() {
+                similarity_task_severities.push(Self::construct_reasoning_task_severity(
+                    ConstructReasoningRiskTask::Pcr,
+                    ConstructReasoningSeverity::Medium,
+                    "Slippage-risk repeat evidence makes PCR/amplification review task-relevant.",
+                    similarity_ids(&slippage_risk_rows),
+                ));
+            }
+            if !mapping_ambiguity_rows.is_empty() {
+                similarity_task_severities.push(Self::construct_reasoning_task_severity(
+                    ConstructReasoningRiskTask::ReadMapping,
+                    ConstructReasoningSeverity::Low,
+                    "Repeat-driven ambiguity can reduce local read-mapping uniqueness.",
+                    similarity_ids(&mapping_ambiguity_rows),
+                ));
+            }
+            if !inversion_risk_rows.is_empty() || !cloning_risk_rows.is_empty() {
+                let mut cloning_similarity_ids = similarity_ids(&inversion_risk_rows);
+                cloning_similarity_ids.extend(similarity_ids(&cloning_risk_rows));
+                similarity_task_severities.push(Self::construct_reasoning_task_severity(
+                    ConstructReasoningRiskTask::CloningStability,
+                    if !inversion_risk_rows.is_empty() {
+                        ConstructReasoningSeverity::High
+                    } else {
+                        ConstructReasoningSeverity::Medium
+                    },
+                    "Repeat and inversion-risk evidence is most directly actionable for cloning-stability review.",
+                    cloning_similarity_ids,
+                ));
+            }
+            let mut similarity_risk_fact = Self::construct_reasoning_build_fact(
                 "fact_similarity_operational_risk_context",
                 "similarity_operational_risk_context",
                 "Similarity/low-complexity operational risks detected".to_string(),
@@ -22534,7 +23404,9 @@ impl GentleEngine {
                         .max(similarity_max_score(&inversion_risk_rows))
                         .max(similarity_max_score(&cloning_risk_rows)),
                 }),
-            ));
+            );
+            similarity_risk_fact.task_severities = similarity_task_severities;
+            facts.push(similarity_risk_fact);
             decisions.push(Self::construct_reasoning_build_decision(
                 "decision_evaluate_similarity_operational_risk",
                 "evaluate_similarity_operational_risk",

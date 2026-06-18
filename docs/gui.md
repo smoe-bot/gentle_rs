@@ -2141,6 +2141,9 @@ Controls:
          - `Nanopore/direct-sequencing review suggested`
          - `Repeat-driven mapping review suggested`
          - `Cloning stability review suggested`
+       - task-aware repeat/similarity severity is shown as compact
+         `task_severity: ...` detail lines under the same fact rows, backed by
+         protocol `task_severities[]`, and does not create extra map overlays
      - repeat/similarity summaries, candidates, and repeat-driven fact rows
        can now open the shared dotplot workspace directly:
        - `Dotplot` opens a self-forward dotplot centered on the implicated
@@ -2796,8 +2799,11 @@ Local LLM setup (Jan/Msty/OpenAI-compatible endpoint):
 2. Select one of:
    - `Local Llama (OpenAI-compatible)`
    - `Jan Local (template)`
+   - `Msty MLX Local (template)`
    - `Msty Local (template)`
-3. Set `Base URL override` to your local endpoint, e.g. `http://localhost:11964`.
+3. Set `Base URL override` to your local endpoint, e.g.
+   `http://localhost:11973/v1` for Msty MLX or `http://localhost:11964`
+   for the Msty gateway profile.
 4. Optionally set `timeout_sec` for slow local models (for example `600`).
 5. Click `Discover Models` and select one discovered model from the dropdown
    (or set `Model override` directly, for example `deepseek-r1:8b`).
@@ -2808,6 +2814,9 @@ Local LLM setup (Jan/Msty/OpenAI-compatible endpoint):
 10. For local root URLs (such as `http://localhost:11964`), GENtle will try both:
    - `/chat/completions`
    - `/v1/chat/completions`
+11. If `http://localhost:11964/v1/models` returns `data: null` while an MLX
+    server exposes models on `http://localhost:11973/v1/models`, choose
+    `Msty MLX Local (template)` or set that URL as the base override.
 
 Common failure interpretation:
 
@@ -3019,11 +3028,12 @@ The `Help` menu now includes:
   CUT&RUN-style BED fixture, annotates TFBS, enables evidence layers, and
   renders proof SVG/report artifacts through the same shared operations used by
   CLI workflows.
-- Manual CEL/probeset preparation remains explicit: the assistant shows
-  copyable `arrays probe-regions --dry-run`, `scripts/probe_regions_oligo.R`,
-  and `arrays inspect-probe-region-output` commands. Login-walled Thermo Fisher
-  support ZIPs are only listed as expected local inputs; GENtle does not
-  download them or run R package installation from the GUI.
+- CEL/probeset preparation remains explicit: the assistant shows copyable
+  `arrays probe-regions --dry-run`, `arrays run-probe-region-backend PLAN.json
+  --allow-external-execution`, and `arrays inspect-probe-region-output`
+  commands. Login-walled Thermo Fisher support ZIPs are only listed as expected
+  local inputs; GENtle does not download them or run R package installation
+  from the GUI.
 - Prepared Clariom D array output can be projected with
   `arrays project-microarray-track`. The command validates that the manifest
   coordinate system matches the open sequence's genome anchor, or that the
@@ -3052,8 +3062,12 @@ The `Help` menu now includes:
   condition-contrast, annotation/library, platform, backend-candidate, local
   dependency, output, and cache-readiness checks. The `r_oligo` candidate
   advertises the generic `scripts/probe_regions_oligo.R` helper and includes
-  an advisory command for explicit RMA/CEL requests; first-class GUI execution
-  and plots remain a backend follow-up.
+  an advisory command for explicit RMA/CEL requests; the panel can run that
+  selected backend only through the shared
+  `arrays run-probe-region-backend PLAN.json --allow-external-execution`
+  capability after the user enables the external R/APT confirmation checkbox.
+  Missing preflight dependencies stop before R/APT is launched, and GENtle
+  still does not download or install packages.
 - For `Clariom_D_Human`, the same preflight lists the canonical local Thermo
   Fisher na36 hg38 support ZIP paths under
   `annotation_source.vendor_support_files[]`; these login-walled files are

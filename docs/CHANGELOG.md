@@ -12,8 +12,28 @@ Maintenance rule:
   document names, schemas, or feature names only when they help a reader
   understand what changed.
 
+## 2026-06-19
+
+- Added rule-based `task_severities[]` to construct-reasoning facts so
+  repeat/similarity warnings can report PCR, nanopore, read-mapping, cloning
+  stability, and construct-maintenance severity without creating extra map
+  overlays.
+- Completed the Clariom/probe-region real-data-to-figure bridge slice with
+  coordinate-consistent `gentle.probe_region_evidence_interpretation.v2`,
+  gated `arrays run-probe-region-backend`, GUI shared-capability surfacing, and
+  runbook/docs coverage for the explicit E-MTAB-14704 TP73 loop.
+
 ## 2026-06-18
 
+- Integrated materialized RepeatMasker/UCSC `rmsk`-style repeat annotations
+  into construct reasoning so overlapping curated Alu/SINE repeat-family rows
+  back soft internal repeat/mobile-element calls without duplicating fact rows.
+- Made native HTTP agent transports tolerant of local models that omit or
+  mis-shape the `schema` field when the returned JSON otherwise matches
+  `gentle.agent_response.v1`; external stdio adapters remain strict.
+- Added an explicit Msty MLX OpenAI-compatible agent template for
+  `http://localhost:11973/v1`, with GUI/CLI docs that distinguish it from the
+  `11964` Msty gateway when that gateway reports no model ids.
 - Added construct-reasoning inspection-action rationale to the portable action
   payload and surfaced action mode, focus, evidence ids, and rationale in the
   existing GUI inspector rows.

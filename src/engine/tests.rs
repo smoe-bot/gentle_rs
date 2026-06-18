@@ -720,6 +720,9 @@ fn interpret_probe_region_evidence_preserves_shared_transcript_ambiguity() {
         .expect("interpretation report");
     assert_eq!(report.schema, PROBE_REGION_EVIDENCE_INTERPRETATION_SCHEMA);
     assert_eq!(report.level, "pm_probe");
+    assert_eq!(report.coordinate_frame, "genomic_1based");
+    assert_eq!(report.coordinate_system.as_deref(), Some("hg38"));
+    assert_eq!(report.coordinate_chromosome.as_deref(), Some("chr1"));
     assert_eq!(report.array_feature_count, 1);
     assert_eq!(report.transcript_count, 2);
     assert_eq!(report.evidence_rows.len(), 1);
@@ -741,8 +744,10 @@ fn interpret_probe_region_evidence_preserves_shared_transcript_ambiguity() {
                 .score_basis
                 .iter()
                 .any(|basis| basis == "isoform_support_not_inferred")
+            && mapping.coordinate_frame == "genomic_1based"
             && mapping.exon_ordinals == vec![1]
-            && mapping.exon_ranges_1based == vec!["11..28".to_string()]
+            && mapping.exon_ranges_1based == vec!["1011..1028".to_string()]
+            && mapping.local_exon_ranges_1based == vec!["11..28".to_string()]
             && mapping.junction_spans.is_empty()
             && mapping.overlap_bp == 18
     }));
@@ -845,6 +850,7 @@ fn interpret_probe_region_evidence_reports_junction_spanning_geometry() {
     assert_eq!(row.transcript_mappings.len(), 1);
     let mapping = &row.transcript_mappings[0];
     assert_eq!(mapping.transcript_id, "PATZ1-201");
+    assert_eq!(mapping.coordinate_frame, "sequence_local_1based");
     assert_eq!(mapping.mapping_kind, "junction_spanning_exon_overlap");
     assert_eq!(mapping.geometry_score, 0.75);
     assert_eq!(mapping.geometry_score_class, "junction_spanning_geometry");
@@ -865,6 +871,10 @@ fn interpret_probe_region_evidence_reports_junction_spanning_geometry() {
         mapping.exon_ranges_1based,
         vec!["11..28".to_string(), "61..80".to_string()]
     );
+    assert_eq!(
+        mapping.local_exon_ranges_1based,
+        vec!["11..28".to_string(), "61..80".to_string()]
+    );
     assert_eq!(mapping.overlap_bp, 18);
     assert_eq!(mapping.junction_spans.len(), 1);
     let junction = &mapping.junction_spans[0];
@@ -872,6 +882,8 @@ fn interpret_probe_region_evidence_reports_junction_spanning_geometry() {
     assert_eq!(junction.to_exon_ordinal, 2);
     assert_eq!(junction.genomic_start_1based, 29);
     assert_eq!(junction.genomic_end_1based, 60);
+    assert_eq!(junction.local_start_1based, Some(29));
+    assert_eq!(junction.local_end_1based, Some(60));
     let tx = &report.transcript_rows[0];
     assert_eq!(tx.compatible_geometry_score, 0.75);
     assert_eq!(tx.unique_geometry_score, 0.75);
@@ -1588,6 +1600,9 @@ fn e_mtab_14704_tp73_validation_fixture_projects_and_interprets_pm_probe_evidenc
         .expect("interpretation report");
     assert_eq!(report.schema, PROBE_REGION_EVIDENCE_INTERPRETATION_SCHEMA);
     assert_eq!(report.level, "pm_probe");
+    assert_eq!(report.coordinate_frame, "genomic_1based");
+    assert_eq!(report.coordinate_system.as_deref(), Some("hg38"));
+    assert_eq!(report.coordinate_chromosome.as_deref(), Some("chr1"));
     assert_eq!(report.array_feature_count, 14);
     assert_eq!(report.transcript_count, 2);
     assert_eq!(report.evidence_rows.len(), 14);
@@ -1601,6 +1616,24 @@ fn e_mtab_14704_tp73_validation_fixture_projects_and_interprets_pm_probe_evidenc
     assert_eq!(row.start_1based, Some(3652576));
     assert_eq!(row.end_1based, Some(3652586));
     assert_eq!(row.overlapping_transcript_ids, vec!["TP73-201".to_string()]);
+    let mapping = row
+        .transcript_mappings
+        .iter()
+        .find(|mapping| mapping.transcript_id == "TP73-201")
+        .expect("342828 TP73-201 mapping");
+    assert_eq!(mapping.coordinate_frame, "genomic_1based");
+    assert!(
+        mapping
+            .exon_ranges_1based
+            .iter()
+            .any(|range| range == "3652570..3652595")
+    );
+    assert!(
+        mapping
+            .local_exon_ranges_1based
+            .iter()
+            .any(|range| range == "55..80")
+    );
     assert!(
         row.ambiguity_tags
             .iter()
@@ -1658,6 +1691,7 @@ fn e_mtab_14704_tp73_validation_report_is_probe_location_figure_ready() {
 
     assert_eq!(report.schema, PROBE_REGION_EVIDENCE_INTERPRETATION_SCHEMA);
     assert_eq!(report.level, "pm_probe");
+    assert_eq!(report.coordinate_frame, "genomic_1based");
     assert_eq!(report.array_feature_count, 14);
     assert_eq!(report.transcript_count, 2);
     assert!(report.transcript_rows.iter().all(|row| row.exon_count >= 3));
@@ -1709,12 +1743,25 @@ fn e_mtab_14704_tp73_validation_report_is_probe_location_figure_ready() {
                 mapping.exon_ordinals.len(),
                 mapping.exon_ranges_1based.len()
             );
+            assert_eq!(
+                mapping.coordinate_frame, report.coordinate_frame,
+                "renderer frame mismatch for {}",
+                row.feature_id
+            );
             assert!(
                 mapping
                     .exon_ranges_1based
                     .iter()
+                    .all(|range| range.starts_with("365") && range.contains("..")),
+                "renderer needs genomic exon ranges for {}",
+                row.feature_id
+            );
+            assert!(
+                mapping
+                    .local_exon_ranges_1based
+                    .iter()
                     .all(|range| range.contains("..")),
-                "renderer needs exon ranges for {}",
+                "audit trail needs local exon ranges for {}",
                 row.feature_id
             );
         }
@@ -1787,7 +1834,10 @@ fn render_probe_region_evidence_svg_from_tp73_validation_report() {
         .expect("interpretation report");
 
     let svg = GentleEngine::render_probe_region_evidence_svg_text(&report);
+    let second_svg = GentleEngine::render_probe_region_evidence_svg_text(&report);
+    assert_eq!(svg, second_svg);
     assert!(svg.contains("gentle.probe_region_evidence_svg_export.v1"));
+    assert!(svg.contains("data-coordinate-frame=\"genomic_1based\""));
     assert!(svg.contains("Probe-region evidence geometry constraints"));
     assert!(svg.contains("class=\"transcript\""));
     assert!(svg.matches("class=\"transcript\"").count() >= 2);
@@ -1799,7 +1849,11 @@ fn render_probe_region_evidence_svg_from_tp73_validation_report() {
     assert!(svg.contains("multi_hit_not_assessed"));
     assert!(svg.contains("isoform_support_not_inferred"));
     assert!(svg.contains("Review-only"));
-    assert!(svg.contains("report_local_geometry_aligned_to_evidence_axis_without_full_gene_model"));
+    assert!(
+        !svg.contains("report_local_geometry_aligned_to_evidence_axis_without_full_gene_model")
+    );
+    assert!(!svg.contains("report-local"));
+    assert!(svg.contains("data-original-range=\"3652520..3652558\""));
     assert!(svg.contains("data-transcript-id=\"TP73-201\""));
     assert!(svg.contains("data-transcript-id=\"TP73-202\""));
     let compact = svg.split_whitespace().collect::<String>();
@@ -1832,12 +1886,14 @@ fn render_probe_region_evidence_svg_is_stable_for_degenerate_single_coordinate_r
             overlapping_exon_count: 1,
             transcript_mappings: vec![ProbeRegionEvidenceTranscriptMapping {
                 transcript_id: "TP73-201".to_string(),
+                coordinate_frame: "sequence_local_1based".to_string(),
                 mapping_kind: "exon_overlap".to_string(),
                 geometry_score: 0.5,
                 geometry_score_class: "weak_geometry_constraint".to_string(),
                 score_basis: vec!["single_coordinate_degenerate_axis".to_string()],
                 exon_ordinals: vec![1],
                 exon_ranges_1based: vec!["42..42".to_string()],
+                local_exon_ranges_1based: vec!["42..42".to_string()],
                 junction_spans: Vec::new(),
                 overlap_bp: 1,
             }],
@@ -1882,120 +1938,106 @@ fn render_probe_region_evidence_svg_is_stable_for_degenerate_single_coordinate_r
 }
 
 #[test]
-fn render_probe_region_evidence_svg_warns_only_when_aligning_local_geometry() {
-    let make_report =
-        |exon_range: &str, junction_start: usize, junction_end: usize| {
-            ProbeRegionEvidenceInterpretationReport {
-                schema: PROBE_REGION_EVIDENCE_INTERPRETATION_SCHEMA.to_string(),
-                seq_id: "array_slice".to_string(),
-                gene_label: Some("TP73".to_string()),
-                level: "pm_probe".to_string(),
-                array_feature_count: 1,
-                transcript_count: 1,
-                evidence_rows: vec![ProbeRegionEvidenceMappingRow {
-                    evidence_id: "probe_719406:contrast".to_string(),
-                    level: "pm_probe".to_string(),
-                    feature_id: "719406".to_string(),
-                    parent_feature_id: Some("PSR0100145779.hg.1".to_string()),
-                    intensity_source: Some("probe_level_input".to_string()),
-                    chromosome: Some("chr1".to_string()),
-                    start_1based: Some(3_652_527),
-                    end_1based: Some(3_652_538),
-                    strand: Some("+".to_string()),
-                    logfc: Some(0.72),
-                    overlapping_transcript_ids: vec!["TP73-201".to_string()],
-                    overlapping_exon_count: 2,
-                    transcript_mappings: vec![ProbeRegionEvidenceTranscriptMapping {
-                        transcript_id: "TP73-201".to_string(),
-                        mapping_kind: "junction_spanning_exon_overlap".to_string(),
-                        geometry_score: 1.0,
-                        geometry_score_class: "strong_geometry_constraint".to_string(),
-                        score_basis: vec!["junction_spans=1".to_string()],
-                        exon_ordinals: vec![1, 2],
-                        exon_ranges_1based: vec![exon_range.to_string()],
-                        junction_spans: vec![ProbeRegionEvidenceJunctionSpan {
-                            from_exon_ordinal: 1,
-                            to_exon_ordinal: 2,
-                            genomic_start_1based: junction_start,
-                            genomic_end_1based: junction_end,
-                        }],
-                        overlap_bp: 12,
-                    }],
-                    mapping_status: "compatible".to_string(),
-                    ambiguity_tags: vec![
-                        "probe_sequence_alignment_not_assessed".to_string(),
-                        "multi_hit_not_assessed".to_string(),
-                        "isoform_support_not_inferred".to_string(),
-                    ],
-                    relationship: "geometry_constraint_review_only".to_string(),
+fn render_probe_region_evidence_svg_uses_report_frame_without_local_alignment_warning() {
+    let report = ProbeRegionEvidenceInterpretationReport {
+        schema: PROBE_REGION_EVIDENCE_INTERPRETATION_SCHEMA.to_string(),
+        seq_id: "array_slice".to_string(),
+        gene_label: Some("TP73".to_string()),
+        level: "pm_probe".to_string(),
+        coordinate_frame: "genomic_1based".to_string(),
+        coordinate_system: Some("hg38".to_string()),
+        coordinate_chromosome: Some("chr1".to_string()),
+        array_feature_count: 1,
+        transcript_count: 1,
+        evidence_rows: vec![ProbeRegionEvidenceMappingRow {
+            evidence_id: "probe_719406:contrast".to_string(),
+            level: "pm_probe".to_string(),
+            feature_id: "719406".to_string(),
+            parent_feature_id: Some("PSR0100145779.hg.1".to_string()),
+            intensity_source: Some("probe_level_input".to_string()),
+            chromosome: Some("chr1".to_string()),
+            start_1based: Some(3_652_527),
+            end_1based: Some(3_652_538),
+            strand: Some("+".to_string()),
+            logfc: Some(0.72),
+            overlapping_transcript_ids: vec!["TP73-201".to_string()],
+            overlapping_exon_count: 2,
+            transcript_mappings: vec![ProbeRegionEvidenceTranscriptMapping {
+                transcript_id: "TP73-201".to_string(),
+                coordinate_frame: "genomic_1based".to_string(),
+                mapping_kind: "junction_spanning_exon_overlap".to_string(),
+                geometry_score: 1.0,
+                geometry_score_class: "strong_geometry_constraint".to_string(),
+                score_basis: vec!["junction_spans=1".to_string()],
+                exon_ordinals: vec![1, 2],
+                exon_ranges_1based: vec![
+                    "3652527..3652538".to_string(),
+                    "3652550..3652564".to_string(),
+                ],
+                local_exon_ranges_1based: vec!["11..28".to_string(), "61..90".to_string()],
+                junction_spans: vec![ProbeRegionEvidenceJunctionSpan {
+                    from_exon_ordinal: 1,
+                    to_exon_ordinal: 2,
+                    genomic_start_1based: 3_652_539,
+                    genomic_end_1based: 3_652_549,
+                    local_start_1based: Some(29),
+                    local_end_1based: Some(60),
                 }],
-                transcript_rows: vec![ProbeRegionEvidenceTranscriptRow {
-                    transcript_id: "TP73-201".to_string(),
-                    gene: Some("TP73".to_string()),
-                    label: Some("TP73-201".to_string()),
-                    strand: Some("+".to_string()),
-                    exon_count: 3,
-                    compatible_evidence_count: 1,
-                    constraining_evidence_count: 1,
-                    shared_evidence_count: 0,
-                    unique_evidence_count: 1,
-                    unmapped_evidence_count: 0,
-                    compatible_geometry_score: 1.0,
-                    shared_geometry_score: 0.0,
-                    unique_geometry_score: 1.0,
-                    constraining_geometry_score: 1.0,
-                    review_status: "unique_geometry_review_only".to_string(),
-                    relationship_summary: "geometry_constraint_review_only".to_string(),
-                }],
-                warnings: Vec::new(),
-                ..Default::default()
-            }
-        };
+                overlap_bp: 22,
+            }],
+            mapping_status: "compatible".to_string(),
+            ambiguity_tags: vec![
+                "probe_sequence_alignment_not_assessed".to_string(),
+                "multi_hit_not_assessed".to_string(),
+                "isoform_support_not_inferred".to_string(),
+            ],
+            relationship: "geometry_constraint_review_only".to_string(),
+        }],
+        transcript_rows: vec![ProbeRegionEvidenceTranscriptRow {
+            transcript_id: "TP73-201".to_string(),
+            gene: Some("TP73".to_string()),
+            label: Some("TP73-201".to_string()),
+            strand: Some("+".to_string()),
+            exon_count: 3,
+            compatible_evidence_count: 1,
+            constraining_evidence_count: 1,
+            shared_evidence_count: 0,
+            unique_evidence_count: 1,
+            unmapped_evidence_count: 0,
+            compatible_geometry_score: 1.0,
+            shared_geometry_score: 0.0,
+            unique_geometry_score: 1.0,
+            constraining_geometry_score: 1.0,
+            review_status: "unique_geometry_review_only".to_string(),
+            relationship_summary: "geometry_constraint_review_only".to_string(),
+        }],
+        warnings: Vec::new(),
+        ..Default::default()
+    };
 
     let temp = tempdir().expect("tempdir");
-    let cross_frame_report = temp.path().join("cross_frame_report.json");
-    let cross_frame_svg = temp.path().join("cross_frame.svg");
+    let report_path = temp.path().join("same_frame_report.json");
+    let svg_path = temp.path().join("same_frame.svg");
     fs::write(
-        &cross_frame_report,
-        serde_json::to_string_pretty(&make_report("11..28", 29, 60))
-            .expect("serialize cross-frame report"),
-    )
-    .expect("write cross-frame report");
-    let export = GentleEngine::default()
-        .export_probe_region_evidence_svg(
-            &cross_frame_report.to_string_lossy(),
-            &cross_frame_svg.to_string_lossy(),
-        )
-        .expect("export cross-frame evidence SVG");
-    assert!(export.warnings.iter().any(|warning| {
-        warning == "report_local_geometry_aligned_to_evidence_axis_without_full_gene_model"
-    }));
-    let svg = fs::read_to_string(&cross_frame_svg).expect("read cross-frame svg");
-    assert!(svg.contains("report-local"));
-    assert!(svg.contains("aligned to the evidence coordinate axis for display"));
-
-    let same_frame_report = temp.path().join("same_frame_report.json");
-    let same_frame_svg = temp.path().join("same_frame.svg");
-    fs::write(
-        &same_frame_report,
-        serde_json::to_string_pretty(&make_report(
-            "3652527..3652538",
-            3_652_539,
-            3_652_560,
-        ))
-        .expect("serialize same-frame report"),
+        &report_path,
+        serde_json::to_string_pretty(&report).expect("serialize same-frame report"),
     )
     .expect("write same-frame report");
     let export = GentleEngine::default()
         .export_probe_region_evidence_svg(
-            &same_frame_report.to_string_lossy(),
-            &same_frame_svg.to_string_lossy(),
+            &report_path.to_string_lossy(),
+            &svg_path.to_string_lossy(),
         )
         .expect("export same-frame evidence SVG");
     assert!(!export.warnings.iter().any(|warning| {
         warning == "report_local_geometry_aligned_to_evidence_axis_without_full_gene_model"
     }));
-    let svg = fs::read_to_string(&same_frame_svg).expect("read same-frame svg");
+    let svg = fs::read_to_string(&svg_path).expect("read same-frame svg");
+    assert!(svg.contains("data-coordinate-frame=\"genomic_1based\""));
+    assert!(svg.contains("data-min=\"3652527\""));
+    assert!(svg.contains("data-max=\"3652564\""));
+    assert!(svg.contains("data-original-range=\"3652527..3652538\""));
+    assert!(svg.contains("3652539..3652549"));
     assert!(!svg.contains("report-local"));
 }
 
@@ -39591,6 +39633,44 @@ fn build_construct_reasoning_graph_collects_restriction_sites_and_feature_spans(
     );
 }
 
+fn construct_reasoning_task_severity<'a>(
+    fact: &'a DesignFact,
+    task: ConstructReasoningRiskTask,
+) -> &'a ConstructReasoningTaskSeverity {
+    fact.task_severities
+        .iter()
+        .find(|severity| severity.task == task)
+        .unwrap_or_else(|| panic!("missing {task:?} severity on {}", fact.fact_type))
+}
+
+fn construct_reasoning_severity_rank(severity: ConstructReasoningSeverity) -> u8 {
+    match severity {
+        ConstructReasoningSeverity::None => 0,
+        ConstructReasoningSeverity::Low => 1,
+        ConstructReasoningSeverity::Medium => 2,
+        ConstructReasoningSeverity::High => 3,
+    }
+}
+
+fn assert_task_severity_ids_are_fact_evidence(fact: &DesignFact) {
+    for severity in &fact.task_severities {
+        assert!(
+            !severity.supporting_evidence_ids.is_empty(),
+            "task severity should name evidence: {:?}",
+            severity
+        );
+        for evidence_id in &severity.supporting_evidence_ids {
+            assert!(
+                fact.based_on_evidence_ids
+                    .iter()
+                    .any(|id| id == evidence_id),
+                "severity evidence {evidence_id} should be part of fact evidence {:?}",
+                fact.based_on_evidence_ids
+            );
+        }
+    }
+}
+
 #[test]
 fn build_construct_reasoning_graph_derives_low_complexity_repeat_and_operational_risk_context() {
     let sequence = format!(
@@ -39668,6 +39748,18 @@ fn build_construct_reasoning_graph_derives_low_complexity_repeat_and_operational
             .unwrap_or(0)
             >= 1
     );
+    let repeat_read_mapping =
+        construct_reasoning_task_severity(repeat_fact, ConstructReasoningRiskTask::ReadMapping);
+    let repeat_cloning = construct_reasoning_task_severity(
+        repeat_fact,
+        ConstructReasoningRiskTask::CloningStability,
+    );
+    assert!(
+        construct_reasoning_severity_rank(repeat_cloning.severity)
+            > construct_reasoning_severity_rank(repeat_read_mapping.severity),
+        "repeat architecture should be more severe for cloning stability than read mapping without curated family support"
+    );
+    assert_task_severity_ids_are_fact_evidence(repeat_fact);
 
     let risk_fact = graph
         .facts
@@ -39690,6 +39782,7 @@ fn build_construct_reasoning_graph_derives_low_complexity_repeat_and_operational
             .unwrap_or(0)
             >= 1
     );
+    assert_task_severity_ids_are_fact_evidence(risk_fact);
     let pcr_fact = graph
         .facts
         .iter()
@@ -39703,6 +39796,13 @@ fn build_construct_reasoning_graph_derives_low_complexity_repeat_and_operational
             .unwrap_or(0)
             >= 1
     );
+    let pcr_severity = construct_reasoning_task_severity(pcr_fact, ConstructReasoningRiskTask::Pcr);
+    assert!(
+        construct_reasoning_severity_rank(pcr_severity.severity)
+            >= construct_reasoning_severity_rank(ConstructReasoningSeverity::Medium),
+        "homopolymer/tandem repeat context should be PCR-relevant"
+    );
+    assert_task_severity_ids_are_fact_evidence(pcr_fact);
     let nanopore_fact = graph
         .facts
         .iter()
@@ -39716,6 +39816,16 @@ fn build_construct_reasoning_graph_derives_low_complexity_repeat_and_operational
             .unwrap_or(0)
             >= 1
     );
+    let nanopore_severity = construct_reasoning_task_severity(
+        nanopore_fact,
+        ConstructReasoningRiskTask::NanoporeSequencing,
+    );
+    assert!(
+        construct_reasoning_severity_rank(nanopore_severity.severity)
+            >= construct_reasoning_severity_rank(ConstructReasoningSeverity::Medium),
+        "homopolymer/low-complexity context should be nanopore-relevant"
+    );
+    assert_task_severity_ids_are_fact_evidence(nanopore_fact);
     let mapping_fact = graph
         .facts
         .iter()
@@ -39729,6 +39839,10 @@ fn build_construct_reasoning_graph_derives_low_complexity_repeat_and_operational
             .unwrap_or(0)
             >= 1
     );
+    let mapping_severity =
+        construct_reasoning_task_severity(mapping_fact, ConstructReasoningRiskTask::ReadMapping);
+    assert_eq!(mapping_severity.severity, ConstructReasoningSeverity::Low);
+    assert_task_severity_ids_are_fact_evidence(mapping_fact);
     let cloning_fact = graph
         .facts
         .iter()
@@ -39742,6 +39856,12 @@ fn build_construct_reasoning_graph_derives_low_complexity_repeat_and_operational
             .unwrap_or(0)
             >= 1
     );
+    let cloning_severity = construct_reasoning_task_severity(
+        cloning_fact,
+        ConstructReasoningRiskTask::CloningStability,
+    );
+    assert_eq!(cloning_severity.severity, ConstructReasoningSeverity::High);
+    assert_task_severity_ids_are_fact_evidence(cloning_fact);
     assert!(graph.annotation_candidates.iter().any(|row| {
         row.role == ConstructRole::RepeatRegion && row.source_kind == "generated_annotation"
     }));
@@ -39793,16 +39913,44 @@ fn build_construct_reasoning_graph_derives_low_complexity_repeat_and_operational
     );
 }
 
-#[test]
-fn build_construct_reasoning_graph_detects_alu_like_mobile_element_candidates() {
+fn alu_like_demo_sequence_text() -> String {
     let monomer = "GGCCGGGCGCGGTGGCTCACGCCTGTAATCCCAGCACTTTGGGAGGCCGAGGCGGGCGGATCACCTGAGGTCAGGAGTTCGAGACCAGCCTGGCCAACATG";
-    let sequence = format!(
+    format!(
         "{}{}{}{}",
         "ACGT".repeat(12),
         monomer,
         format!("AATAAAATACA{monomer}"),
         "AAAAAAAAAAAAAAAA"
-    );
+    )
+}
+
+fn synthetic_ucsc_rmsk_alu_feature(
+    start_0based: usize,
+    end_0based_exclusive: usize,
+    annotation_id: &str,
+) -> gb_io::seq::Feature {
+    gb_io::seq::Feature {
+        kind: "repeat_region".into(),
+        location: gb_io::seq::Location::simple_range(
+            start_0based as i64,
+            end_0based_exclusive as i64,
+        ),
+        qualifiers: vec![
+            ("gentle_generated".into(), Some("ucsc_rmsk".to_string())),
+            ("rmsk_name".into(), Some("AluY".to_string())),
+            ("rmsk_class".into(), Some("SINE".to_string())),
+            ("rmsk_family".into(), Some("Alu".to_string())),
+            ("repName".into(), Some("AluY".to_string())),
+            ("repClass".into(), Some("SINE".to_string())),
+            ("repFamily".into(), Some("Alu".to_string())),
+            ("rmsk_annotation_id".into(), Some(annotation_id.to_string())),
+        ],
+    }
+}
+
+#[test]
+fn build_construct_reasoning_graph_detects_alu_like_mobile_element_candidates() {
+    let sequence = alu_like_demo_sequence_text();
     let dna = DNAsequence::from_sequence(&sequence).expect("sequence");
     let mut state = ProjectState::default();
     state.sequences.insert("alu_like_demo".to_string(), dna);
@@ -39837,6 +39985,20 @@ fn build_construct_reasoning_graph_detects_alu_like_mobile_element_candidates() 
             .unwrap_or(0)
             >= 1
     );
+    assert_eq!(
+        mobile_fact
+            .value_json
+            .get("curated_repeat_support_count")
+            .and_then(serde_json::Value::as_u64),
+        Some(0)
+    );
+    let soft_mapping_severity =
+        construct_reasoning_task_severity(mobile_fact, ConstructReasoningRiskTask::ReadMapping);
+    assert_eq!(
+        soft_mapping_severity.severity,
+        ConstructReasoningSeverity::Medium
+    );
+    assert_task_severity_ids_are_fact_evidence(mobile_fact);
     let mapping_fact = graph
         .facts
         .iter()
@@ -39878,6 +40040,206 @@ fn build_construct_reasoning_graph_detects_alu_like_mobile_element_candidates() 
     assert!(
         mobile_action.repeat_family_provenance.is_none(),
         "soft Alu-like heuristics should not claim curated repeat-family provenance yet"
+    );
+}
+
+#[test]
+fn build_construct_reasoning_graph_upgrades_alu_like_with_overlapping_rmsk_family_support() {
+    let sequence = alu_like_demo_sequence_text();
+    let mut dna = DNAsequence::from_sequence(&sequence).expect("sequence");
+    dna.features_mut().push(synthetic_ucsc_rmsk_alu_feature(
+        0,
+        sequence.len(),
+        "rmsk_alu_1",
+    ));
+    dna.features_mut().push(synthetic_ucsc_rmsk_alu_feature(
+        0,
+        sequence.len(),
+        "rmsk_alu_2",
+    ));
+    let mut state = ProjectState::default();
+    state
+        .sequences
+        .insert("alu_like_rmsk_demo".to_string(), dna);
+    let mut engine = GentleEngine::from_state(state);
+
+    let graph = engine
+        .build_construct_reasoning_graph("alu_like_rmsk_demo", None, None)
+        .expect("build graph");
+
+    let alu_evidence = graph
+        .evidence
+        .iter()
+        .find(|row| row.label == "Alu-like SINE candidate")
+        .expect("Alu-like evidence");
+    let curated_rows = graph
+        .evidence
+        .iter()
+        .filter(|row| row.context_tags.iter().any(|tag| tag == "ucsc_rmsk"))
+        .collect::<Vec<_>>();
+    assert_eq!(curated_rows.len(), 2);
+    assert!(curated_rows.iter().all(|row| {
+        row.evidence_class == EvidenceClass::ReliableAnnotation
+            && row.notes.iter().any(|note| note == "repeat_family=Alu")
+            && row
+                .context_tags
+                .iter()
+                .any(|tag| tag == "repeat_class_sine")
+            && row
+                .context_tags
+                .iter()
+                .any(|tag| tag == "repeat_family_alu")
+    }));
+
+    let mobile_fact = graph
+        .facts
+        .iter()
+        .find(|fact| fact.fact_type == "mobile_element_context")
+        .expect("mobile element fact");
+    assert_eq!(
+        mobile_fact
+            .value_json
+            .get("status")
+            .and_then(serde_json::Value::as_str),
+        Some("curated_alu_sine_supported")
+    );
+    assert_eq!(
+        mobile_fact
+            .value_json
+            .get("curated_repeat_support_count")
+            .and_then(serde_json::Value::as_u64),
+        Some(1)
+    );
+    let support = mobile_fact
+        .value_json
+        .get("curated_repeat_support")
+        .and_then(serde_json::Value::as_array)
+        .expect("curated support array");
+    assert_eq!(support.len(), 1);
+    assert_eq!(
+        support[0].get("label").and_then(serde_json::Value::as_str),
+        Some("AluY (SINE/Alu)")
+    );
+    assert_eq!(
+        support[0]
+            .get("evidence_ids")
+            .and_then(serde_json::Value::as_array)
+            .map(Vec::len),
+        Some(2),
+        "duplicate overlapping rmsk annotations should be summarized into one support row"
+    );
+    assert!(
+        mobile_fact
+            .rationale
+            .contains("overlapping curated repeat-family annotation")
+    );
+    let curated_mapping_severity =
+        construct_reasoning_task_severity(mobile_fact, ConstructReasoningRiskTask::ReadMapping);
+    assert_eq!(
+        curated_mapping_severity.severity,
+        ConstructReasoningSeverity::High
+    );
+    assert!(
+        curated_mapping_severity
+            .supporting_evidence_ids
+            .iter()
+            .any(|id| id == &alu_evidence.evidence_id)
+    );
+    assert!(curated_rows.iter().all(|row| {
+        curated_mapping_severity
+            .supporting_evidence_ids
+            .iter()
+            .any(|id| id == &row.evidence_id)
+    }));
+    assert_task_severity_ids_are_fact_evidence(mobile_fact);
+
+    let mobile_action = graph
+        .inspection_actions
+        .iter()
+        .find(|action| {
+            action.mode == DotplotMode::SelfForward
+                && action
+                    .source_fact_ids
+                    .iter()
+                    .any(|id| id == &mobile_fact.fact_id)
+        })
+        .expect("mobile-element fact should recommend a forward dotplot action");
+    assert_eq!(mobile_action.focus_start_0based, alu_evidence.start_0based);
+    let provenance = mobile_action
+        .repeat_family_provenance
+        .as_ref()
+        .expect("curated support should populate action repeat-family provenance");
+    assert_eq!(provenance.source_kind, "ucsc_rmsk");
+    assert_eq!(provenance.family_name.as_deref(), Some("Alu"));
+    assert_eq!(provenance.evidence_ids.len(), 2);
+}
+
+#[test]
+fn build_construct_reasoning_graph_does_not_upgrade_alu_like_for_non_overlapping_rmsk() {
+    let sequence = format!("{}{}", alu_like_demo_sequence_text(), "CGTA".repeat(16));
+    let mut dna = DNAsequence::from_sequence(&sequence).expect("sequence");
+    let suffix_start = sequence.len().saturating_sub(40);
+    dna.features_mut().push(synthetic_ucsc_rmsk_alu_feature(
+        suffix_start,
+        sequence.len(),
+        "rmsk_alu_suffix",
+    ));
+    let mut state = ProjectState::default();
+    state
+        .sequences
+        .insert("alu_like_rmsk_nonoverlap".to_string(), dna);
+    let mut engine = GentleEngine::from_state(state);
+
+    let graph = engine
+        .build_construct_reasoning_graph("alu_like_rmsk_nonoverlap", None, None)
+        .expect("build graph");
+
+    assert!(
+        graph
+            .evidence
+            .iter()
+            .any(|row| row.context_tags.iter().any(|tag| tag == "ucsc_rmsk"))
+    );
+    let mobile_fact = graph
+        .facts
+        .iter()
+        .find(|fact| fact.fact_type == "mobile_element_context")
+        .expect("mobile element fact");
+    assert_eq!(
+        mobile_fact
+            .value_json
+            .get("status")
+            .and_then(serde_json::Value::as_str),
+        Some("alu_like_candidates_detected")
+    );
+    assert_eq!(
+        mobile_fact
+            .value_json
+            .get("curated_repeat_support_count")
+            .and_then(serde_json::Value::as_u64),
+        Some(0)
+    );
+    let nonoverlap_mapping_severity =
+        construct_reasoning_task_severity(mobile_fact, ConstructReasoningRiskTask::ReadMapping);
+    assert!(
+        construct_reasoning_severity_rank(nonoverlap_mapping_severity.severity)
+            < construct_reasoning_severity_rank(ConstructReasoningSeverity::High),
+        "non-overlapping rmsk rows should not upgrade soft internal mobile-element severity"
+    );
+    let mobile_action = graph
+        .inspection_actions
+        .iter()
+        .find(|action| {
+            action.mode == DotplotMode::SelfForward
+                && action
+                    .source_fact_ids
+                    .iter()
+                    .any(|id| id == &mobile_fact.fact_id)
+        })
+        .expect("mobile-element fact should still recommend a forward dotplot action");
+    assert!(
+        mobile_action.repeat_family_provenance.is_none(),
+        "non-overlapping rmsk rows should not back the Alu-like dotplot action"
     );
 }
 

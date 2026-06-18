@@ -128,10 +128,17 @@ helper/vector ranking; `seq_id` stays traceability-only and unresolved
 marker/promoter/MCS constraints stay explicit questions rather than hidden
 heuristics.
 High-yield protein-production requests should go through the separate
-read-only `planning protein-expression-handoff` route, which surfaces product
-context, chassis/route candidates, GeneArt service preflight scaffolding, and
-the required yield/folding/chassis review questions without creating
-constructs.
+read-only `planning protein-expression-handoff` route, which now surfaces
+product-readiness context for stored DNA/protein sequences, chassis/route
+candidates, GeneArt service preflight scaffolding, and the required
+yield/folding/chassis review questions without creating constructs. Next
+synthetic-biology bridge work should stay in this order: make
+`product_definition.readiness` drive `suggested_next_actions[]`; generate a
+review-only provider-neutral GeneArt draft from the handoff report; add a thin
+Synthetic Biology / Protein Expression Handoff inspector over the shared
+report; only then expand structured biological scoring for tag policy,
+solubility/activity endpoint, chassis constraints, PTMs/cofactors, toxicity,
+provider capabilities, and local inventory.
 
 MCP follow-up: the typed `tools/list` surface is curated rather than a
 one-command/one-tool mirror. Keep `docs/agent_interface.md` as the exclusion
@@ -204,9 +211,11 @@ focus range, dotplot mode, context tags, and driving evidence ids directly from
 the portable action object while keeping the button itself simple.
 
 Later phases stay intentionally separate: richer action-specific evidence panes,
-curated RepeatMasker/UCSC repeat-family promotion for
-Alu/SINE/LINE/LTR/satellite calls, task-aware repeat severity, and broader
-mapping of single-sequence operations across sequence sets.
+deeper curated repeat-family interpretation for Alu/SINE/LINE/LTR/satellite
+calls beyond first-pass materialized-rmsk support, richer quantitative or
+objective-specific task-aware repeat severity beyond the first rule-based
+protocol layer, and broader mapping of single-sequence operations across
+sequence sets.
 
 ## Phase D: Visualization And Workflow UX
 

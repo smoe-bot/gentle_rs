@@ -1087,10 +1087,20 @@ UniProt mapping capability status:
     - graph-level `inspection_actions[]` entries for deterministic
       repeat/similarity dotplot handoffs, including `action_id`,
       `rationale`, `driving_evidence_ids[]`, source fact/annotation/summary
-      ids, mode, and focus range
+      ids, mode, focus range, and optional RepeatMasker/UCSC `rmsk`-backed
+      repeat-family provenance
     - current fact summaries now include adapter-capture review plus the new
       similarity-derived predictor rows for PCR/amplification,
       nanopore/direct-sequencing, repeat-driven mapping, and cloning stability
+    - repeat/similarity fact summaries expose `task_severities[]` rows with
+      task (`pcr`, `nanopore_sequencing`, `read_mapping`,
+      `cloning_stability`, `construct_maintenance`), severity, rationale, and
+      supporting evidence ids, plus compact `task_severity: ...` detail lines
+    - repeat/mobile-element facts summarize overlapping materialized
+      RepeatMasker/UCSC `rmsk`-style annotations as
+      `curated_repeat_support[]` rows with repeat name/class/family and
+      supporting evidence ids, while non-overlapping rmsk rows do not upgrade
+      unrelated internal predictions
   - `construct-reasoning list-inspection-actions` returns the same graph-level
     `inspection_actions[]` objects, filtered by source fact/annotation/summary
     ids when requested, so CLI/agent layers do not rediscover GUI dotplot
@@ -1836,6 +1846,8 @@ cargo run --bin gentle_cli -- agents list --catalog assets/agent_systems.json
 cargo run --bin gentle_cli -- agents ask builtin_echo --prompt "summarize current project state"
 cargo run --bin gentle_cli -- agents ask builtin_echo --prompt "ask: Which sequence should I use?" --execute-index 1
 cargo run --bin gentle_cli -- agents ask local_llama_compat --prompt "summarize project context" --base-url http://localhost:11964 --model deepseek-r1:8b
+cargo run --bin gentle_cli -- agents discover-models msty_mlx_local_compat_template
+cargo run --bin gentle_cli -- agents ask msty_mlx_local_compat_template --prompt "summarize project context" --model mlx-community/granite-3.3-2b-instruct-4bit
 cargo run --bin gentle_cli -- op '{"PrepareGenome":{"genome_id":"ToyGenome","catalog_path":"catalog.json"}}'
 cargo run --bin gentle_cli -- op '{"ExtractGenomeRegion":{"genome_id":"ToyGenome","chromosome":"chr1","start_1based":1001,"end_1based":1600,"output_id":"toy_chr1_1001_1600","annotation_scope":"core","catalog_path":"catalog.json"}}'
 cargo run --bin gentle_cli -- op '{"ExtractGenomeGene":{"genome_id":"ToyGenome","gene_query":"MYGENE","occurrence":1,"output_id":"toy_mygene","catalog_path":"catalog.json"}}'
@@ -2101,6 +2113,7 @@ Shared shell command:
     - `arrays project-microarray-track SEQ_ID MANIFEST [--contrasts CSV] [--level probeset] [--min-abs-logfc N] [--max-adj-p N] [--max-features N] [--clear-existing]`
     - `arrays inspect-probe-region-output OUTPUT_DIR`
     - `arrays import-apt-probe-region-output SUMMARY.tsv ANNOTATION.csv OUTPUT_DIR [--metadata PATH] [--condition-column NAME] [--sample-column NAME] [--probe-intensity PATH] [--probe-id-column NAME] [--platform NAME] [--normalization NAME] [--coordinate-system ID] [--genome-build ID]`
+    - `arrays run-probe-region-backend PLAN.json [--backend NAME] --allow-external-execution`
     - `arrays render-probe-region-output-svg OUTPUT_DIR OUTPUT.svg`
     - `arrays render-probe-region-evidence-svg REPORT.json OUTPUT.svg`
     - `arrays project-probe-region-output SEQ_ID OUTPUT_DIR [--contrasts CSV] [--level probe_region|pm_probe] [--min-abs-logfc N] [--max-features N] [--clear-existing]`
@@ -3727,9 +3740,17 @@ Tutorial companion:
     plots `mean_log2_*` condition tracks in the upper panel and `log2FC_*`
     tracks in the lower panel, using the existing chromosome-ordered helper
     table and reporting projection blockers without running R/APT.
+- `arrays run-probe-region-backend analysis/probe_regions/plan.json --allow-external-execution`
+  - Explicit local execution of a persisted `gentle.probe_region_plan.v1`.
+    GENtle refuses to run without `--allow-external-execution`, refuses plans
+    whose preflight/backend readiness failed, captures stdout/stderr/exit
+    status, validates the resulting four-file helper-output contract, and
+    writes hardened `gentle.probe_region_backend_provenance.v1` provenance. It
+    does not download or install CEL files, vendor resources, R packages, or
+    APT.
 - `arrays render-probe-region-evidence-svg analysis/probe_regions/tp73_interpretation.json analysis/probe_regions/tp73_probe_geometry.svg`
   - Read-only deterministic SVG export for
-    `gentle.probe_region_evidence_interpretation.v1`. The SVG draws
+    `gentle.probe_region_evidence_interpretation.v2`. The SVG draws
     transcript lanes, only the exon ranges and junction spans present in the
     report, parent probeset spans, and PM probe intervals. It is a review-only
     transcript/exon-geometry constraint visualization; it does not infer
@@ -3749,7 +3770,7 @@ Tutorial companion:
 - `arrays interpret-probe-region-evidence grch38_tp73 --gene TP73 --level pm_probe --min-abs-logfc 0.5 --path analysis/probe_regions/tp73_interpretation.json`
   - Compares projected probe/probeset-region array features with the
     sequence's transcript/exon annotations and writes
-    `gentle.probe_region_evidence_interpretation.v1`. The report preserves
+    `gentle.probe_region_evidence_interpretation.v2`. The report preserves
     shared-transcript overlaps, parent probeset context, structured
     exon/junction/transcript mappings, conservative geometry scores,
     score-basis guardrails, transcript-level review labels, probe sequence
@@ -4053,6 +4074,10 @@ Conceptual/tutorial companion:
       Jan/Msty/Ollama-style `/chat/completions` endpoints; key optional)
       - endpoint host/port come from catalog `base_url` (or `--base-url` if set);
         GENtle does not silently switch to a different host/port
+      - `msty_mlx_local_compat_template` targets Msty/MLX Knife servers at
+        `http://localhost:11973/v1`; use it when the Msty gateway on
+        `http://localhost:11964/v1/models` is reachable but returns no model
+        ids
 - `agents plan SYSTEM_ID --prompt TEXT [--catalog PATH] [--base-url URL] [--model MODEL] [--timeout-secs N] [--connect-timeout-secs N] [--read-timeout-secs N] [--max-retries N] [--max-response-bytes N] [--max-candidates N] [--no-state-summary] [--no-mutating-candidates]`
   - Accepts prose like `agents ask`, but returns typed `gentle.agent_plan_result.v1`
     candidates instead of chat-oriented suggestion rows.
@@ -5419,6 +5444,15 @@ Notes:
   `annotation_source.vendor_support_files[]`; place them manually in
   `data/resources/affymetrix/clariom_d_human_na36_hg38/` when probe/probeset
   coordinate development needs vendor CSV annotations.
+- `arrays run-probe-region-backend PLAN.json --allow-external-execution`
+  (or `arrays run-probe-region-backend --plan PLAN.json --allow-external-execution`)
+  reads a persisted `gentle.probe_region_plan.v1`, checks the recorded
+  preflight/backend readiness, and only then runs the rendered R/oligo or APT
+  command. The `--allow-external-execution` gate is required; without it GENtle
+  refuses external R/APT execution. The command captures stdout/stderr/exit
+  status, validates the resulting four-file helper-output contract, and writes
+  hardened `gentle.probe_region_backend_provenance.v1` provenance. It never
+  downloads or installs CEL files, vendor resources, R packages, or APT.
 - `arrays inspect-probe-region-output OUTPUT_DIR` validates the explicit helper
   outputs after the user has run R themselves. It does not project features;
   it prepares a shared GUI/CLI-readable summary for projection triage.
