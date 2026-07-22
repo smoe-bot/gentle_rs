@@ -102,8 +102,8 @@ use crate::{
         TfbsScoreTrackValueKind, TfbsTrackSimilarityRankingMetric, TranscriptAssayCdnaSynthesis,
         TranscriptAssayCoveragePolicy, TranscriptAssayJunctionPriority,
         TranscriptAssayJunctionRequest, TranscriptAssayKind, TranscriptAssayPanelObjective,
-        TranscriptAssaySpecificityRequest, TranslationSpeedMark, TranslationSpeedProfile,
-        UniprotFeatureCodingDnaQueryMode,
+        TranscriptAssayPanelSpecificityExecutionManifest, TranscriptAssaySpecificityRequest,
+        TranslationSpeedMark, TranslationSpeedProfile, UniprotFeatureCodingDnaQueryMode,
         VariantAlleleChoice, WORKFLOW_MACRO_TEMPLATES_METADATA_KEY, Workflow,
         WorkflowMacroTemplate, WorkflowMacroTemplateParam, WorkflowMacroTemplatePort,
         construct_reasoning_action_dotplot_request, parse_feature_coordinate_term_on_sequence,
@@ -828,6 +828,7 @@ pub enum ShellCommand {
         container_ids: Option<Vec<String>>,
         arrangement_id: Option<String>,
         conditions: gentle_protocol::GelRunConditions,
+        render_options: gentle_protocol::PoolGelRenderOptions,
     },
     CreateArrangementSerial {
         container_ids: Vec<String>,
@@ -2376,6 +2377,19 @@ pub enum ShellCommand {
     },
     PrimersSpecificityImport {
         handoff_path: String,
+        path: Option<String>,
+    },
+    PrimersTranscriptAssaySpecificityPlan {
+        panel_report_id: String,
+        target_genome_id: String,
+        policy: PrimerSpecificityPolicy,
+        catalog_path: Option<String>,
+        cache_dir: Option<String>,
+        output_dir: String,
+    },
+    PrimersTranscriptAssaySpecificityFinalize {
+        handoff_path: String,
+        execution_manifest_json: String,
         path: Option<String>,
     },
     PrimersTestCdnaPcr {
@@ -6999,6 +7013,7 @@ impl ShellCommand {
                 container_ids,
                 arrangement_id,
                 conditions,
+                render_options,
             } => {
                 let ladders = ladders
                     .as_ref()
@@ -7014,11 +7029,14 @@ impl ShellCommand {
                     .filter(|v| !v.is_empty())
                     .unwrap_or("-");
                 format!(
-                    "render serial gel SVG to '{output}' (inputs={}, containers={}, arrangement={}, ladders={ladders}, conditions={})",
+                    "render serial gel SVG to '{output}' (inputs={}, containers={}, arrangement={}, ladders={ladders}, conditions={}, lane labels={}, band labels={}, isoform markers={})",
                     inputs.len(),
                     containers,
                     arrangement,
-                    conditions.describe()
+                    conditions.describe(),
+                    render_options.lane_label_layout.as_str(),
+                    render_options.band_label_layout.as_str(),
+                    render_options.isoform_marker_mode.as_str()
                 )
             }
             Self::CreateArrangementSerial {
@@ -11011,6 +11029,27 @@ impl ShellCommand {
                     .filter(|v| !v.trim().is_empty())
                     .unwrap_or("none"),
             ),
+            Self::PrimersTranscriptAssaySpecificityPlan {
+                panel_report_id,
+                target_genome_id,
+                output_dir,
+                ..
+            } => format!(
+                "prepare whole-panel external specificity commands for transcript assay panel '{}' against genome '{}' (output_dir='{}')",
+                panel_report_id, target_genome_id, output_dir,
+            ),
+            Self::PrimersTranscriptAssaySpecificityFinalize {
+                handoff_path,
+                execution_manifest_json,
+                path,
+            } => format!(
+                "finalize whole-panel specificity handoff '{}' from execution manifest (manifest_len={}, path={})",
+                handoff_path,
+                execution_manifest_json.len(),
+                path.as_deref()
+                    .filter(|v| !v.trim().is_empty())
+                    .unwrap_or("none"),
+            ),
             Self::PrimersTestCdnaPcr {
                 seq_id,
                 feature_id,
@@ -12528,6 +12567,8 @@ impl ShellCommand {
                 | Self::PrimersSpecificity { .. }
                 | Self::PrimersSpecificityPlan { .. }
                 | Self::PrimersSpecificityImport { .. }
+                | Self::PrimersTranscriptAssaySpecificityPlan { .. }
+                | Self::PrimersTranscriptAssaySpecificityFinalize { .. }
                 | Self::PrimersPrepareRestrictionCloning { .. }
                 | Self::PrimersSeedRestrictionCloningHandoff { .. }
                 | Self::PrimersListRestrictionCloningHandoffs
@@ -18737,6 +18778,9 @@ fn annotated_introspection_capability_descriptors() -> Vec<Value> {
                 json!({"name": "CONTAINER_IDS", "required": false, "subject_kind": "other", "detail": "optional container-id list; each id is validated during execution"}),
                 json!({"name": "ARRANGEMENT_ID", "required": false, "subject_kind": "other", "detail": "optional persisted arrangement id validated during execution"}),
                 json!({"name": "OUTPUT_PATH", "required": true, "subject_kind": "other", "detail": "external SVG output path"}),
+                json!({"name": "LANE_LABEL_LAYOUT", "required": false, "subject_kind": "other", "detail": "auto, horizontal, wrapped, staggered, or angled lane-label placement"}),
+                json!({"name": "BAND_LABEL_LAYOUT", "required": false, "subject_kind": "other", "detail": "auto, inline, or fragment-table-only panel band labels"}),
+                json!({"name": "ISOFORM_MARKERS", "required": false, "subject_kind": "other", "detail": "auto detects transcript accessions and adds color/position/binary identity markers; off suppresses them"}),
             ],
             vec![
                 sequence_inputs_foreach_atom(),
@@ -18768,6 +18812,9 @@ fn annotated_introspection_capability_descriptors() -> Vec<Value> {
                 json!({"name": "CONTAINER_IDS", "required": false, "subject_kind": "other", "detail": "optional container-id list carried by container_ids; each id is validated during execution"}),
                 json!({"name": "ARRANGEMENT_ID", "required": false, "subject_kind": "other", "detail": "optional persisted arrangement id carried by arrangement_id"}),
                 json!({"name": "OUTPUT_PATH", "required": true, "subject_kind": "other", "detail": "external SVG output path carried by path"}),
+                json!({"name": "LANE_LABEL_LAYOUT", "required": false, "subject_kind": "other", "detail": "presentation-only lane-label placement carried by render_options"}),
+                json!({"name": "BAND_LABEL_LAYOUT", "required": false, "subject_kind": "other", "detail": "presentation-only in-gel band-label placement carried by render_options"}),
+                json!({"name": "ISOFORM_MARKERS", "required": false, "subject_kind": "other", "detail": "presentation-only transcript identity markers carried by render_options"}),
             ],
             vec![
                 sequence_inputs_foreach_atom(),
@@ -18788,6 +18835,25 @@ fn annotated_introspection_capability_descriptors() -> Vec<Value> {
                 json!({"name": "FORWARD_PRIMER", "required": false, "subject_kind": "other", "detail": "explicit forward primer sequence alternative"}),
                 json!({"name": "REVERSE_PRIMER", "required": false, "subject_kind": "other", "detail": "explicit reverse primer sequence alternative"}),
                 json!({"name": "TARGET_GENOME_ID", "required": true, "subject_kind": "other", "detail": "prepared reference genome id used for specificity search"}),
+                json!({"name": "OUTPUT_PATH", "required": false, "subject_kind": "other", "detail": "optional external primer-specificity JSON output path carried by path"}),
+            ],
+        ),
+        pool_artifact_descriptor(
+            "PreparePrimerPairSpecificityHandoff",
+            "Prepare deterministic primer BLAST commands and query files without running the BLAST searches.",
+            vec![
+                json!({"name": "PRIMER_REPORT_ID", "required": false, "subject_kind": "report", "detail": "optional primer-design report id carried by primer_report_id"}),
+                json!({"name": "FORWARD_PRIMER", "required": false, "subject_kind": "other", "detail": "explicit forward primer sequence alternative"}),
+                json!({"name": "REVERSE_PRIMER", "required": false, "subject_kind": "other", "detail": "explicit reverse primer sequence alternative"}),
+                json!({"name": "TARGET_GENOME_ID", "required": true, "subject_kind": "other", "detail": "prepared reference genome id used to resolve the BLAST database"}),
+                json!({"name": "OUTPUT_PATH", "required": true, "subject_kind": "other", "detail": "external handoff bundle directory carried by output_dir"}),
+            ],
+        ),
+        pool_artifact_descriptor(
+            "ImportPrimerPairSpecificityHandoff",
+            "Import completed primer BLAST TSVs from a deterministic handoff and apply the shared specificity interpretation.",
+            vec![
+                json!({"name": "HANDOFF_PATH", "required": true, "subject_kind": "other", "detail": "existing gentle.primer_specificity_handoff.v1 JSON path"}),
                 json!({"name": "OUTPUT_PATH", "required": false, "subject_kind": "other", "detail": "optional external primer-specificity JSON output path carried by path"}),
             ],
         ),
@@ -26166,6 +26232,8 @@ fn capability_precondition_atoms(capability_id: &str) -> Option<Vec<Value>> {
         | "BuildRepeatEnvironmentCohort"
         | "features window-cohort-tfbs" => Some(vec![]),
         "AssessPrimerPairSpecificity"
+        | "PreparePrimerPairSpecificityHandoff"
+        | "ImportPrimerPairSpecificityHandoff"
         | "ExportPool"
         | "FilterByDesignConstraints"
         | "FilterByMolecularWeight"
@@ -38415,6 +38483,7 @@ pub fn parse_shell_tokens(tokens: &[String]) -> Result<ShellCommand, String> {
             let mut container_ids: Option<Vec<String>> = None;
             let mut arrangement_id: Option<String> = None;
             let mut conditions = gentle_protocol::GelRunConditions::default();
+            let mut render_options = gentle_protocol::PoolGelRenderOptions::default();
             let mut idx = 3usize;
             while idx < tokens.len() {
                 match tokens[idx].as_str() {
@@ -38487,6 +38556,48 @@ pub fn parse_shell_tokens(tokens: &[String]) -> Result<ShellCommand, String> {
                             })?;
                         idx += 2;
                     }
+                    "--lane-label-layout" => {
+                        if idx + 1 >= tokens.len() {
+                            return Err("Missing value after --lane-label-layout".to_string());
+                        }
+                        render_options.lane_label_layout =
+                            gentle_protocol::GelLaneLabelLayout::from_hint(&tokens[idx + 1])
+                                .ok_or_else(|| {
+                                    format!(
+                                        "Unknown lane-label layout '{}' (expected auto|horizontal|wrapped|staggered|angled)",
+                                        tokens[idx + 1]
+                                    )
+                                })?;
+                        idx += 2;
+                    }
+                    "--band-label-layout" => {
+                        if idx + 1 >= tokens.len() {
+                            return Err("Missing value after --band-label-layout".to_string());
+                        }
+                        render_options.band_label_layout =
+                            gentle_protocol::GelBandLabelLayout::from_hint(&tokens[idx + 1])
+                                .ok_or_else(|| {
+                                    format!(
+                                        "Unknown band-label layout '{}' (expected auto|inline|panel)",
+                                        tokens[idx + 1]
+                                    )
+                                })?;
+                        idx += 2;
+                    }
+                    "--isoform-markers" => {
+                        if idx + 1 >= tokens.len() {
+                            return Err("Missing value after --isoform-markers".to_string());
+                        }
+                        render_options.isoform_marker_mode =
+                            gentle_protocol::GelIsoformMarkerMode::from_hint(&tokens[idx + 1])
+                                .ok_or_else(|| {
+                                    format!(
+                                        "Unknown isoform-marker mode '{}' (expected auto|off)",
+                                        tokens[idx + 1]
+                                    )
+                                })?;
+                        idx += 2;
+                    }
                     other => {
                         return Err(format!("Unknown argument '{other}' for {cmd_name}"));
                     }
@@ -38507,6 +38618,7 @@ pub fn parse_shell_tokens(tokens: &[String]) -> Result<ShellCommand, String> {
                 container_ids,
                 arrangement_id,
                 conditions: conditions.normalized(),
+                render_options,
             })
         }
         "arrange-serial" => {
@@ -44762,6 +44874,7 @@ fn execute_pool_gel_and_ladder_command(
             container_ids,
             arrangement_id,
             conditions,
+            render_options,
         } => {
             let layout = engine
                 .build_serial_gel_layout_for_render(
@@ -44784,6 +44897,7 @@ fn execute_pool_gel_and_ladder_command(
                             container_ids: container_ids.clone(),
                             arrangement_id: arrangement_id.clone(),
                             conditions: Some(conditions.clone()),
+                            render_options: Some(render_options.clone()),
                         })
                         .map_err(|e| e.to_string())?,
                     "gel_band_rows": gel_band_rows,
@@ -44792,6 +44906,7 @@ fn execute_pool_gel_and_ladder_command(
                     "sample_lane_count": layout.sample_count,
                     "pool_member_count": layout.pool_member_count,
                     "selected_ladders": layout.selected_ladders,
+                    "render_options": render_options,
                 }),
             })
         }
@@ -50774,13 +50889,67 @@ fn execute_primers_command(
             cache_dir,
             output_dir,
         } => {
+            let op_result = engine
+                .apply(Operation::PreparePrimerPairSpecificityHandoff {
+                    primer_report_id: primer_report_id.clone(),
+                    pair_rank: *pair_rank,
+                    pair_index: *pair_index,
+                    forward_primer: forward_primer.clone(),
+                    reverse_primer: reverse_primer.clone(),
+                    target_genome_id: target_genome_id.clone(),
+                    policy: policy.clone(),
+                    catalog_path: catalog_path.clone(),
+                    cache_dir: cache_dir.clone(),
+                    output_dir: output_dir.clone(),
+                })
+                .map_err(|error| error.to_string())?;
+            let handoff = op_result
+                .primer_specificity_handoff
+                .map(|handoff| *handoff)
+                .ok_or_else(|| {
+                    "Primer specificity handoff operation returned no handoff".to_string()
+                })?;
+            Ok(ShellRunResult {
+                state_changed: false,
+                output: json!({
+                    "schema": "gentle.primer_specificity_plan_command.v1",
+                    "handoff": handoff,
+                }),
+            })
+        }
+        ShellCommand::PrimersSpecificityImport { handoff_path, path } => {
+            let op_result = engine
+                .apply(Operation::ImportPrimerPairSpecificityHandoff {
+                    handoff_path: handoff_path.clone(),
+                    path: path.clone(),
+                })
+                .map_err(|error| error.to_string())?;
+            let report = op_result
+                .primer_specificity_report
+                .map(|report| *report)
+                .ok_or_else(|| {
+                    "Primer specificity handoff import operation returned no report".to_string()
+                })?;
+            Ok(ShellRunResult {
+                state_changed: false,
+                output: json!({
+                    "schema": "gentle.primer_specificity_import_command.v1",
+                    "report": report,
+                    "path": path,
+                }),
+            })
+        }
+        ShellCommand::PrimersTranscriptAssaySpecificityPlan {
+            panel_report_id,
+            target_genome_id,
+            policy,
+            catalog_path,
+            cache_dir,
+            output_dir,
+        } => {
             let handoff = engine
-                .prepare_primer_pair_specificity_handoff(
-                    primer_report_id.as_deref(),
-                    *pair_rank,
-                    *pair_index,
-                    forward_primer.as_deref(),
-                    reverse_primer.as_deref(),
+                .prepare_transcript_assay_panel_specificity_handoff(
+                    panel_report_id,
                     target_genome_id,
                     policy.clone(),
                     catalog_path.as_deref(),
@@ -50791,32 +50960,36 @@ fn execute_primers_command(
             Ok(ShellRunResult {
                 state_changed: false,
                 output: json!({
-                    "schema": "gentle.primer_specificity_plan_command.v1",
+                    "schema": "gentle.transcript_assay_panel_specificity_plan_command.v1",
                     "handoff": handoff,
                 }),
             })
         }
-        ShellCommand::PrimersSpecificityImport { handoff_path, path } => {
-            let report = engine
-                .import_primer_pair_specificity_handoff(handoff_path)
+        ShellCommand::PrimersTranscriptAssaySpecificityFinalize {
+            handoff_path,
+            execution_manifest_json,
+            path,
+        } => {
+            let payload = parse_json_payload(execution_manifest_json)?;
+            let manifest =
+                serde_json::from_str::<TranscriptAssayPanelSpecificityExecutionManifest>(&payload)
+                    .map_err(|error| {
+                        format!(
+                            "Invalid transcript assay panel specificity execution manifest: {error}"
+                        )
+                    })?;
+            let acceptance = engine
+                .finalize_transcript_assay_panel_specificity_handoff(
+                    handoff_path,
+                    manifest,
+                    path.as_deref(),
+                )
                 .map_err(|error| error.to_string())?;
-            if let Some(path) = path
-                .as_deref()
-                .map(str::trim)
-                .filter(|value| !value.is_empty())
-            {
-                let json_text = serde_json::to_string_pretty(&report).map_err(|error| {
-                    format!("Could not serialize primer specificity report: {error}")
-                })?;
-                fs::write(path, json_text).map_err(|error| {
-                    format!("Could not write primer specificity report to '{path}': {error}")
-                })?;
-            }
             Ok(ShellRunResult {
-                state_changed: false,
+                state_changed: acceptance.accepted,
                 output: json!({
-                    "schema": "gentle.primer_specificity_import_command.v1",
-                    "report": report,
+                    "schema": "gentle.transcript_assay_panel_specificity_finalize_command.v1",
+                    "acceptance": acceptance,
                     "path": path,
                 }),
             })
@@ -56762,6 +56935,8 @@ fn execute_shell_command_with_options_dispatch_inner(
             | ShellCommand::PrimersSpecificity { .. }
             | ShellCommand::PrimersSpecificityPlan { .. }
             | ShellCommand::PrimersSpecificityImport { .. }
+            | ShellCommand::PrimersTranscriptAssaySpecificityPlan { .. }
+            | ShellCommand::PrimersTranscriptAssaySpecificityFinalize { .. }
             | ShellCommand::PrimersTestCdnaPcr { .. }
             | ShellCommand::PrimersTestCdnaQpcr { .. }
             | ShellCommand::PrimersTranscriptQpcrPanel { .. }
@@ -58479,6 +58654,8 @@ fn execute_shell_command_with_options_inner(
         | ShellCommand::PrimersSpecificity { .. }
         | ShellCommand::PrimersSpecificityPlan { .. }
         | ShellCommand::PrimersSpecificityImport { .. }
+        | ShellCommand::PrimersTranscriptAssaySpecificityPlan { .. }
+        | ShellCommand::PrimersTranscriptAssaySpecificityFinalize { .. }
         | ShellCommand::PrimersTestCdnaPcr { .. }
         | ShellCommand::PrimersTestCdnaQpcr { .. }
         | ShellCommand::PrimersTranscriptQpcrPanel { .. }

@@ -2413,7 +2413,7 @@ Current draft operations:
 - `RenderIsoformArchitectureSvg { seq_id, panel_id, expression_tsv_path?, path }`
 - `RenderRnaStructureSvg { seq_id, path }`
 - `RenderLineageSvg { path }`
-- `RenderPoolGelSvg { inputs, path, ladders?, container_ids?, arrangement_id?, conditions? }`
+- `RenderPoolGelSvg { inputs, path, ladders?, container_ids?, arrangement_id?, conditions?, render_options? }`
 - `RenderProteinGelSvg { report_id, path, ladders? }`
 - `RenderProteinGelReportsSvg { report_ids[], path, ladders? }`
 - `RenderProteaseDigestGelSvg { seq_id?, report_id?, transcript_id?, proteases[], path, min_length_aa?, ladders? }`
@@ -5932,6 +5932,23 @@ Feature-distance geometry controls (candidate generation and distance scoring):
     and the arrangement stores a ladder choice
   - otherwise from built-in ladder catalog (auto mode)
 - Renders ladder lanes plus pooled band lanes as SVG artifact.
+- Optional `render_options` is presentation-only and defaults to:
+  - `lane_label_layout: auto`: preserve horizontal short names, wrap isolated
+    long names, and angle adjacent/difficult long names; accepted explicit
+    values are `horizontal`, `wrapped`, `staggered`, and `angled`
+  - `band_label_layout: auto`: retain an in-gel band annotation only when its
+    estimated monospace width fits before the next lane or gel edge; `panel`
+    keeps detail text solely in the fragment table and `inline` requests the
+    legacy always-inline behavior
+  - `isoform_marker_mode: auto`: detect stable Ensembl and RefSeq transcript
+    accessions embedded in product identifiers, normalize away accession version
+    suffixes, and assign each identity a deterministic color, relative marker
+    position, and `O`/`I` binary legend code; `off` suppresses this layer
+  - merged bands retain one marker per represented isoform; marker position and
+    color repeat across lanes, while the binary code is repeated in the fragment
+    table as a color-independent textual join key
+  - wrapped/angled labels may increase only the SVG canvas height; lane, band,
+    migration, and fragment-table biology remain unchanged
 - The SVG also includes a compact fragment table for non-ladder lanes:
   - observed apparent size
   - actual bp
@@ -7523,6 +7540,17 @@ Operation progress/cancellation semantics:
 
 External BLAST handoff for wrapper-owned execution:
 
+- The handoff lifecycle is also available through the shared engine contract:
+  - `PreparePrimerPairSpecificityHandoff` returns
+    `OpResult.primer_specificity_handoff` and writes the deterministic command
+    bundle without launching `blastn`;
+  - `ImportPrimerPairSpecificityHandoff` returns
+    `OpResult.primer_specificity_report` after reading the completed declared
+    TSVs and can optionally write that report through `path`.
+  - These operation payloads can be submitted unchanged through CLI `op` or
+    `workflow`, MCP `op`, JavaScript `apply_operation`, and Lua
+    `apply_operation`; the convenience shell commands below use the same
+    operations.
 - `primers specificity-plan` resolves the same saved or explicit primer pair,
   prepared genome, BLAST database, and effective policy without launching
   `blastn`.
@@ -7545,6 +7573,40 @@ External BLAST handoff for wrapper-owned execution:
   the inline `AssessPrimerPairSpecificity` path.
 - GENtle never executes a `command_line` read from a handoff. Adapters should
   dispatch the stored `program` and `args[]` directly.
+
+Whole-panel external specificity acceptance:
+
+- `primers transcript-assay-specificity-plan PANEL_REPORT_ID --target-genome
+  GENOME_ID --output-dir DIR` emits
+  `gentle.transcript_assay_panel_specificity_handoff.v1`. It binds the current
+  transcript-assay panel digest, selected assay ids/ranks and annealing
+  sequences, `gentle.primer_specificity_policy.v1`, prepared-genome identity, BLAST
+  database prefix/options, nested handoff schemas, and structured commands.
+- The adjacent
+  `gentle.transcript_assay_panel_specificity_execution_manifest.v1` template is
+  process evidence, not a biological decision. For every declared command the
+  scheduler returns `command_id`, `assay_id`, `exit_code`, `output_path`,
+  `output_size_bytes`, and `output_sha256`. A completed empty output has size
+  zero and the SHA-256 of empty bytes; it is distinct from a missing output or
+  an absent/non-success exit code.
+- The scheduler invokes `primers transcript-assay-specificity-finalize
+  HANDOFF.json EXECUTION_MANIFEST_JSON_OR_@FILE` even when one process fails.
+  GENtle validates command coverage, uniqueness, exit status, byte identity,
+  current panel identity, primer/policy/database provenance, and then applies
+  the same specificity interpretation as the inline route.
+- Finalization returns
+  `gentle.transcript_assay_panel_specificity_acceptance.v1` with exactly one of
+  `pass`, `specificity_fail`, or `incomplete`. `specificity_fail` means all
+  process evidence was complete but at least one assay failed GENtle's
+  biological policy. `incomplete` covers failed/missing/duplicate execution,
+  stale panel or primer state, altered handoffs, and provenance mismatch.
+- Only `pass` sets `accepted = true` and atomically attaches all assay reports
+  plus the acceptance object to the persisted panel. The other states do not
+  partially attach reports. An optional `--path` writes the same acceptance
+  object returned by the shell command.
+- NCBI e-PCR is not part of this contract. A future provider-neutral
+  Primer-BLAST evidence importer may supplement, but must not weaken, the
+  reproducible prepared-genome local-BLAST gate.
 
 Simple PCR constraint handoff:
 
@@ -8131,6 +8193,28 @@ Primer-design shell command family (implemented):
     `multiple_products` for every selected assay and transcript row. Transcript
     interpretation is typed as `specific`, `shared_family`, `no_product`, or
     `not_distinguishable_between_members`.
+  - every new `selected_assays[]` row carries
+    `primer_pair_summary` (`gentle.primer_pair_summary.v1`), an additive
+    communication projection assembled from the canonical pair, detection
+    matrix, junction, specificity-followup, and backend records. It repeats the
+    assay id, design transcript, forward/reverse sequence (explicitly
+    5-prime-to-3-prime), oligo and annealing lengths, `tm_c`, GC fraction and
+    percent, binding positions, pair `tm_delta_c`, predicted transcript
+    products/sizes, concise oligo-QC status/reasons, junction matches,
+    `whole_genome_specificity_status`, GENtle package version, requested/used
+    backend, and optional Primer3 version. `length_nt` must equal the returned
+    sequence length, and `tm_delta_c` is copied from and checked against the two
+    canonical melting temperatures; report consumers must not recompute Tm.
+    The QC block interprets the pair's stored rule flags and metrics; summary
+    generation does not rerun sequence or thermodynamic analysis. Compatible
+    older reports are enriched when read/exported.
+  - `tm_c` is primer melting temperature, never a recommended PCR annealing
+    temperature. This summary has no annealing-temperature field because the
+    panel request does not supply a complete chemistry/polymerase model.
+    `genomic_carryover_status = not_evaluated` is likewise explicit: requested
+    junction overlap is reported separately and does not establish a genomic-
+    template or whole-genome specificity pass. Exact per-transcript hit/exon/
+    carryover geometry remains available from `gentle.cdna_assay_test_report.v1`.
   - each matrix cell also carries `oligo_dt_5prime_reach`. For oligo-dT cDNA
     and each predicted product, `required_cdna_reach_from_3prime_end_bp`
     measures from the annotated mature-transcript 3-prime end to the product's

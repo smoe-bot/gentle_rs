@@ -2763,8 +2763,8 @@ Shared shell command:
     - `protocol-cartoon template-validate TEMPLATE.json`
     - `protocol-cartoon render-with-bindings TEMPLATE.json BINDINGS.json OUTPUT.svg`
     - `protocol-cartoon template-export PROTOCOL_ID OUTPUT.json`
-    - `render-pool-gel-svg IDS|'-' OUTPUT.svg [--ladders NAME[,NAME]] [--containers ID[,ID]] [--arrangement ARR_ID]`
-    - `render-gel-svg IDS|'-' OUTPUT.svg [--ladders NAME[,NAME]] [--containers ID[,ID]] [--arrangement ARR_ID]`
+    - `render-pool-gel-svg IDS|'-' OUTPUT.svg [--ladders NAME[,NAME]] [--containers ID[,ID]] [--arrangement ARR_ID] [--lane-label-layout auto|horizontal|wrapped|staggered|angled] [--band-label-layout auto|inline|panel] [--isoform-markers auto|off]`
+    - `render-gel-svg IDS|'-' OUTPUT.svg [--ladders NAME[,NAME]] [--containers ID[,ID]] [--arrangement ARR_ID] [--lane-label-layout auto|horizontal|wrapped|staggered|angled] [--band-label-layout auto|inline|panel] [--isoform-markers auto|off]`
     - `arrange-serial CONTAINER_IDS [--id ARR_ID] [--name TEXT] [--ladders NAME[,NAME]]`
     - `arrange-set-ladders ARR_ID [--ladders NAME[,NAME]]`
     - `racks create-from-arrangement ARR_ID [--rack-id ID] [--name TEXT] [--profile small_tube_4x6|plate_6|plate_96|plate_384]`
@@ -3000,6 +3000,8 @@ Shared shell command:
     - `primers specificity-plan REPORT_ID --pair-rank N --target-genome GENOME_ID --output-dir DIR [same policy/catalog/cache options as specificity]`
     - `primers specificity-plan --forward SEQ --reverse SEQ --target-genome GENOME_ID --output-dir DIR [same policy/catalog/cache options as specificity]`
     - `primers specificity-import HANDOFF.json [--path OUTPUT.json]`
+    - `primers transcript-assay-specificity-plan PANEL_REPORT_ID --target-genome GENOME_ID --output-dir DIR [same policy/catalog/cache options as specificity]`
+    - `primers transcript-assay-specificity-finalize HANDOFF.json EXECUTION_MANIFEST_JSON_OR_@FILE [--path ACCEPTANCE.json]`
     - `primers test-cdna-pcr SEQ_ID FEATURE_ID --forward SEQ --reverse SEQ [--transcript-id ID] [--transcript-order transcript_id|genomic_first_exon|genomic_last_exon|antisense_first_exon] [--map-coordinate-mode cdna|genomic_aligned] [--min-amplicon-bp N] [--max-amplicon-bp N] [--max-mismatches N] [--require-3prime-exact-bases N] [--path OUTPUT.json] [--svg OUTPUT.svg] [--materialize-products] [--product-output-prefix PREFIX] [--product-gel-svg OUTPUT.svg] [--product-gel-ladder NAME]...`
     - `primers test-cdna-qpcr SEQ_ID FEATURE_ID --forward SEQ --reverse SEQ --probe SEQ [--transcript-id ID] [--transcript-order transcript_id|genomic_first_exon|genomic_last_exon|antisense_first_exon] [--map-coordinate-mode cdna|genomic_aligned] [--min-amplicon-bp N] [--max-amplicon-bp N] [--max-mismatches N] [--require-3prime-exact-bases N] [--path OUTPUT.json] [--svg OUTPUT.svg] [--materialize-products] [--product-output-prefix PREFIX] [--product-gel-svg OUTPUT.svg] [--product-gel-ladder NAME]...`
     - `primers transcript-qpcr-panel SEQ_ID FEATURE_ID SHARED_QPCR_REPORT_ID [--path OUTPUT.json]`
@@ -3473,6 +3475,27 @@ Shared shell command:
         exit rather than file size as its completion signal
       - regenerating the same deterministic handoff clears its old declared
         output TSVs, preventing a fresh run from importing stale results
+      - the plan/import convenience commands dispatch the shared
+        `PreparePrimerPairSpecificityHandoff` and
+        `ImportPrimerPairSpecificityHandoff` operations. The same operation
+        JSON is accepted by CLI `op`/`workflow`, MCP `op`, JavaScript
+        `apply_operation`, and Lua `apply_operation`
+      - for a persisted transcript-assay panel, `primers
+        transcript-assay-specificity-plan` emits one aggregate handoff plus a
+        process-manifest template covering every selected assay and both primer
+        searches. The outer scheduler runs only the declared `program` and
+        `args[]`; it must return one row per command with its exit code and the
+        exact output byte length/hash, even when a command fails
+      - always call `primers transcript-assay-specificity-finalize` after the
+        scheduler finishes. A successful command with an empty TSV is a valid
+        completed no-hit result and can yield `specificity_fail`; missing,
+        duplicate, failed, stale, or provenance-mismatched evidence yields
+        `incomplete`
+      - finalization binds the current panel, assay ids/ranks, annealing
+        sequences, policy, prepared genome/BLAST database, handoff schema, and
+        output identities. Only a complete all-assay `pass` is attached to the
+        persisted panel, in one atomic update; `specificity_fail` and
+        `incomplete` leave it unchanged
     - cDNA PCR/qPCR assay test notes
       (`primers test-cdna-pcr` / `primers test-cdna-qpcr` /
       `primers test-cdna-qpcr-fasta`):
@@ -3604,6 +3627,21 @@ Shared shell command:
         shortcut when mismatch tolerance is zero
       - reports carry `gentle.transcript_assay_panel.v2` and persist through the
         existing project save/load path; list/show/export use the commands above
+      - every newly selected assay also carries a redundant
+        `gentle.primer_pair_summary.v1` communication view. It copies the
+        forward/reverse sequences in 5-prime-to-3-prime orientation, oligo
+        lengths, GENtle/Primer3 melting temperatures (`tm_c`), GC fraction and
+        percent, pair `tm_delta_c`, design-transcript binding coordinates,
+        transcript product rows, concise oligo-QC reasons derived from the
+        stored pair rule flags and metrics, junction matches,
+        whole-genome specificity status, and GENtle/backend/Primer3 provenance.
+        Summary generation does not rerun sequence or thermodynamic analysis.
+        Existing panel reports are enriched when shown or exported
+      - the summary does not invent a PCR annealing temperature. In the absence
+        of an explicit chemistry/polymerase protocol model, experimental Ta is
+        undetermined. Per-transcript genomic carryover geometry remains in the
+        cDNA assay-test report; the panel summary reports `not_evaluated` rather
+        than inferring a pass from junction placement
       - reports also expose order-ready primer rows, endpoint reaction/band
         matrices, a separate short-SYBR junction table, unresolved targets with
         reasons, annotation/JUC provenance, and prepared-genome specificity
@@ -4199,7 +4237,7 @@ Rendering export commands:
     - catalog JSON and project state files remain unchanged
     - `.gentle_state.json`, MCP/runtime files, backdrop/runtime caches, and
       `target/` are out of scope
-- `render-pool-gel-svg IDS|'-' OUTPUT.svg [--ladders NAME[,NAME]] [--containers ID[,ID]] [--arrangement ARR_ID] [--agarose-pct FLOAT] [--buffer tae|tbe] [--topology-aware true|false]`
+- `render-pool-gel-svg IDS|'-' OUTPUT.svg [--ladders NAME[,NAME]] [--containers ID[,ID]] [--arrangement ARR_ID] [--agarose-pct FLOAT] [--buffer tae|tbe] [--topology-aware true|false] [--lane-label-layout auto|horizontal|wrapped|staggered|angled] [--band-label-layout auto|inline|panel] [--isoform-markers auto|off]`
   - Calls engine operation `RenderPoolGelSvg`.
   - Use `IDS` as a comma-separated sequence-id list, or pass `-`/`_` when using `--containers` or `--arrangement`.
   - `--containers` renders one lane per container ID.
@@ -4214,6 +4252,25 @@ Rendering export commands:
   - `--agarose-pct` / `--buffer` / `--topology-aware` override the shared
     deterministic gel-run profile for that render.
   - Defaults are `1.0%`, `TAE`, topology-aware `true`.
+  - `--lane-label-layout auto` is the default. It leaves short labels
+    horizontal, wraps isolated long labels over multiple lines, and angles
+    labels when adjacent long names cannot be wrapped without collisions.
+  - `horizontal`, `wrapped`, `staggered`, and `angled` force one deterministic
+    placement strategy. The SVG grows downward when wrapped or angled labels
+    need more room; gel and band coordinates do not change.
+  - `--band-label-layout auto` draws an in-gel size annotation only when the
+    complete text fits before the next lane or gel edge. `panel` keeps all band
+    text in the fragment table, while `inline` restores the legacy always-inline
+    behavior for callers that explicitly want it.
+  - `--isoform-markers auto` (default) recognizes stable Ensembl transcript
+    accessions (`ENST...` and species-specific `ENS...T...`) and RefSeq
+    transcript accessions (`NM_`, `NR_`, `XM_`, `XR_`) in product identifiers.
+    Version suffixes are ignored when matching the same isoform.
+  - Every recognized isoform receives a deterministic color and relative square
+    position that repeat on every band containing it. Merged bands may therefore
+    carry several markers. The side legend and fragment rows also show a sorted,
+    zero-based binary code using `O=0` and `I=1`, so identification does not rely
+    on color perception. Use `--isoform-markers off` for a plain gel.
   - when topology-aware mode is on, explicit sequence hints like
     `supercoiled`, `relaxed circular`, or `nicked/open circular` refine
     apparent migration beyond the old generic circular-vs-linear split.

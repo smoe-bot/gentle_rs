@@ -3590,6 +3590,7 @@ fn parse_render_pool_gel_with_ladders() {
             container_ids,
             arrangement_id,
             conditions,
+            render_options,
         } => {
             assert_eq!(inputs, vec!["a".to_string(), "b".to_string()]);
             assert_eq!(output, "out.svg".to_string());
@@ -3598,6 +3599,9 @@ fn parse_render_pool_gel_with_ladders() {
             assert_eq!(arrangement_id, None);
             assert_eq!(conditions.agarose_percent, 1.0);
             assert!(conditions.topology_aware);
+            assert_eq!(render_options.lane_label_layout.as_str(), "auto");
+            assert_eq!(render_options.band_label_layout.as_str(), "auto");
+            assert_eq!(render_options.isoform_marker_mode.as_str(), "auto");
         }
         other => panic!("unexpected command: {other:?}"),
     }
@@ -3615,6 +3619,7 @@ fn parse_render_pool_gel_from_arrangement() {
             container_ids,
             arrangement_id,
             conditions,
+            render_options: _,
         } => {
             assert!(inputs.is_empty());
             assert_eq!(output, "out.svg".to_string());
@@ -3639,6 +3644,7 @@ fn parse_render_gel_svg_alias() {
             container_ids,
             arrangement_id,
             conditions,
+            render_options: _,
         } => {
             assert!(inputs.is_empty());
             assert_eq!(output, "out.svg".to_string());
@@ -3673,6 +3679,22 @@ fn parse_render_pool_gel_with_conditions() {
 }
 
 #[test]
+fn parse_render_pool_gel_with_label_layouts() {
+    let cmd = parse_shell_line(
+        "render-pool-gel-svg a out.svg --lane-label-layout angled --band-label-layout panel --isoform-markers off",
+    )
+    .expect("parse label layouts");
+    match cmd {
+        ShellCommand::RenderPoolGelSvg { render_options, .. } => {
+            assert_eq!(render_options.lane_label_layout.as_str(), "angled");
+            assert_eq!(render_options.band_label_layout.as_str(), "panel");
+            assert_eq!(render_options.isoform_marker_mode.as_str(), "off");
+        }
+        other => panic!("unexpected command: {other:?}"),
+    }
+}
+
+#[test]
 fn execute_render_pool_gel_svg_returns_text_rows_for_chat_surfaces() {
     let td = tempdir().expect("tempdir");
     let output = td.path().join("nested").join("pool.gel.svg");
@@ -3695,6 +3717,7 @@ fn execute_render_pool_gel_svg_returns_text_rows_for_chat_surfaces() {
             container_ids: None,
             arrangement_id: None,
             conditions: gentle_protocol::GelRunConditions::default(),
+            render_options: gentle_protocol::PoolGelRenderOptions::default(),
         },
     )
     .expect("render pool gel with text rows");
@@ -6414,6 +6437,49 @@ fn parse_primers_specificity_plan_and_import() {
         ShellCommand::PrimersSpecificityImport { handoff_path, path }
             if handoff_path == "specificity_run/handoff.json"
                 && path.as_deref() == Some("specificity.json")
+    ));
+}
+
+#[test]
+fn parse_primers_transcript_assay_specificity_plan_and_finalize() {
+    let plan = parse_shell_line(
+        "primers transcript-assay-specificity-plan panel_1 --target-genome GRCh38.p14 --output-dir panel_specificity --max-hits-per-primer 125 --avoid-rmsk-repeats",
+    )
+    .expect("parse transcript-assay specificity plan");
+    match plan {
+        ShellCommand::PrimersTranscriptAssaySpecificityPlan {
+            panel_report_id,
+            target_genome_id,
+            policy,
+            output_dir,
+            ..
+        } => {
+            assert_eq!(panel_report_id, "panel_1");
+            assert_eq!(target_genome_id, "GRCh38.p14");
+            assert_eq!(output_dir, "panel_specificity");
+            assert_eq!(policy.max_hits_per_primer, 125);
+            assert!(policy.avoid_rmsk_repeats);
+            assert_eq!(
+                policy.specificity_check,
+                PrimerSpecificityCheckMode::RequirePass
+            );
+        }
+        other => panic!("unexpected command: {other:?}"),
+    }
+
+    let finalize = parse_shell_line(
+        "primers transcript-assay-specificity-finalize panel_specificity/handoff.json @execution-manifest.json --path acceptance.json",
+    )
+    .expect("parse transcript-assay specificity finalization");
+    assert!(matches!(
+        finalize,
+        ShellCommand::PrimersTranscriptAssaySpecificityFinalize {
+            handoff_path,
+            execution_manifest_json,
+            path,
+        } if handoff_path == "panel_specificity/handoff.json"
+            && execution_manifest_json == "@execution-manifest.json"
+            && path.as_deref() == Some("acceptance.json")
     ));
 }
 
@@ -26217,12 +26283,18 @@ fn execute_introspect_capabilities_projects_full_registry_with_fact_annotations(
         }),
         "MergeContainersById should have a list-bound container-input transform descriptor"
     );
-    assert!(capabilities.iter().any(|descriptor| {
-        descriptor["id"].as_str() == Some("AssessPrimerPairSpecificity")
-            && descriptor["annotation_status"].as_str() == Some("fact_annotated")
-            && descriptor["effects"][0]["fact"].as_str() == Some("artifact.written")
-            && descriptor["effects"][0]["effect_kind"].as_str() == Some("external_handoff")
-    }));
+    for id in [
+        "AssessPrimerPairSpecificity",
+        "PreparePrimerPairSpecificityHandoff",
+        "ImportPrimerPairSpecificityHandoff",
+    ] {
+        assert!(capabilities.iter().any(|descriptor| {
+            descriptor["id"].as_str() == Some(id)
+                && descriptor["annotation_status"].as_str() == Some("fact_annotated")
+                && descriptor["effects"][0]["fact"].as_str() == Some("artifact.written")
+                && descriptor["effects"][0]["effect_kind"].as_str() == Some("external_handoff")
+        }));
+    }
     assert!(capabilities.iter().any(|descriptor| {
         descriptor["id"].as_str() == Some("screenshot-window")
             && descriptor["annotation_status"].as_str() == Some("fact_annotated")

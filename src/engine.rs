@@ -54,7 +54,7 @@ use crate::{
     iupac_code::IupacCode,
     lineage_export::export_lineage_svg,
     methylation_sites::MethylationMode,
-    pool_gel::{GelSampleInput, export_pool_gel_svg},
+    pool_gel::{GelSampleInput, export_pool_gel_svg, export_pool_gel_svg_with_options},
     protease::{Protease, normalize_protease_name_token},
     protocol_cartoon::ProtocolCartoonTemplateBindings,
     render_export::{export_circular_svg, export_linear_svg},
@@ -104,14 +104,15 @@ pub use gentle_protocol::{
     ConstructReasoningTaskSeverity, ConstructRole, Container, ContainerId, ContainerKind,
     ContainerState, DecisionMethod, DesignDecisionNode, DesignEvidence, DesignFact, DotplotMode,
     EditableStatus, EvidenceClass, EvidenceScope, ExonSkipReturnKind, ExonSkipReturnPayload,
-    ExonSkipSelectionCriterion,
-    GelBufferModel, GelRunConditions, GelTopologyForm, HostLifecycleRole, LineageEdge,
+    ExonSkipSelectionCriterion, GelBandLabelLayout, GelBufferModel, GelIsoformMarkerMode,
+    GelLaneLabelLayout, GelRunConditions, GelTopologyForm, HostLifecycleRole, LineageEdge,
     LineageGraph, LineageMacroInstance, LineageMacroPortBinding, LineageNode, MacroInstanceStatus,
     NodeId, OpId, OrthologAmbiguityPolicy, OrthologPromoterCohortReport,
     OrthologPromoterComparisonReport, ProteinExternalOpinionSource, ProteinFeatureFilter, Rack,
     RackAuthoringTemplate, RackCarrierLabelPreset, RackFillDirection, RackLabelSheetPreset,
     RackOccupant, RackPhysicalTemplateFamily, RackPhysicalTemplateKind, RackPhysicalTemplateSpec,
-    RackPlacementEntry, RackProfileKind, RackProfileSnapshot, ReadAcquisitionAnalysisFormat,
+    PoolGelRenderOptions, RackPlacementEntry, RackProfileKind, RackProfileSnapshot,
+    ReadAcquisitionAnalysisFormat,
     ReadAcquisitionReadLayout, RunId, SeqId, SequenceOrigin,
 };
 
@@ -625,8 +626,16 @@ const CDNA_ASSAY_PRODUCT_MATERIALIZATION_SCHEMA: &str =
 const OLIGO_QC_REPORT_SCHEMA: &str = "gentle.oligo_qc_report.v1";
 const PRIMER_SPECIFICITY_REPORT_SCHEMA: &str = "gentle.primer_specificity_report.v1";
 const PRIMER_SPECIFICITY_HANDOFF_SCHEMA: &str = "gentle.primer_specificity_handoff.v1";
+const PRIMER_SPECIFICITY_POLICY_SCHEMA: &str = "gentle.primer_specificity_policy.v1";
+const TRANSCRIPT_ASSAY_PANEL_SPECIFICITY_HANDOFF_SCHEMA: &str =
+    "gentle.transcript_assay_panel_specificity_handoff.v1";
+const TRANSCRIPT_ASSAY_PANEL_SPECIFICITY_EXECUTION_MANIFEST_SCHEMA: &str =
+    "gentle.transcript_assay_panel_specificity_execution_manifest.v1";
+const TRANSCRIPT_ASSAY_PANEL_SPECIFICITY_ACCEPTANCE_SCHEMA: &str =
+    "gentle.transcript_assay_panel_specificity_acceptance.v1";
 pub const TRANSCRIPT_QPCR_PANEL_REPORT_SCHEMA: &str = "gentle.transcript_qpcr_panel.v1";
 pub const TRANSCRIPT_ASSAY_PANEL_REPORT_SCHEMA: &str = "gentle.transcript_assay_panel.v2";
+pub const PRIMER_PAIR_SUMMARY_SCHEMA: &str = "gentle.primer_pair_summary.v1";
 const RESTRICTION_CLONING_PCR_HANDOFF_REPORT_SCHEMA: &str =
     "gentle.restriction_cloning_pcr_handoff.v1";
 pub const PROTEIN_DERIVATION_REPORTS_METADATA_KEY: &str = "protein_derivation_reports";
@@ -2970,6 +2979,8 @@ pub enum Operation {
         arrangement_id: Option<String>,
         #[serde(default)]
         conditions: Option<GelRunConditions>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        render_options: Option<PoolGelRenderOptions>,
     },
     RenderProteinGelSvg {
         report_id: String,
@@ -3982,6 +3993,31 @@ pub enum Operation {
         catalog_path: Option<String>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         cache_dir: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        path: Option<String>,
+    },
+    PreparePrimerPairSpecificityHandoff {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        primer_report_id: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pair_rank: Option<usize>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pair_index: Option<usize>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        forward_primer: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        reverse_primer: Option<String>,
+        target_genome_id: String,
+        #[serde(default)]
+        policy: PrimerSpecificityPolicy,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        catalog_path: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        cache_dir: Option<String>,
+        output_dir: String,
+    },
+    ImportPrimerPairSpecificityHandoff {
+        handoff_path: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         path: Option<String>,
     },
@@ -8833,6 +8869,8 @@ impl GentleEngine {
                 | Operation::RenderProtein2dGelSvg { .. }
                 | Operation::ExportPrimerDesignReport { .. }
                 | Operation::AssessPrimerPairSpecificity { .. }
+                | Operation::PreparePrimerPairSpecificityHandoff { .. }
+                | Operation::ImportPrimerPairSpecificityHandoff { .. }
                 | Operation::RenderProtocolCartoonSvg { .. }
                 | Operation::RenderProtocolCartoonTemplateSvg { .. }
                 | Operation::ValidateProtocolCartoonTemplate { .. }
@@ -12072,7 +12110,7 @@ impl GentleEngine {
     ) -> Result<TranscriptAssayPanelReport, EngineError> {
         let report_id = Self::normalize_primer_design_report_id(report_id)?;
         let store = self.read_primer_design_store();
-        store
+        let mut report = store
             .transcript_assay_panels
             .get(&report_id)
             .cloned()
@@ -12081,7 +12119,9 @@ impl GentleEngine {
                 message: format!("Transcript assay panel report '{}' not found", report_id),
 
                 cause_chain: vec![],
-            })
+            })?;
+        Self::refresh_transcript_assay_panel_primer_pair_summaries(&mut report);
+        Ok(report)
     }
 
     pub fn export_transcript_assay_panel_report(

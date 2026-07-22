@@ -8127,6 +8127,17 @@ fn primer_specificity_pairs_forward_reverse_and_same_primer_warning_products() {
     assert_eq!(same_primer_warning.end_1based, 719);
 }
 
+#[test]
+fn primer_specificity_empty_amplicon_set_is_a_non_panicking_no_hit_result() {
+    let mut amplicons = vec![];
+    GentleEngine::primer_specificity_finalize_amplicons(
+        &mut amplicons,
+        Some(120),
+        &PrimerSpecificityPolicy::default(),
+    );
+    assert!(amplicons.is_empty());
+}
+
 #[cfg(unix)]
 #[test]
 fn primer_specificity_handoff_plans_without_running_and_imports_completed_outputs() {
@@ -8218,20 +8229,23 @@ fn primer_specificity_handoff_plans_without_running_and_imports_completed_output
         })
         .expect("prepare toy specificity genome");
     let bundle = root.join("handoff");
-    let handoff = engine
-        .prepare_primer_pair_specificity_handoff(
-            None,
-            None,
-            None,
-            Some("ACGTACGTACGTACGTACGT"),
-            Some("CCCCCCCCCCCCCCCCCCCC"),
-            "ToyGenome",
-            PrimerSpecificityPolicy::default(),
-            Some(&catalog.to_string_lossy()),
-            None,
-            &bundle.to_string_lossy(),
-        )
-        .expect("prepare specificity handoff");
+    let handoff_result = engine
+        .apply(Operation::PreparePrimerPairSpecificityHandoff {
+            primer_report_id: None,
+            pair_rank: None,
+            pair_index: None,
+            forward_primer: Some("ACGTACGTACGTACGTACGT".to_string()),
+            reverse_primer: Some("CCCCCCCCCCCCCCCCCCCC".to_string()),
+            target_genome_id: "ToyGenome".to_string(),
+            policy: PrimerSpecificityPolicy::default(),
+            catalog_path: Some(catalog.to_string_lossy().to_string()),
+            cache_dir: None,
+            output_dir: bundle.to_string_lossy().to_string(),
+        })
+        .expect("prepare specificity handoff operation");
+    let handoff = *handoff_result
+        .primer_specificity_handoff
+        .expect("handoff operation result");
     assert_eq!(handoff.schema, "gentle.primer_specificity_handoff.v1");
     assert_eq!(handoff.completion_policy, "all_commands_success");
     assert_eq!(handoff.commands.len(), 2);
@@ -8248,20 +8262,25 @@ fn primer_specificity_handoff_plans_without_running_and_imports_completed_output
         );
         fs::write(&command.output_tsv_path, "stale\n").expect("seed stale BLAST output");
     }
-    let replanned = engine
-        .prepare_primer_pair_specificity_handoff(
-            None,
-            None,
-            None,
-            Some("ACGTACGTACGTACGTACGT"),
-            Some("CCCCCCCCCCCCCCCCCCCC"),
-            "ToyGenome",
-            PrimerSpecificityPolicy::default(),
-            Some(&catalog.to_string_lossy()),
-            None,
-            &bundle.to_string_lossy(),
-        )
-        .expect("replan specificity handoff");
+    let replanned = execute_shell_command(
+        &mut engine,
+        &ShellCommand::PrimersSpecificityPlan {
+            primer_report_id: None,
+            pair_rank: None,
+            pair_index: None,
+            forward_primer: Some("ACGTACGTACGTACGTACGT".to_string()),
+            reverse_primer: Some("CCCCCCCCCCCCCCCCCCCC".to_string()),
+            target_genome_id: "ToyGenome".to_string(),
+            policy: PrimerSpecificityPolicy::default(),
+            catalog_path: Some(catalog.to_string_lossy().to_string()),
+            cache_dir: None,
+            output_dir: bundle.to_string_lossy().to_string(),
+        },
+    )
+    .expect("replan specificity handoff through shell");
+    let replanned =
+        serde_json::from_value::<PrimerSpecificityHandoff>(replanned.output["handoff"].clone())
+            .expect("replanned shell handoff output");
     assert_eq!(replanned.handoff_id, handoff.handoff_id);
     assert!(
         replanned
@@ -8292,9 +8311,17 @@ fn primer_specificity_handoff_plans_without_running_and_imports_completed_output
         "reverse_annealing_segment\tchr1\t100\t20\t0\t0\t1\t20\t119\t100\t1e-20\t80\t100\n",
     )
     .expect("write reverse BLAST output");
+    let report_path = root.join("specificity_report.json");
     let report = engine
-        .import_primer_pair_specificity_handoff(&handoff.handoff_path)
-        .expect("import completed specificity handoff");
+        .apply(Operation::ImportPrimerPairSpecificityHandoff {
+            handoff_path: handoff.handoff_path.clone(),
+            path: Some(report_path.to_string_lossy().to_string()),
+        })
+        .expect("import completed specificity handoff operation")
+        .primer_specificity_report
+        .map(|report| *report)
+        .expect("specificity import operation result");
+    assert!(report_path.is_file());
     assert!(report.summary.specificity_pass);
     assert_eq!(report.summary.intended_amplicon_count, 1);
     assert_eq!(report.forward_hits.len(), 1);
@@ -9259,6 +9286,342 @@ fn transcript_assay_panel_operation(
     }
 }
 
+#[cfg(unix)]
+fn transcript_assay_specificity_execution_manifest(
+    handoff: &TranscriptAssayPanelSpecificityHandoff,
+    emit_intended_hits: bool,
+) -> TranscriptAssayPanelSpecificityExecutionManifest {
+    let mut executions = vec![];
+    for assay in &handoff.assays {
+        let expected_amplicon_length = assay
+            .handoff
+            .expected_amplicon_length_bp
+            .expect("panel assay expected amplicon length");
+        for command in &assay.handoff.commands {
+            let bytes = if emit_intended_hits {
+                let (subject_start, subject_end) = match command.role {
+                    PrimerSpecificityPrimerRole::Forward => {
+                        (10usize, 10usize + command.query_length_bp - 1)
+                    }
+                    PrimerSpecificityPrimerRole::Reverse => {
+                        let amplicon_end = 10usize + expected_amplicon_length - 1;
+                        (
+                            amplicon_end,
+                            amplicon_end + 1 - command.query_length_bp,
+                        )
+                    }
+                };
+                format!(
+                    "{}\tchr1\t100\t{}\t0\t0\t1\t{}\t{}\t{}\t1e-20\t80\t100\n",
+                    command.query_label,
+                    command.query_length_bp,
+                    command.query_length_bp,
+                    subject_start,
+                    subject_end,
+                )
+                .into_bytes()
+            } else {
+                vec![]
+            };
+            fs::write(&command.output_tsv_path, &bytes)
+                .expect("write externally executed panel BLAST output");
+            executions.push(TranscriptAssayPanelSpecificityCommandExecution {
+                command_id: command.command_id.clone(),
+                assay_id: assay.assay_id.clone(),
+                exit_code: Some(0),
+                output_path: command.output_tsv_path.clone(),
+                output_size_bytes: Some(bytes.len() as u64),
+                output_sha256: Some(sha256_prefixed_bytes(&bytes)),
+            });
+        }
+    }
+    TranscriptAssayPanelSpecificityExecutionManifest {
+        schema: TRANSCRIPT_ASSAY_PANEL_SPECIFICITY_EXECUTION_MANIFEST_SCHEMA.to_string(),
+        handoff_id: handoff.handoff_id.clone(),
+        panel_digest: handoff.panel_digest.clone(),
+        executions,
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn transcript_assay_panel_specificity_finalization_is_atomic_and_distinguishes_outcomes() {
+    let _env_lock = crate::genomes::genbank_env_lock()
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    let temp = tempdir().expect("temporary panel specificity directory");
+    let root = temp.path();
+    let fasta = root.join("toy.fa");
+    let annotation = root.join("toy.gtf");
+    let cache = root.join("cache");
+    let catalog = root.join("catalog.json");
+    fs::write(&fasta, format!(">chr1\n{}\n", "A".repeat(1_000)))
+        .expect("write panel specificity FASTA");
+    fs::write(
+        &annotation,
+        "chr1\ttest\tgene\t1\t1000\t.\t+\t.\tgene_id \"TOY1\"; gene_name \"TOY1\";\n",
+    )
+    .expect("write panel specificity annotation");
+    fs::write(
+        &catalog,
+        format!(
+            r#"{{
+  "ToyGenome": {{
+    "description": "synthetic aggregate panel specificity fixture",
+    "sequence_local": "{}",
+    "annotations_local": "{}",
+    "cache_dir": "{}"
+  }}
+}}"#,
+            fasta.display(),
+            annotation.display(),
+            cache.display()
+        ),
+    )
+    .expect("write panel specificity catalog");
+    let fake_makeblastdb = root.join("fake_makeblastdb.sh");
+    fs::write(
+        &fake_makeblastdb,
+        "#!/bin/sh\nif [ \"$1\" = '-version' ]; then echo 'makeblastdb: fake 1.0'; exit 0; fi\nout=''\nwhile [ $# -gt 0 ]; do\n  if [ \"$1\" = '-out' ]; then out=\"$2\"; shift 2; else shift; fi\ndone\nmkdir -p \"$(dirname \"$out\")\"\nprintf nhr > \"${out}.nhr\"\nprintf nin > \"${out}.nin\"\nprintf nsq > \"${out}.nsq\"\n",
+    )
+    .expect("write fake makeblastdb");
+    let mut permissions = fs::metadata(&fake_makeblastdb)
+        .expect("fake makeblastdb metadata")
+        .permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(&fake_makeblastdb, permissions).expect("enable fake makeblastdb");
+    let fake_blastn = root.join("fake_blastn.sh");
+    fs::write(
+        &fake_blastn,
+        "#!/bin/sh\nif [ \"$1\" = '-version' ]; then echo 'blastn: fake 1.0'; exit 0; fi\nexit 99\n",
+    )
+    .expect("write fake blastn");
+    let mut permissions = fs::metadata(&fake_blastn)
+        .expect("fake blastn metadata")
+        .permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(&fake_blastn, permissions).expect("enable fake blastn");
+    let _makeblastdb = EnvVarGuard::set(
+        crate::genomes::MAKEBLASTDB_ENV_BIN,
+        &fake_makeblastdb.to_string_lossy(),
+    );
+    let _blastn = EnvVarGuard::set(
+        crate::genomes::BLASTN_ENV_BIN,
+        &fake_blastn.to_string_lossy(),
+    );
+
+    let mut engine = transcript_qpcr_panel_test_engine();
+    engine
+        .apply(Operation::PrepareGenome {
+            genome_id: "ToyGenome".to_string(),
+            catalog_path: Some(catalog.to_string_lossy().to_string()),
+            cache_dir: None,
+            timeout_seconds: None,
+        })
+        .expect("prepare aggregate specificity genome");
+    let specificity_policy = PrimerSpecificityPolicy {
+        max_3prime_mismatches: 5,
+        ..PrimerSpecificityPolicy::default()
+    };
+
+    for report_id in ["panel_external_pass", "panel_external_fail", "panel_external_incomplete"] {
+        let mut operation = transcript_assay_panel_operation(
+            TranscriptAssayCoveragePolicy::BestEffort,
+            transcript_assay_panel_relaxed_side(),
+            1,
+            report_id,
+        );
+        let Operation::DesignTranscriptAssayPanel { objective, .. } = &mut operation else {
+            unreachable!("transcript assay panel helper returned another operation")
+        };
+        *objective = TranscriptAssayPanelObjective::OnePerClass;
+        let report = engine
+            .apply(operation)
+            .expect("design persisted transcript assay panel")
+            .transcript_assay_panel
+            .expect("transcript assay panel result");
+        assert!(
+            report.selected_assays.len() >= 2,
+            "aggregate fixture must exercise more than one selected assay"
+        );
+    }
+
+    let pass_plan = execute_shell_command(
+        &mut engine,
+        &ShellCommand::PrimersTranscriptAssaySpecificityPlan {
+            panel_report_id: "panel_external_pass".to_string(),
+            target_genome_id: "ToyGenome".to_string(),
+            policy: specificity_policy.clone(),
+            catalog_path: Some(catalog.to_string_lossy().to_string()),
+            cache_dir: None,
+            output_dir: root.join("pass").to_string_lossy().to_string(),
+        },
+    )
+    .expect("execute complete-panel specificity planning command");
+    assert!(!pass_plan.state_changed);
+    let pass_handoff = serde_json::from_value::<TranscriptAssayPanelSpecificityHandoff>(
+        pass_plan.output["handoff"].clone(),
+    )
+    .expect("parse planned aggregate handoff");
+    assert_eq!(
+        pass_handoff.assays.len(),
+        pass_handoff.selected_assay_count
+    );
+    assert_eq!(
+        pass_handoff.policy_schema,
+        PRIMER_SPECIFICITY_POLICY_SCHEMA
+    );
+    assert!(Path::new(&pass_handoff.execution_manifest_template_path).is_file());
+    let pass_manifest = transcript_assay_specificity_execution_manifest(&pass_handoff, true);
+    let pass_finalize = execute_shell_command(
+        &mut engine,
+        &ShellCommand::PrimersTranscriptAssaySpecificityFinalize {
+            handoff_path: pass_handoff.handoff_path.clone(),
+            execution_manifest_json: serde_json::to_string(&pass_manifest)
+                .expect("serialize aggregate execution manifest"),
+            path: None,
+        },
+    )
+    .expect("execute passing panel specificity finalization command");
+    assert!(pass_finalize.state_changed);
+    let pass = serde_json::from_value::<TranscriptAssayPanelSpecificityAcceptance>(
+        pass_finalize.output["acceptance"].clone(),
+    )
+    .expect("parse aggregate acceptance");
+    assert_eq!(
+        pass.status,
+        TranscriptAssayPanelSpecificityAcceptanceStatus::Pass
+    );
+    assert!(pass.accepted);
+    assert_eq!(pass.assessed_assay_count, pass.expected_assay_count);
+    let persisted_pass = engine
+        .get_transcript_assay_panel_report("panel_external_pass")
+        .expect("persisted accepted panel");
+    assert_eq!(
+        persisted_pass
+            .specificity_acceptance
+            .as_ref()
+            .map(|acceptance| acceptance.status),
+        Some(TranscriptAssayPanelSpecificityAcceptanceStatus::Pass)
+    );
+    assert_eq!(
+        persisted_pass.genomic_specificity_assessments.len(),
+        pass.expected_assay_count
+    );
+    assert!(persisted_pass.selected_assays.iter().all(|assay| {
+        assay.primer_pair_summary.whole_genome_specificity_status
+            == "external_blast_pass"
+    }));
+
+    let fail_handoff = engine
+        .prepare_transcript_assay_panel_specificity_handoff(
+            "panel_external_fail",
+            "ToyGenome",
+            specificity_policy.clone(),
+            Some(&catalog.to_string_lossy()),
+            None,
+            &root.join("fail").to_string_lossy(),
+        )
+        .expect("plan biologically failing panel handoff");
+    let fail_manifest = transcript_assay_specificity_execution_manifest(&fail_handoff, false);
+    let specificity_fail = engine
+        .finalize_transcript_assay_panel_specificity_handoff(
+            &fail_handoff.handoff_path,
+            fail_manifest.clone(),
+            None,
+        )
+        .expect("interpret completed empty BLAST outputs");
+    assert_eq!(
+        specificity_fail.status,
+        TranscriptAssayPanelSpecificityAcceptanceStatus::SpecificityFail
+    );
+    assert!(!specificity_fail.accepted);
+    assert!(specificity_fail.issues.is_empty());
+    let persisted_fail = engine
+        .get_transcript_assay_panel_report("panel_external_fail")
+        .expect("persisted biologically failing panel");
+    assert!(persisted_fail.specificity_acceptance.is_none());
+    assert!(persisted_fail.genomic_specificity_assessments.is_empty());
+
+    let mut tampered_handoff = fail_handoff.clone();
+    tampered_handoff.assays[0]
+        .handoff
+        .blast_db_prefix
+        .push_str(".different_database");
+    fs::write(
+        &fail_handoff.handoff_path,
+        serde_json::to_vec_pretty(&tampered_handoff).expect("serialize tampered handoff"),
+    )
+    .expect("write tampered aggregate handoff");
+    let tampered = engine
+        .finalize_transcript_assay_panel_specificity_handoff(
+            &fail_handoff.handoff_path,
+            fail_manifest,
+            None,
+        )
+        .expect("classify tampered handoff as incomplete");
+    assert_eq!(
+        tampered.status,
+        TranscriptAssayPanelSpecificityAcceptanceStatus::Incomplete
+    );
+    assert!(
+        tampered
+            .issues
+            .iter()
+            .any(|issue| issue.code == "handoff_content_mismatch")
+    );
+
+    let incomplete_handoff = engine
+        .prepare_transcript_assay_panel_specificity_handoff(
+            "panel_external_incomplete",
+            "ToyGenome",
+            specificity_policy,
+            Some(&catalog.to_string_lossy()),
+            None,
+            &root.join("incomplete").to_string_lossy(),
+        )
+        .expect("plan incomplete panel handoff");
+    let mut incomplete_manifest =
+        transcript_assay_specificity_execution_manifest(&incomplete_handoff, false);
+    let failed_execution = incomplete_manifest
+        .executions
+        .first_mut()
+        .expect("one declared command execution");
+    failed_execution.exit_code = Some(17);
+    failed_execution.output_size_bytes = None;
+    failed_execution.output_sha256 = None;
+    incomplete_manifest.panel_digest = "sha256:stale-panel".to_string();
+    let incomplete = engine
+        .finalize_transcript_assay_panel_specificity_handoff(
+            &incomplete_handoff.handoff_path,
+            incomplete_manifest,
+            None,
+        )
+        .expect("classify failed process as incomplete");
+    assert_eq!(
+        incomplete.status,
+        TranscriptAssayPanelSpecificityAcceptanceStatus::Incomplete
+    );
+    assert!(!incomplete.accepted);
+    assert!(
+        incomplete
+            .issues
+            .iter()
+            .any(|issue| issue.code == "execution_failed")
+    );
+    assert!(
+        incomplete
+            .issues
+            .iter()
+            .any(|issue| issue.code == "panel_digest_mismatch")
+    );
+    let persisted_incomplete = engine
+        .get_transcript_assay_panel_report("panel_external_incomplete")
+        .expect("persisted incomplete panel");
+    assert!(persisted_incomplete.specificity_acceptance.is_none());
+    assert!(persisted_incomplete.genomic_specificity_assessments.is_empty());
+}
+
 #[test]
 fn transcript_assay_panel_groups_only_byte_identical_cdna_and_persists_matrix() {
     let mut engine = transcript_qpcr_panel_test_engine();
@@ -9335,6 +9698,210 @@ fn transcript_assay_panel_groups_only_byte_identical_cdna_and_persists_matrix() 
             .expect("reloaded transcript assay panel")
             .schema,
         "gentle.transcript_assay_panel.v2"
+    );
+}
+
+#[test]
+fn transcript_assay_panel_primer_pair_summary_survives_api_shell_and_export() {
+    let mut engine = transcript_qpcr_panel_test_engine();
+    let report = engine
+        .apply(transcript_assay_panel_operation(
+            TranscriptAssayCoveragePolicy::BestEffort,
+            transcript_assay_panel_relaxed_side(),
+            1,
+            "panel_pair_summary",
+        ))
+        .expect("design transcript assay panel")
+        .transcript_assay_panel
+        .expect("operation/API transcript assay panel result");
+    assert!(!report.selected_assays.is_empty());
+
+    for assay in &report.selected_assays {
+        let summary = &assay.primer_pair_summary;
+        assert_eq!(summary.schema, PRIMER_PAIR_SUMMARY_SCHEMA);
+        assert_eq!(summary.assay_id, assay.assay_id);
+        assert_eq!(summary.pair_rank, assay.rank);
+        assert_eq!(summary.design_transcript_id, assay.design_transcript_id);
+        assert_eq!(
+            summary.design_equivalence_group_id,
+            assay.design_equivalence_group_id
+        );
+        assert_eq!(
+            summary.binding_coordinate_system,
+            "design_transcript_cdna_0based_half_open"
+        );
+        for (summary_primer, source_primer) in [
+            (&summary.forward, &assay.primer_pair.forward),
+            (&summary.reverse, &assay.primer_pair.reverse),
+        ] {
+            assert_eq!(summary_primer.sequence_5_to_3, source_primer.sequence);
+            assert_eq!(summary_primer.length_nt, source_primer.length_bp);
+            assert_eq!(
+                summary_primer.length_nt,
+                summary_primer.sequence_5_to_3.len()
+            );
+            assert_eq!(
+                summary_primer.anneal_length_nt,
+                source_primer.anneal_length_bp
+            );
+            assert_eq!(summary_primer.tm_c.to_bits(), source_primer.tm_c.to_bits());
+            assert_eq!(
+                summary_primer.gc_fraction.to_bits(),
+                source_primer.gc_fraction.to_bits()
+            );
+            assert!(
+                (summary_primer.gc_percent - source_primer.gc_fraction * 100.0).abs() < 1e-12
+            );
+        }
+        assert_eq!(
+            summary.tm_delta_c.to_bits(),
+            assay.primer_pair.tm_delta_c.to_bits()
+        );
+        assert!(
+            (summary.tm_delta_c - (summary.forward.tm_c - summary.reverse.tm_c).abs()).abs()
+                < 1e-12
+        );
+        let expected_products = report
+            .detection_matrix
+            .iter()
+            .filter(|cell| cell.assay_id == assay.assay_id)
+            .count();
+        assert_eq!(summary.predicted_products.len(), expected_products);
+        for product in &summary.predicted_products {
+            let source = report
+                .detection_matrix
+                .iter()
+                .find(|cell| {
+                    cell.assay_id == assay.assay_id
+                        && cell.transcript_feature_id == product.transcript_feature_id
+                        && cell.transcript_id == product.transcript_id
+                })
+                .expect("summary product source row");
+            assert_eq!(product.equivalence_group_id, source.equivalence_group_id);
+            assert_eq!(product.detection_status, source.status);
+            assert_eq!(product.detail_status, source.detail_status);
+            assert_eq!(product.product_count, source.product_count);
+            assert_eq!(product.amplicon_lengths_bp, source.amplicon_lengths_bp);
+        }
+        assert_eq!(summary.whole_genome_specificity_status, "not_run");
+        assert_eq!(summary.genomic_carryover_status, "not_evaluated");
+        assert_eq!(
+            summary.provenance.source_report_schema,
+            TRANSCRIPT_ASSAY_PANEL_REPORT_SCHEMA
+        );
+        assert_eq!(
+            summary.provenance.gentle_version,
+            crate::about::GENTLE_PACKAGE_VERSION
+        );
+        assert!(!summary.provenance.primer_backend_used.is_empty());
+    }
+
+    let first_summary = serde_json::to_value(&report.selected_assays[0].primer_pair_summary)
+        .expect("serialize canonical pair summary");
+    let mut store = engine.read_primer_design_store();
+    let stored = store
+        .transcript_assay_panels
+        .get_mut(&report.report_id)
+        .expect("persisted transcript panel");
+    for assay in &mut stored.selected_assays {
+        assay.primer_pair_summary = PrimerPairCommunicationSummary::default();
+    }
+    engine
+        .write_primer_design_store(store)
+        .expect("store legacy-shaped transcript panel");
+    let enriched = engine
+        .get_transcript_assay_panel_report(&report.report_id)
+        .expect("enrich legacy-shaped transcript panel on read");
+    assert_eq!(
+        serde_json::to_value(&enriched.selected_assays[0].primer_pair_summary)
+            .expect("serialize enriched pair summary"),
+        first_summary
+    );
+
+    let shell = execute_shell_command(
+        &mut engine,
+        &ShellCommand::PrimersShowTranscriptAssayPanel {
+            report_id: report.report_id.clone(),
+        },
+    )
+    .expect("shared CLI/MCP shell show route");
+    assert_eq!(
+        shell.output["report"]["selected_assays"][0]["primer_pair_summary"],
+        first_summary
+    );
+
+    let temp = tempdir().expect("pair summary export tempdir");
+    let path = temp.path().join("panel.json");
+    execute_shell_command(
+        &mut engine,
+        &ShellCommand::PrimersExportTranscriptAssayPanel {
+            report_id: report.report_id,
+            path: path.to_string_lossy().to_string(),
+        },
+    )
+    .expect("shared transcript panel export route");
+    let exported: serde_json::Value = serde_json::from_slice(
+        &fs::read(path).expect("read exported transcript panel report"),
+    )
+    .expect("parse exported transcript panel report");
+    assert_eq!(
+        exported["selected_assays"][0]["primer_pair_summary"],
+        first_summary
+    );
+    assert!(
+        exported["selected_assays"][0]["primer_pair_summary"]
+            .get("recommended_annealing_temperature")
+            .is_none(),
+        "primer Tm must not be relabeled or converted into a guessed PCR annealing temperature"
+    );
+}
+
+#[test]
+fn transcript_assay_panel_primer_pair_summary_reports_actual_oligo_qc_reason() {
+    let sequence = "AAAAAAAAAA".to_string();
+    let primer = PrimerDesignPrimerRecord {
+        sequence: sequence.clone(),
+        length_bp: sequence.len(),
+        anneal_length_bp: sequence.len(),
+        longest_homopolymer_run_bp: sequence.len(),
+        ..Default::default()
+    };
+    let mut report = TranscriptAssayPanelReport {
+        schema: TRANSCRIPT_ASSAY_PANEL_REPORT_SCHEMA.to_string(),
+        selected_assays: vec![TranscriptAssayPanelAssay {
+            assay_id: "assay_with_qc_warning".to_string(),
+            rank: 1,
+            design_equivalence_group_id: "eq1".to_string(),
+            design_transcript_id: "TX1".to_string(),
+            primer_pair: PrimerDesignPairRecord {
+                forward: primer.clone(),
+                reverse: primer,
+                ..Default::default()
+            },
+            ..Default::default()
+        }],
+        specificity_followups: vec![TranscriptAssaySpecificityFollowup {
+            assay_id: "assay_with_qc_warning".to_string(),
+            local_cdna_matrix_status: "completed".to_string(),
+            genomic_confirmation_status: "not_run".to_string(),
+            ..Default::default()
+        }],
+        provenance: TranscriptAssayPanelProvenance {
+            primer_backend: "internal".to_string(),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    GentleEngine::refresh_transcript_assay_panel_primer_pair_summaries(&mut report);
+    let summary = &report.selected_assays[0].primer_pair_summary;
+    assert_eq!(summary.oligo_qc.status, "warning");
+    assert!(
+        summary
+            .oligo_qc
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("10 bp homopolymer run")),
+        "QC must carry the concrete warning reason rather than only a warning label"
     );
 }
 
@@ -20369,6 +20936,7 @@ fn test_render_pool_gel_svg_operation() {
             container_ids: None,
             arrangement_id: None,
             conditions: None,
+            render_options: None,
         })
         .unwrap();
     assert!(res.messages.iter().any(|m| m.contains("serial gel SVG")));
@@ -22048,6 +22616,7 @@ fn test_render_pool_gel_svg_operation_from_containers_and_arrangement() {
             container_ids: Some(vec!["container-2".to_string()]),
             arrangement_id: None,
             conditions: None,
+            render_options: None,
         })
         .unwrap();
     assert!(
@@ -22071,6 +22640,7 @@ fn test_render_pool_gel_svg_operation_from_containers_and_arrangement() {
             container_ids: None,
             arrangement_id: Some("arr-1".to_string()),
             conditions: None,
+            render_options: None,
         })
         .unwrap();
     assert!(
@@ -22101,6 +22671,7 @@ fn test_render_pool_gel_svg_operation_missing_input_fails() {
             container_ids: None,
             arrangement_id: None,
             conditions: None,
+            render_options: None,
         })
         .unwrap_err();
     assert!(err.message.contains("not found"));
@@ -22128,6 +22699,11 @@ fn test_render_pool_gel_svg_operation_applies_conditions_and_fragment_table() {
                 buffer_model: GelBufferModel::Tbe,
                 topology_aware: true,
             }),
+            render_options: Some(PoolGelRenderOptions {
+                lane_label_layout: GelLaneLabelLayout::Angled,
+                band_label_layout: GelBandLabelLayout::Panel,
+                isoform_marker_mode: GelIsoformMarkerMode::Auto,
+            }),
         })
         .unwrap();
     assert!(
@@ -22135,8 +22711,14 @@ fn test_render_pool_gel_svg_operation_applies_conditions_and_fragment_table() {
             .iter()
             .any(|m| m.contains("1.6% agarose | TBE | topology-aware on"))
     );
+    assert!(
+        res.messages
+            .iter()
+            .any(|m| m.contains("lane labels: angled, band labels: panel"))
+    );
     let text = std::fs::read_to_string(path_text).unwrap();
     assert!(text.contains("Fragment table"));
+    assert!(text.contains("data-label-layout=\"angled\""));
     assert!(text.contains("plasmid (5000 bp, circular)"));
     assert!(text.contains("conditions: 1.6% agarose | TBE | topology-aware on"));
 }
@@ -22225,6 +22807,7 @@ fn test_render_pool_gel_svg_operation_from_arrangement_adds_comparison_hints() {
             container_ids: None,
             arrangement_id: Some("arr-gibson".to_string()),
             conditions: None,
+            render_options: None,
         })
         .unwrap();
     let text = std::fs::read_to_string(path_text).unwrap();
@@ -22263,6 +22846,7 @@ fn test_render_pool_gel_svg_operation_infers_explicit_circular_forms_from_sequen
             container_ids: None,
             arrangement_id: None,
             conditions: Some(GelRunConditions::default()),
+            render_options: None,
         })
         .unwrap();
     let text = std::fs::read_to_string(path_text).unwrap();

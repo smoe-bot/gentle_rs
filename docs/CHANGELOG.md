@@ -12,13 +12,35 @@ Maintenance rule:
   document names, schemas, or feature names only when they help a reader
   understand what changed.
 
+## 2026-07-22
+
+- Added `gentle.primer_pair_summary.v1` to selected transcript-panel assays so
+  CLI/MCP/API and JSON exports carry one joined, assay-neutral communication
+  view of the exact primer sequences, lengths, melting temperatures, GC values,
+  pair delta-Tm, transcript products, QC reasons, specificity state, and tool
+  provenance without guessing a PCR annealing temperature.
+
 ## 2026-07-21
 
+- Made serial/pool-gel SVG labels collision-aware: dense gels now keep short
+  lane names horizontal, wrap isolated long names, angle difficult dense names,
+  and move band text that cannot fit between lanes into the fragment table;
+  callers can override both lane- and band-label placement explicitly.
+- Added redundant transcript-isoform identity cues to serial/pool gels:
+  recognized Ensembl or RefSeq transcript accessions now retain a deterministic
+  color and relative marker position across lanes and merged bands, while a
+  side legend and fragment rows provide an `O`/`I` binary text fallback.
+- Added aggregate transcript-assay panel specificity handoff/finalization:
+  mechanical wrappers now return per-command exit and output identities, while
+  GENtle alone classifies complete all-assay evidence as `pass`,
+  `specificity_fail`, or `incomplete` and atomically persists only `pass`.
 - Added deterministic `primers specificity-plan` / `specificity-import`
   handoffs so external schedulers can own BLAST process completion while GENtle
   retains query, database, policy, and result-interpretation provenance; the
-  transcript-assay panel can also request inline report-only or required-pass
-  local BLAST confirmation.
+  shared `PreparePrimerPairSpecificityHandoff` /
+  `ImportPrimerPairSpecificityHandoff` operations expose the same lifecycle to
+  CLI workflows, MCP, JavaScript, and Lua, and the transcript-assay panel can
+  also request inline report-only or required-pass local BLAST confirmation.
 - Added a deterministic offline CLI tutorial for the synthetic PATZ1 endpoint
   RT-PCR and primer-only SYBR transcript panels, including full-operation
   `@FILE` execution, persisted report inspection/export, oligo-dT interpretation

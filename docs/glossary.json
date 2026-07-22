@@ -614,7 +614,7 @@
          ],
          "path": "render-pool-gel-svg",
          "summary": "Render serial gel SVG from sequence ids, containers, or an arrangement with optional explicit ladders.",
-         "usage": "render-pool-gel-svg IDS|'-' OUTPUT.svg [--ladders NAME[,NAME]] [--containers ID[,ID]] [--arrangement ARR_ID]"
+         "usage": "render-pool-gel-svg IDS|'-' OUTPUT.svg [--ladders NAME[,NAME]] [--containers ID[,ID]] [--arrangement ARR_ID] [--lane-label-layout auto|horizontal|wrapped|staggered|angled] [--band-label-layout auto|inline|panel] [--isoform-markers auto|off]"
       },
       {
          "aliases": [],
@@ -3647,7 +3647,7 @@
             "cli-direct"
          ],
          "path": "primers show-transcript-assay-panel",
-         "summary": "Inspect one persisted transcript assay panel report by report ID.",
+         "summary": "Inspect one persisted transcript assay panel report, including canonical primer-pair communication summaries, by report ID.",
          "usage": "primers show-transcript-assay-panel REPORT_ID"
       },
       {
@@ -3659,7 +3659,7 @@
             "cli-direct"
          ],
          "path": "primers export-transcript-assay-panel",
-         "summary": "Write one persisted transcript assay panel report to JSON.",
+         "summary": "Write one persisted transcript assay panel report, including canonical primer-pair communication summaries, to JSON.",
          "usage": "primers export-transcript-assay-panel REPORT_ID OUTPUT.json"
       },
       {
