@@ -101,8 +101,10 @@ use crate::{
         TfbsScoreTrackCorrelationMetric, TfbsScoreTrackCorrelationSignalSource,
         TfbsScoreTrackValueKind, TfbsTrackSimilarityRankingMetric, TranscriptAssayCdnaSynthesis,
         TranscriptAssayCoveragePolicy, TranscriptAssayJunctionPriority,
-        TranscriptAssayJunctionRequest, TranscriptAssayKind, TranscriptAssayPanelObjective,
-        TranscriptAssayPanelSpecificityExecutionManifest, TranscriptAssaySpecificityRequest,
+        TranscriptAssayAmpliconRange, TranscriptAssayJunctionRequest, TranscriptAssayKind,
+        TranscriptAssayPanelObjective,
+        TranscriptAssayPanelSpecificityExecutionManifest, TranscriptAssayPracticalityPolicy,
+        TranscriptAssaySpecificityRequest, TranscriptAssayUseTier,
         TranslationSpeedMark, TranslationSpeedProfile, UniprotFeatureCodingDnaQueryMode,
         VariantAlleleChoice, WORKFLOW_MACRO_TEMPLATES_METADATA_KEY, Workflow,
         WorkflowMacroTemplate, WorkflowMacroTemplateParam, WorkflowMacroTemplatePort,
@@ -1813,6 +1815,8 @@ pub enum ShellCommand {
         seq_id: String,
         dataset_ids: Vec<String>,
         read_report_ids: Vec<String>,
+        catalog_path: Option<String>,
+        cache_dir: Option<String>,
         promoter_search_start_0based: Option<usize>,
         promoter_search_end_0based_exclusive: Option<usize>,
         neighbor_window_bp: usize,
@@ -2444,6 +2448,8 @@ pub enum ShellCommand {
         cdna_synthesis: TranscriptAssayCdnaSynthesis,
         objective: TranscriptAssayPanelObjective,
         coverage_policy: TranscriptAssayCoveragePolicy,
+        assay_tier: TranscriptAssayUseTier,
+        practicality: Option<TranscriptAssayPracticalityPolicy>,
         min_amplicon_bp: Option<usize>,
         max_amplicon_bp: Option<usize>,
         max_assays_per_class: Option<usize>,
@@ -9403,16 +9409,20 @@ impl ShellCommand {
                 seq_id,
                 dataset_ids,
                 read_report_ids,
+                catalog_path,
+                cache_dir,
                 promoter_search_start_0based,
                 promoter_search_end_0based_exclusive,
                 neighbor_window_bp,
                 species_filters,
                 output_path,
             } => format!(
-                "inspect CUT&RUN regulatory support for '{}' (datasets={}, read_reports={}, promoter={}..{}, neighbor_window_bp={}, species_filters={}, output='{}')",
+                "inspect CUT&RUN regulatory support for '{}' (datasets={}, read_reports={}, catalog='{}', cache='{}', promoter={}..{}, neighbor_window_bp={}, species_filters={}, output='{}')",
                 seq_id,
                 dataset_ids.len(),
                 read_report_ids.len(),
+                catalog_path.as_deref().unwrap_or("-"),
+                cache_dir.as_deref().unwrap_or("-"),
                 promoter_search_start_0based
                     .map(|value| value.to_string())
                     .unwrap_or_else(|| "-".to_string()),
@@ -11120,16 +11130,18 @@ impl ShellCommand {
                 cdna_synthesis,
                 objective,
                 coverage_policy,
+                assay_tier,
                 report_id,
                 path,
                 ..
             } => format!(
-                "design transcript assay panel on '{}' feature n-{} (assay_kind={}, cdna_synthesis={}, objective={}, coverage_policy={}, report_id={}, path={})",
+                "design transcript assay panel on '{}' feature n-{} (assay_kind={}, cdna_synthesis={}, objective={}, assay_tier={}, coverage_policy={}, report_id={}, path={})",
                 seq_id,
                 feature_id + 1,
                 assay_kind.as_str(),
                 cdna_synthesis.as_str(),
                 objective.as_str(),
+                assay_tier.as_str(),
                 coverage_policy.as_str(),
                 report_id
                     .as_deref()
@@ -14821,6 +14833,24 @@ fn parse_transcript_assay_panel_objective(
         }
         other => Err(format!(
             "Unsupported transcript assay objective '{other}' (expected pan-transcript|one-per-class|minimal-discrimination-panel|isoform-end-matrix)"
+        )),
+    }
+}
+
+fn parse_transcript_assay_use_tier(value: &str) -> Result<TranscriptAssayUseTier, String> {
+    match value.trim().to_ascii_lowercase().replace('-', "_").as_str() {
+        "unspecified" | "none" => Ok(TranscriptAssayUseTier::Unspecified),
+        "routine_common_region_screen" | "routine_common" | "routine" => {
+            Ok(TranscriptAssayUseTier::RoutineCommonRegionScreen)
+        }
+        "isoform_discrimination" | "discrimination" => {
+            Ok(TranscriptAssayUseTier::IsoformDiscrimination)
+        }
+        "long_range_structure_discovery" | "long_range" | "structure_discovery" => {
+            Ok(TranscriptAssayUseTier::LongRangeStructureDiscovery)
+        }
+        other => Err(format!(
+            "Unsupported transcript assay tier '{other}' (expected routine-common-region-screen|isoform-discrimination|long-range-structure-discovery)"
         )),
     }
 }
@@ -47462,6 +47492,8 @@ fn execute_cutrun_command(
             seq_id,
             dataset_ids,
             read_report_ids,
+            catalog_path,
+            cache_dir,
             promoter_search_start_0based,
             promoter_search_end_0based_exclusive,
             neighbor_window_bp,
@@ -47473,6 +47505,8 @@ fn execute_cutrun_command(
                     seq_id: seq_id.clone(),
                     dataset_ids: dataset_ids.clone(),
                     read_report_ids: read_report_ids.clone(),
+                    catalog_path: catalog_path.clone(),
+                    cache_dir: cache_dir.clone(),
                     promoter_search_start_0based: *promoter_search_start_0based,
                     promoter_search_end_0based_exclusive: *promoter_search_end_0based_exclusive,
                     neighbor_window_bp: *neighbor_window_bp,
@@ -51366,6 +51400,8 @@ fn execute_primers_command(
             cdna_synthesis,
             objective,
             coverage_policy,
+            assay_tier,
+            practicality,
             min_amplicon_bp,
             max_amplicon_bp,
             max_assays_per_class,
@@ -51411,6 +51447,8 @@ fn execute_primers_command(
                 cdna_synthesis: *cdna_synthesis,
                 objective: *objective,
                 coverage_policy: *coverage_policy,
+                assay_tier: *assay_tier,
+                practicality: practicality.clone(),
                 forward: PrimerDesignSideConstraint::default(),
                 reverse: PrimerDesignSideConstraint::default(),
                 probe: PrimerDesignSideConstraint::default(),

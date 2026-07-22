@@ -12,11 +12,22 @@
   "cdna_synthesis": "oligo_dt",
   "objective": "one_per_class",
   "coverage_policy": "require_all",
+  "assay_tier": "isoform_discrimination",
+  "practicality_policy": {
+    "preferred_amplicon_bp": {
+      "min_bp": 50,
+      "max_bp": 100
+    },
+    "allowed_amplicon_bp": {
+      "min_bp": 30,
+      "max_bp": 120
+    }
+  },
   "completion_status": "complete",
   "transcript_count": 3,
   "equivalence_group_count": 3,
   "candidate_assay_count": 12,
-  "selected_assay_count": 4,
+  "selected_assay_count": 3,
   "exact_negative_prefilter_count": 16,
   "full_assay_evaluation_count": 20,
   "min_amplicon_bp": 30,
@@ -75,22 +86,22 @@
   ],
   "selected_assays": [
     {
-      "assay_id": "transcript_assay_6b15970fa7d866ef",
+      "assay_id": "transcript_assay_4bfca8feaf7962e9",
       "rank": 1,
       "assay_kind": "sybr_qpcr",
       "design_equivalence_group_id": "cdna_eq_6c73e2052bd828f3",
       "design_transcript_id": "PATZ1-202",
       "primer_pair": {
         "rank": 1,
-        "score": 1012.5475316228888,
+        "score": 1010.2149849402733,
         "forward": {
-          "sequence": "GTAAGCTAGCATCGGGATCCG",
-          "start_0based": 25,
-          "end_0based_exclusive": 46,
+          "sequence": "CTAGCATCGGGATCCGATCAG",
+          "start_0based": 30,
+          "end_0based_exclusive": 51,
           "length_bp": 21,
           "anneal_length_bp": 21,
           "non_annealing_5prime_tail_bp": 0,
-          "tm_c": 65.23248337752503,
+          "tm_c": 64.77839486413313,
           "gc_fraction": 0.5714285714285714,
           "anneal_hits": 1,
           "three_prime_base": "G",
@@ -99,202 +110,26 @@
           "self_complementary_run_bp": 6
         },
         "reverse": {
-          "sequence": "GATCCGTTAGCGTACCTGATCG",
-          "start_0based": 44,
-          "end_0based_exclusive": 66,
-          "length_bp": 22,
-          "anneal_length_bp": 22,
-          "non_annealing_5prime_tail_bp": 0,
-          "tm_c": 65.23510679638059,
-          "gc_fraction": 0.5454545454545454,
-          "anneal_hits": 1,
-          "three_prime_base": "G",
-          "three_prime_gc_clamp": true,
-          "longest_homopolymer_run_bp": 2,
-          "self_complementary_run_bp": 4
-        },
-        "amplicon_start_0based": 25,
-        "amplicon_end_0based_exclusive": 66,
-        "amplicon_length_bp": 41,
-        "tm_delta_c": 0.0026234188555633864,
-        "primer_pair_complementary_run_bp": 5,
-        "primer_pair_3prime_complementary_run_bp": 2,
-        "rule_flags": {
-          "roi_covered": true,
-          "amplicon_size_in_range": true,
-          "tm_delta_in_range": true,
-          "forward_secondary_structure_ok": true,
-          "reverse_secondary_structure_ok": true,
-          "primer_pair_dimer_risk_low": true,
-          "forward_three_prime_gc_clamp": true,
-          "reverse_three_prime_gc_clamp": true
-        }
-      },
-      "end_reaction_ids": [],
-      "junction_matches": [
-        {
-          "junction_id": "JUC2200054820.hg.1:PATZ1-202:1-2",
-          "transcript_id": "PATZ1-202",
-          "transcript_local_position_0based": 40,
-          "forward_spans": true,
-          "reverse_spans": false,
-          "spanning_role": "forward"
-        }
-      ],
-      "single_product_equivalence_group_ids": [],
-      "primer_pair_summary": {
-        "schema": "gentle.primer_pair_summary.v1",
-        "assay_id": "transcript_assay_6b15970fa7d866ef",
-        "pair_rank": 1,
-        "design_transcript_id": "PATZ1-202",
-        "design_equivalence_group_id": "cdna_eq_6c73e2052bd828f3",
-        "binding_coordinate_system": "design_transcript_cdna_0based_half_open",
-        "forward": {
-          "role": "forward",
-          "sequence_5_to_3": "GTAAGCTAGCATCGGGATCCG",
-          "length_nt": 21,
-          "anneal_length_nt": 21,
-          "tm_c": 65.23248337752503,
-          "gc_fraction": 0.5714285714285714,
-          "gc_percent": 57.14285714285714,
-          "anneal_hit_count": 1,
-          "binding_start_0based": 25,
-          "binding_end_0based_exclusive": 46,
-          "three_prime_base": "G",
-          "three_prime_gc_clamp": true,
-          "longest_homopolymer_run_bp": 3,
-          "self_complementary_run_bp": 6
-        },
-        "reverse": {
-          "role": "reverse",
-          "sequence_5_to_3": "GATCCGTTAGCGTACCTGATCG",
-          "length_nt": 22,
-          "anneal_length_nt": 22,
-          "tm_c": 65.23510679638059,
-          "gc_fraction": 0.5454545454545454,
-          "gc_percent": 54.54545454545454,
-          "anneal_hit_count": 1,
-          "binding_start_0based": 44,
-          "binding_end_0based_exclusive": 66,
-          "three_prime_base": "G",
-          "three_prime_gc_clamp": true,
-          "longest_homopolymer_run_bp": 2,
-          "self_complementary_run_bp": 4
-        },
-        "tm_delta_c": 0.0026234188555633864,
-        "predicted_amplicon_lengths_bp": [],
-        "predicted_products": [
-          {
-            "transcript_feature_id": 2,
-            "transcript_id": "PATZ1-201",
-            "equivalence_group_id": "cdna_eq_da6a2f3dbe1d4447",
-            "detection_status": "no_product",
-            "detail_status": "exact_negative_prefilter",
-            "product_count": 0,
-            "amplicon_lengths_bp": []
-          },
-          {
-            "transcript_feature_id": 3,
-            "transcript_id": "PATZ1-202",
-            "equivalence_group_id": "cdna_eq_6c73e2052bd828f3",
-            "detection_status": "no_product",
-            "detail_status": "no_product_in_size_range",
-            "product_count": 0,
-            "amplicon_lengths_bp": []
-          },
-          {
-            "transcript_feature_id": 4,
-            "transcript_id": "PATZ1-203",
-            "equivalence_group_id": "cdna_eq_bf8de0081e092d6f",
-            "detection_status": "no_product",
-            "detail_status": "exact_negative_prefilter",
-            "product_count": 0,
-            "amplicon_lengths_bp": []
-          }
-        ],
-        "oligo_qc": {
-          "status": "pass",
-          "warnings": [],
-          "rule_flags": {
-            "roi_covered": true,
-            "amplicon_size_in_range": true,
-            "tm_delta_in_range": true,
-            "forward_secondary_structure_ok": true,
-            "reverse_secondary_structure_ok": true,
-            "primer_pair_dimer_risk_low": true,
-            "forward_three_prime_gc_clamp": true,
-            "reverse_three_prime_gc_clamp": true
-          },
-          "primer_pair_complementary_run_bp": 5,
-          "primer_pair_3prime_complementary_run_bp": 2
-        },
-        "junction_spanning_status": "requested_junction_spanning_primer",
-        "junction_matches": [
-          {
-            "junction_id": "JUC2200054820.hg.1:PATZ1-202:1-2",
-            "transcript_id": "PATZ1-202",
-            "transcript_local_position_0based": 40,
-            "forward_spans": true,
-            "reverse_spans": false,
-            "spanning_role": "forward"
-          }
-        ],
-        "genomic_carryover_status": "not_evaluated",
-        "genomic_carryover_rationale": "Transcript-panel selection does not run a genomic-template PCR carryover test; requested junction overlap is reported separately and must not be interpreted as a whole-genome specificity pass.",
-        "whole_genome_specificity_status": "not_run",
-        "provenance": {
-          "source_report_schema": "gentle.transcript_assay_panel.v2",
-          "gentle_version": "0.1.0-internal.10",
-          "primer_backend_requested": "internal",
-          "primer_backend_used": "internal"
-        }
-      }
-    },
-    {
-      "assay_id": "transcript_assay_e9e8cd8b25a1adb7",
-      "rank": 2,
-      "assay_kind": "sybr_qpcr",
-      "design_equivalence_group_id": "cdna_eq_6c73e2052bd828f3",
-      "design_transcript_id": "PATZ1-202",
-      "primer_pair": {
-        "rank": 2,
-        "score": 1012.1244154683359,
-        "forward": {
-          "sequence": "TAAGCTAGCATCGGGATCCG",
-          "start_0based": 26,
-          "end_0based_exclusive": 46,
+          "sequence": "ATGCCGTAGCTTACGATCCG",
+          "start_0based": 60,
+          "end_0based_exclusive": 80,
           "length_bp": 20,
           "anneal_length_bp": 20,
           "non_annealing_5prime_tail_bp": 0,
-          "tm_c": 64.26996322180901,
+          "tm_c": 64.94264561711947,
           "gc_fraction": 0.55,
           "anneal_hits": 1,
           "three_prime_base": "G",
           "three_prime_gc_clamp": true,
-          "longest_homopolymer_run_bp": 3,
-          "self_complementary_run_bp": 6
-        },
-        "reverse": {
-          "sequence": "TACGATCCGTTAGCGTACCTG",
-          "start_0based": 48,
-          "end_0based_exclusive": 69,
-          "length_bp": 21,
-          "anneal_length_bp": 21,
-          "non_annealing_5prime_tail_bp": 0,
-          "tm_c": 64.2361839952258,
-          "gc_fraction": 0.5238095238095238,
-          "anneal_hits": 1,
-          "three_prime_base": "G",
-          "three_prime_gc_clamp": true,
           "longest_homopolymer_run_bp": 2,
           "self_complementary_run_bp": 4
         },
-        "amplicon_start_0based": 26,
-        "amplicon_end_0based_exclusive": 69,
-        "amplicon_length_bp": 43,
-        "tm_delta_c": 0.03377922658320642,
+        "amplicon_start_0based": 30,
+        "amplicon_end_0based_exclusive": 80,
+        "amplicon_length_bp": 50,
+        "tm_delta_c": 0.16425075298633374,
         "primer_pair_complementary_run_bp": 5,
-        "primer_pair_3prime_complementary_run_bp": 2,
+        "primer_pair_3prime_complementary_run_bp": 3,
         "rule_flags": {
           "roi_covered": true,
           "amplicon_size_in_range": true,
@@ -321,47 +156,167 @@
         "cdna_eq_6c73e2052bd828f3"
       ],
       "primer_pair_summary": {
-        "schema": "gentle.primer_pair_summary.v1",
-        "assay_id": "transcript_assay_e9e8cd8b25a1adb7",
-        "pair_rank": 2,
+        "schema": "gentle.primer_pair_summary.v2",
+        "assay_id": "transcript_assay_4bfca8feaf7962e9",
+        "pair_rank": 1,
         "design_transcript_id": "PATZ1-202",
         "design_equivalence_group_id": "cdna_eq_6c73e2052bd828f3",
+        "display_label": "PATZ1_E1|E2F-E2R",
+        "aliases": [],
+        "selection_role": null,
+        "assay_tier": "isoform_discrimination",
+        "practicality_policy": {
+          "preferred_amplicon_bp": {
+            "min_bp": 50,
+            "max_bp": 100
+          },
+          "allowed_amplicon_bp": {
+            "min_bp": 30,
+            "max_bp": 120
+          }
+        },
+        "practicality_classification": "routine",
+        "common_region_evidence": {
+          "status": "not_common",
+          "basis": "At least one intended transcript annotation does not contain the full designed source intervals as one contiguous mature-cDNA region; array evidence cannot override this structural result.",
+          "intended_transcript_ids": [
+            "PATZ1-201",
+            "PATZ1-202",
+            "PATZ1-203"
+          ],
+          "source_ranges_0based": [
+            {
+              "start_0based": 180,
+              "end_0based_exclusive": 190
+            },
+            {
+              "start_0based": 20,
+              "end_0based_exclusive": 60
+            }
+          ],
+          "supporting_psr_evidence_ids": []
+        },
+        "considered_alternatives": [
+          {
+            "assay_id": "transcript_assay_e9e8cd8b25a1adb7",
+            "design_transcript_id": "PATZ1-202",
+            "design_amplicon_length_bp": 43,
+            "practicality_classification": "allowed_nonpreferred",
+            "common_region_status": "not_common",
+            "existing_candidate_score": 1012.1244154683359,
+            "disposition": "not_selected",
+            "explanation": "Not selected after the same biological requirements, practicality preference, existing score, and stable-id ordering used for the retained pair."
+          },
+          {
+            "assay_id": "transcript_assay_cf3abde10e2184d8",
+            "design_transcript_id": "PATZ1-202",
+            "design_amplicon_length_bp": 43,
+            "practicality_classification": "allowed_nonpreferred",
+            "common_region_status": "not_common",
+            "existing_candidate_score": 1009.6693412358484,
+            "disposition": "not_selected",
+            "explanation": "Not selected after the same biological requirements, practicality preference, existing score, and stable-id ordering used for the retained pair."
+          },
+          {
+            "assay_id": "transcript_assay_45296b483354cbc4",
+            "design_transcript_id": "PATZ1-202",
+            "design_amplicon_length_bp": 42,
+            "practicality_classification": "allowed_nonpreferred",
+            "common_region_status": "not_common",
+            "existing_candidate_score": 1007.4003301878937,
+            "disposition": "not_selected",
+            "explanation": "Not selected after the same biological requirements, practicality preference, existing score, and stable-id ordering used for the retained pair."
+          }
+        ],
+        "satisfied_design_objective": "one_per_class",
+        "selection_reasons": [
+          {
+            "code": "design_objective",
+            "message": "Selected at panel rank 1 to satisfy the 'one_per_class' design objective.",
+            "related_ids": [
+              "one_per_class"
+            ]
+          },
+          {
+            "code": "predicted_product_coverage",
+            "message": "Produces one predicted product for 1 mature-cDNA equivalence class(es).",
+            "related_ids": [
+              "cdna_eq_6c73e2052bd828f3"
+            ]
+          },
+          {
+            "code": "junction_evidence",
+            "message": "Spans 1 external evidence-derived junction target(s); this records region influence, not exact probe-sequence reuse.",
+            "related_ids": [
+              "JUC2200054820.hg.1:PATZ1-202:1-2"
+            ]
+          },
+          {
+            "code": "routine_practicality_preferred",
+            "message": "The 50 bp designed amplicon is within the configured preferred routine range; required biological criteria were evaluated before this preference.",
+            "related_ids": [
+              "transcript_assay_4bfca8feaf7962e9"
+            ]
+          }
+        ],
+        "selection_explanation": "Selected because it satisfies the 'one_per_class' biological objective and remains within the configured preferred product range.",
+        "selection_provenance_status": "de_novo_with_structured_selection_evidence",
         "binding_coordinate_system": "design_transcript_cdna_0based_half_open",
         "forward": {
+          "primer_id": "primer_9d7250f82e9836b1",
           "role": "forward",
-          "sequence_5_to_3": "TAAGCTAGCATCGGGATCCG",
-          "length_nt": 20,
-          "anneal_length_nt": 20,
-          "tm_c": 64.26996322180901,
-          "gc_fraction": 0.55,
-          "gc_percent": 55.00000000000001,
+          "display_label": "PATZ1_E1|E2_F",
+          "aliases": [],
+          "origin": "de_novo",
+          "sequence_5_to_3": "CTAGCATCGGGATCCGATCAG",
+          "length_nt": 21,
+          "anneal_length_nt": 21,
+          "tm_c": 64.77839486413313,
+          "gc_fraction": 0.5714285714285714,
+          "gc_percent": 57.14285714285714,
           "anneal_hit_count": 1,
-          "binding_start_0based": 26,
-          "binding_end_0based_exclusive": 46,
+          "binding_start_0based": 30,
+          "binding_end_0based_exclusive": 51,
+          "exon_ordinals": [
+            1,
+            2
+          ],
+          "primer_spans_junction": true,
           "three_prime_base": "G",
           "three_prime_gc_clamp": true,
           "longest_homopolymer_run_bp": 3,
           "self_complementary_run_bp": 6
         },
         "reverse": {
+          "primer_id": "primer_96f7bdcf9591a2a0",
           "role": "reverse",
-          "sequence_5_to_3": "TACGATCCGTTAGCGTACCTG",
-          "length_nt": 21,
-          "anneal_length_nt": 21,
-          "tm_c": 64.2361839952258,
-          "gc_fraction": 0.5238095238095238,
-          "gc_percent": 52.38095238095239,
+          "display_label": "PATZ1_E2_R",
+          "aliases": [],
+          "origin": "de_novo",
+          "sequence_5_to_3": "ATGCCGTAGCTTACGATCCG",
+          "length_nt": 20,
+          "anneal_length_nt": 20,
+          "tm_c": 64.94264561711947,
+          "gc_fraction": 0.55,
+          "gc_percent": 55.00000000000001,
           "anneal_hit_count": 1,
-          "binding_start_0based": 48,
-          "binding_end_0based_exclusive": 69,
+          "binding_start_0based": 60,
+          "binding_end_0based_exclusive": 80,
+          "exon_ordinals": [
+            2
+          ],
+          "primer_spans_junction": false,
           "three_prime_base": "G",
           "three_prime_gc_clamp": true,
           "longest_homopolymer_run_bp": 2,
           "self_complementary_run_bp": 4
         },
-        "tm_delta_c": 0.03377922658320642,
+        "design_amplicon_start_0based": 30,
+        "design_amplicon_end_0based_exclusive": 80,
+        "design_amplicon_length_bp": 50,
+        "tm_delta_c": 0.16425075298633374,
         "predicted_amplicon_lengths_bp": [
-          43
+          50
         ],
         "predicted_products": [
           {
@@ -381,7 +336,7 @@
             "detail_status": "single_product",
             "product_count": 1,
             "amplicon_lengths_bp": [
-              43
+              50
             ]
           },
           {
@@ -408,8 +363,48 @@
             "reverse_three_prime_gc_clamp": true
           },
           "primer_pair_complementary_run_bp": 5,
-          "primer_pair_3prime_complementary_run_bp": 2
+          "primer_pair_3prime_complementary_run_bp": 3
         },
+        "amplicon_spans_junction": true,
+        "selected_because_of_junction_evidence": true,
+        "selection_evidence": [
+          {
+            "evidence_id": "JUC2200054820.hg.1",
+            "evidence_kind": "juc",
+            "junction_id": "JUC2200054820.hg.1:PATZ1-202:1-2",
+            "influence": "probe_region_influenced",
+            "applies_to": [
+              "forward",
+              "pair"
+            ],
+            "requirement": "required",
+            "source_kind": "probe_region_evidence_interpretation",
+            "source_id": "patz1_isoform_evidence",
+            "platform": "Clariom_D_Human",
+            "feature_id": "JUC2200054820.hg.1",
+            "chromosome": "22",
+            "region_start_1based": 31325860,
+            "region_end_1based": 31325979,
+            "strand": "-",
+            "transcript_id": "PATZ1-202",
+            "from_exon_ordinal": 1,
+            "to_exon_ordinal": 2,
+            "contrast": "synthetic_case_vs_control",
+            "measured_statistic": "log2_fold_change",
+            "measured_value": -1.2,
+            "intensity_source": "synthetic_log2_fold_change",
+            "source_schema": "gentle.probe_region_evidence_interpretation.v2",
+            "source_path": "./test_files/fixtures/isoform_evidence/patz1/patz1_probe_evidence.json",
+            "source_sha256": "sha256:11e2a7b4cbb83af5868902b1834ecbfe6c5e7ddb80e521c1060abf7a4d8418a9",
+            "notes": [
+              "Projected probe-region geometry influenced the assay target; GENtle did not reuse or match an array-probe sequence.",
+              "mapping_status=ambiguous_parent_feature",
+              "relationship=review_only_constraint",
+              "ambiguity=parent_mixes_transcript_features",
+              "ambiguity=multi_hit_not_assessed"
+            ]
+          }
+        ],
         "junction_spanning_status": "requested_junction_spanning_primer",
         "junction_matches": [
           {
@@ -428,18 +423,22 @@
           "source_report_schema": "gentle.transcript_assay_panel.v2",
           "gentle_version": "0.1.0-internal.10",
           "primer_backend_requested": "internal",
-          "primer_backend_used": "internal"
+          "primer_backend_used": "internal",
+          "annotation_release": "synthetic Ensembl116-like PATZ1 fixture",
+          "exon_numbering_reference_transcript_id": "PATZ1-202",
+          "exon_numbering_basis": "design_transcript_5prime_to_3prime",
+          "exon_numbering_status": "reference_transcript_and_annotation_release_recorded"
         }
       }
     },
     {
       "assay_id": "transcript_assay_b3964ace800b1035",
-      "rank": 3,
+      "rank": 2,
       "assay_kind": "sybr_qpcr",
       "design_equivalence_group_id": "cdna_eq_bf8de0081e092d6f",
       "design_transcript_id": "PATZ1-203",
       "primer_pair": {
-        "rank": 3,
+        "rank": 2,
         "score": 1015.9,
         "forward": {
           "sequence": "TCGTAGCCTAGCATCGGTAAGC",
@@ -496,14 +495,117 @@
         "cdna_eq_da6a2f3dbe1d4447"
       ],
       "primer_pair_summary": {
-        "schema": "gentle.primer_pair_summary.v1",
+        "schema": "gentle.primer_pair_summary.v2",
         "assay_id": "transcript_assay_b3964ace800b1035",
-        "pair_rank": 3,
+        "pair_rank": 2,
         "design_transcript_id": "PATZ1-203",
         "design_equivalence_group_id": "cdna_eq_bf8de0081e092d6f",
+        "display_label": "PATZ1_E1F-E3R",
+        "aliases": [],
+        "selection_role": null,
+        "assay_tier": "isoform_discrimination",
+        "practicality_policy": {
+          "preferred_amplicon_bp": {
+            "min_bp": 50,
+            "max_bp": 100
+          },
+          "allowed_amplicon_bp": {
+            "min_bp": 30,
+            "max_bp": 120
+          }
+        },
+        "practicality_classification": "routine",
+        "common_region_evidence": {
+          "status": "not_common",
+          "basis": "At least one intended transcript annotation does not contain the full designed source intervals as one contiguous mature-cDNA region; array evidence cannot override this structural result.",
+          "intended_transcript_ids": [
+            "PATZ1-201",
+            "PATZ1-202",
+            "PATZ1-203"
+          ],
+          "source_ranges_0based": [
+            {
+              "start_0based": 180,
+              "end_0based_exclusive": 211
+            },
+            {
+              "start_0based": 120,
+              "end_0based_exclusive": 140
+            },
+            {
+              "start_0based": 35,
+              "end_0based_exclusive": 60
+            }
+          ],
+          "supporting_psr_evidence_ids": []
+        },
+        "considered_alternatives": [
+          {
+            "assay_id": "transcript_assay_05d4e9f1b4f5de01",
+            "design_transcript_id": "PATZ1-203",
+            "design_amplicon_length_bp": 76,
+            "practicality_classification": "routine",
+            "common_region_status": "not_common",
+            "existing_candidate_score": 1015.6606730090092,
+            "disposition": "not_selected",
+            "explanation": "Not selected after the same biological requirements, practicality preference, existing score, and stable-id ordering used for the retained pair."
+          },
+          {
+            "assay_id": "transcript_assay_e56138ffdf5d51e4",
+            "design_transcript_id": "PATZ1-203",
+            "design_amplicon_length_bp": 75,
+            "practicality_classification": "routine",
+            "common_region_status": "not_common",
+            "existing_candidate_score": 1015.347622947235,
+            "disposition": "not_selected",
+            "explanation": "Not selected after the same biological requirements, practicality preference, existing score, and stable-id ordering used for the retained pair."
+          },
+          {
+            "assay_id": "transcript_assay_c86569b31dae0e53",
+            "design_transcript_id": "PATZ1-203",
+            "design_amplicon_length_bp": 70,
+            "practicality_classification": "routine",
+            "common_region_status": "not_common",
+            "existing_candidate_score": 1014.8476229472371,
+            "disposition": "not_selected",
+            "explanation": "Not selected after the same biological requirements, practicality preference, existing score, and stable-id ordering used for the retained pair."
+          }
+        ],
+        "satisfied_design_objective": "one_per_class",
+        "selection_reasons": [
+          {
+            "code": "design_objective",
+            "message": "Selected at panel rank 2 to satisfy the 'one_per_class' design objective.",
+            "related_ids": [
+              "one_per_class"
+            ]
+          },
+          {
+            "code": "predicted_product_coverage",
+            "message": "Produces one predicted product for 3 mature-cDNA equivalence class(es).",
+            "related_ids": [
+              "cdna_eq_6c73e2052bd828f3",
+              "cdna_eq_bf8de0081e092d6f",
+              "cdna_eq_da6a2f3dbe1d4447"
+            ]
+          },
+          {
+            "code": "routine_practicality_preferred",
+            "message": "The 76 bp designed amplicon is within the configured preferred routine range; required biological criteria were evaluated before this preference.",
+            "related_ids": [
+              "transcript_assay_b3964ace800b1035"
+            ]
+          }
+        ],
+        "selection_explanation": "Selected because it satisfies the 'one_per_class' biological objective and remains within the configured preferred product range.",
+        "selection_provenance_status": "de_novo_no_external_selection_evidence",
         "binding_coordinate_system": "design_transcript_cdna_0based_half_open",
         "forward": {
+          "primer_id": "primer_80f6c3c338b07d84",
           "role": "forward",
+          "display_label": "PATZ1_E1_F",
+          "aliases": [],
+          "origin": "de_novo",
           "sequence_5_to_3": "TCGTAGCCTAGCATCGGTAAGC",
           "length_nt": 22,
           "anneal_length_nt": 22,
@@ -513,13 +615,21 @@
           "anneal_hit_count": 1,
           "binding_start_0based": 9,
           "binding_end_0based_exclusive": 31,
+          "exon_ordinals": [
+            1
+          ],
+          "primer_spans_junction": false,
           "three_prime_base": "C",
           "three_prime_gc_clamp": true,
           "longest_homopolymer_run_bp": 2,
           "self_complementary_run_bp": 4
         },
         "reverse": {
+          "primer_id": "primer_e7a676e282b64e97",
           "role": "reverse",
+          "display_label": "PATZ1_E3_R",
+          "aliases": [],
+          "origin": "de_novo",
           "sequence_5_to_3": "ATCCGTTAGCGTACCTGATCGG",
           "length_nt": 22,
           "anneal_length_nt": 22,
@@ -529,11 +639,18 @@
           "anneal_hit_count": 1,
           "binding_start_0based": 63,
           "binding_end_0based_exclusive": 85,
+          "exon_ordinals": [
+            3
+          ],
+          "primer_spans_junction": false,
           "three_prime_base": "G",
           "three_prime_gc_clamp": true,
           "longest_homopolymer_run_bp": 2,
           "self_complementary_run_bp": 4
         },
+        "design_amplicon_start_0based": 9,
+        "design_amplicon_end_0based_exclusive": 85,
+        "design_amplicon_length_bp": 76,
         "tm_delta_c": 0.0,
         "predicted_amplicon_lengths_bp": [
           56,
@@ -591,6 +708,9 @@
           "primer_pair_complementary_run_bp": 4,
           "primer_pair_3prime_complementary_run_bp": 2
         },
+        "amplicon_spans_junction": true,
+        "selected_because_of_junction_evidence": false,
+        "selection_evidence": [],
         "junction_spanning_status": "no_requested_junction_match_reported",
         "junction_matches": [],
         "genomic_carryover_status": "not_evaluated",
@@ -600,18 +720,22 @@
           "source_report_schema": "gentle.transcript_assay_panel.v2",
           "gentle_version": "0.1.0-internal.10",
           "primer_backend_requested": "internal",
-          "primer_backend_used": "internal"
+          "primer_backend_used": "internal",
+          "annotation_release": "synthetic Ensembl116-like PATZ1 fixture",
+          "exon_numbering_reference_transcript_id": "PATZ1-203",
+          "exon_numbering_basis": "design_transcript_5prime_to_3prime",
+          "exon_numbering_status": "reference_transcript_and_annotation_release_recorded"
         }
       }
     },
     {
       "assay_id": "transcript_assay_928afef051d25781",
-      "rank": 4,
+      "rank": 3,
       "assay_kind": "sybr_qpcr",
       "design_equivalence_group_id": "cdna_eq_da6a2f3dbe1d4447",
       "design_transcript_id": "PATZ1-201",
       "primer_pair": {
-        "rank": 4,
+        "rank": 3,
         "score": 1015.6301616475367,
         "forward": {
           "sequence": "GTAGCCTAGCATCGGTAAGC",
@@ -666,14 +790,122 @@
         "cdna_eq_da6a2f3dbe1d4447"
       ],
       "primer_pair_summary": {
-        "schema": "gentle.primer_pair_summary.v1",
+        "schema": "gentle.primer_pair_summary.v2",
         "assay_id": "transcript_assay_928afef051d25781",
-        "pair_rank": 4,
+        "pair_rank": 3,
         "design_transcript_id": "PATZ1-201",
         "design_equivalence_group_id": "cdna_eq_da6a2f3dbe1d4447",
+        "display_label": "PATZ1_E1F-E2|E3R",
+        "aliases": [],
+        "selection_role": null,
+        "assay_tier": "isoform_discrimination",
+        "practicality_policy": {
+          "preferred_amplicon_bp": {
+            "min_bp": 50,
+            "max_bp": 100
+          },
+          "allowed_amplicon_bp": {
+            "min_bp": 30,
+            "max_bp": 120
+          }
+        },
+        "practicality_classification": "routine",
+        "common_region_evidence": {
+          "status": "not_common",
+          "basis": "At least one intended transcript annotation does not contain the full designed source intervals as one contiguous mature-cDNA region; array evidence cannot override this structural result.",
+          "intended_transcript_ids": [
+            "PATZ1-201",
+            "PATZ1-202",
+            "PATZ1-203"
+          ],
+          "source_ranges_0based": [
+            {
+              "start_0based": 180,
+              "end_0based_exclusive": 209
+            },
+            {
+              "start_0based": 100,
+              "end_0based_exclusive": 140
+            },
+            {
+              "start_0based": 51,
+              "end_0based_exclusive": 60
+            }
+          ],
+          "supporting_psr_evidence_ids": []
+        },
+        "considered_alternatives": [
+          {
+            "assay_id": "transcript_assay_9d2dbc16b34b4664",
+            "design_transcript_id": "PATZ1-201",
+            "design_amplicon_length_bp": 84,
+            "practicality_classification": "routine",
+            "common_region_status": "not_common",
+            "existing_candidate_score": 1014.4476229472383,
+            "disposition": "not_selected",
+            "explanation": "Not selected after the same biological requirements, practicality preference, existing score, and stable-id ordering used for the retained pair."
+          },
+          {
+            "assay_id": "transcript_assay_1bc7dc26819a9b7a",
+            "design_transcript_id": "PATZ1-201",
+            "design_amplicon_length_bp": 81,
+            "practicality_classification": "routine",
+            "common_region_status": "not_common",
+            "existing_candidate_score": 1014.2829695568137,
+            "disposition": "not_selected",
+            "explanation": "Not selected after the same biological requirements, practicality preference, existing score, and stable-id ordering used for the retained pair."
+          },
+          {
+            "assay_id": "transcript_assay_fee76bbccd19613a",
+            "design_transcript_id": "PATZ1-201",
+            "design_amplicon_length_bp": 82,
+            "practicality_classification": "routine",
+            "common_region_status": "not_common",
+            "existing_candidate_score": 1014.1829695568144,
+            "disposition": "not_selected",
+            "explanation": "Not selected after the same biological requirements, practicality preference, existing score, and stable-id ordering used for the retained pair."
+          }
+        ],
+        "satisfied_design_objective": "one_per_class",
+        "selection_reasons": [
+          {
+            "code": "design_objective",
+            "message": "Selected at panel rank 3 to satisfy the 'one_per_class' design objective.",
+            "related_ids": [
+              "one_per_class"
+            ]
+          },
+          {
+            "code": "predicted_product_coverage",
+            "message": "Produces one predicted product for 1 mature-cDNA equivalence class(es).",
+            "related_ids": [
+              "cdna_eq_da6a2f3dbe1d4447"
+            ]
+          },
+          {
+            "code": "psr_evidence_support",
+            "message": "Overlaps 1 PSR/probeset evidence row(s); this is separate supporting evidence and does not establish transcript commonality.",
+            "related_ids": [
+              "PSR2200160982.hg.1"
+            ]
+          },
+          {
+            "code": "routine_practicality_preferred",
+            "message": "The 78 bp designed amplicon is within the configured preferred routine range; required biological criteria were evaluated before this preference.",
+            "related_ids": [
+              "transcript_assay_928afef051d25781"
+            ]
+          }
+        ],
+        "selection_explanation": "Selected because it satisfies the 'one_per_class' biological objective and remains within the configured preferred product range.",
+        "selection_provenance_status": "de_novo_with_structured_selection_evidence",
         "binding_coordinate_system": "design_transcript_cdna_0based_half_open",
         "forward": {
+          "primer_id": "primer_6c707108ebc142d7",
           "role": "forward",
+          "display_label": "PATZ1_E1_F",
+          "aliases": [],
+          "origin": "de_novo",
           "sequence_5_to_3": "GTAGCCTAGCATCGGTAAGC",
           "length_nt": 20,
           "anneal_length_nt": 20,
@@ -683,13 +915,21 @@
           "anneal_hit_count": 1,
           "binding_start_0based": 11,
           "binding_end_0based_exclusive": 31,
+          "exon_ordinals": [
+            1
+          ],
+          "primer_spans_junction": false,
           "three_prime_base": "C",
           "three_prime_gc_clamp": true,
           "longest_homopolymer_run_bp": 2,
           "self_complementary_run_bp": 4
         },
         "reverse": {
+          "primer_id": "primer_09100f2928198662",
           "role": "reverse",
+          "display_label": "PATZ1_E2|E3_R",
+          "aliases": [],
+          "origin": "de_novo",
           "sequence_5_to_3": "GATCGGATCGCTAACGATCC",
           "length_nt": 20,
           "anneal_length_nt": 20,
@@ -699,11 +939,19 @@
           "anneal_hit_count": 1,
           "binding_start_0based": 69,
           "binding_end_0based_exclusive": 89,
+          "exon_ordinals": [
+            2,
+            3
+          ],
+          "primer_spans_junction": true,
           "three_prime_base": "C",
           "three_prime_gc_clamp": true,
           "longest_homopolymer_run_bp": 2,
           "self_complementary_run_bp": 6
         },
+        "design_amplicon_start_0based": 11,
+        "design_amplicon_end_0based_exclusive": 89,
+        "design_amplicon_length_bp": 78,
         "tm_delta_c": 0.0034919176231653637,
         "predicted_amplicon_lengths_bp": [
           78
@@ -755,6 +1003,44 @@
           "primer_pair_complementary_run_bp": 4,
           "primer_pair_3prime_complementary_run_bp": 3
         },
+        "amplicon_spans_junction": true,
+        "selected_because_of_junction_evidence": false,
+        "selection_evidence": [
+          {
+            "evidence_id": "PSR2200160982.hg.1",
+            "evidence_kind": "psr",
+            "junction_id": "",
+            "influence": "probe_region_influenced",
+            "applies_to": [
+              "amplicon",
+              "pair"
+            ],
+            "requirement": "contextual",
+            "source_kind": "probe_region_evidence_interpretation",
+            "source_id": "patz1_isoform_evidence",
+            "platform": "Clariom_D_Human",
+            "feature_id": "PSR2200160982.hg.1",
+            "chromosome": "22",
+            "region_start_1based": 31325900,
+            "region_end_1based": 31325939,
+            "strand": "-",
+            "transcript_id": "PATZ1-201",
+            "from_exon_ordinal": 2,
+            "to_exon_ordinal": 2,
+            "contrast": "synthetic_case_vs_control",
+            "measured_statistic": "log2_fold_change",
+            "measured_value": 0.8,
+            "intensity_source": "synthetic_log2_fold_change",
+            "source_schema": "gentle.probe_region_evidence_interpretation.v2",
+            "source_path": "./test_files/fixtures/isoform_evidence/patz1/patz1_probe_evidence.json",
+            "source_sha256": "sha256:11e2a7b4cbb83af5868902b1834ecbfe6c5e7ddb80e521c1060abf7a4d8418a9",
+            "notes": [
+              "Projected PSR/probeset geometry may support a selected annotated region; its intensity does not establish that the region is common across transcripts.",
+              "mapping_status=exact_exon_geometry",
+              "relationship=review_only_constraint"
+            ]
+          }
+        ],
         "junction_spanning_status": "no_requested_junction_match_reported",
         "junction_matches": [],
         "genomic_carryover_status": "not_evaluated",
@@ -764,62 +1050,18 @@
           "source_report_schema": "gentle.transcript_assay_panel.v2",
           "gentle_version": "0.1.0-internal.10",
           "primer_backend_requested": "internal",
-          "primer_backend_used": "internal"
+          "primer_backend_used": "internal",
+          "annotation_release": "synthetic Ensembl116-like PATZ1 fixture",
+          "exon_numbering_reference_transcript_id": "PATZ1-201",
+          "exon_numbering_basis": "design_transcript_5prime_to_3prime",
+          "exon_numbering_status": "reference_transcript_and_annotation_release_recorded"
         }
       }
     }
   ],
   "detection_matrix": [
     {
-      "assay_id": "transcript_assay_6b15970fa7d866ef",
-      "equivalence_group_id": "cdna_eq_6c73e2052bd828f3",
-      "transcript_feature_id": 3,
-      "transcript_id": "PATZ1-202",
-      "status": "no_product",
-      "detail_status": "no_product_in_size_range",
-      "product_count": 0,
-      "amplicon_lengths_bp": [],
-      "exact_negative_prefiltered": false,
-      "oligo_dt_5prime_reach": {
-        "status": "indeterminate",
-        "product_reaches": [],
-        "basis": "no_product_in_size_range; no compatible product geometry is available for an RT-completeness classification"
-      }
-    },
-    {
-      "assay_id": "transcript_assay_6b15970fa7d866ef",
-      "equivalence_group_id": "cdna_eq_bf8de0081e092d6f",
-      "transcript_feature_id": 4,
-      "transcript_id": "PATZ1-203",
-      "status": "no_product",
-      "detail_status": "exact_negative_prefilter",
-      "product_count": 0,
-      "amplicon_lengths_bp": [],
-      "exact_negative_prefiltered": true,
-      "oligo_dt_5prime_reach": {
-        "status": "structural_target_absent",
-        "product_reaches": [],
-        "basis": "exact-negative prefilter found at least one required oligo target absent from this transcript model"
-      }
-    },
-    {
-      "assay_id": "transcript_assay_6b15970fa7d866ef",
-      "equivalence_group_id": "cdna_eq_da6a2f3dbe1d4447",
-      "transcript_feature_id": 2,
-      "transcript_id": "PATZ1-201",
-      "status": "no_product",
-      "detail_status": "exact_negative_prefilter",
-      "product_count": 0,
-      "amplicon_lengths_bp": [],
-      "exact_negative_prefiltered": true,
-      "oligo_dt_5prime_reach": {
-        "status": "structural_target_absent",
-        "product_reaches": [],
-        "basis": "exact-negative prefilter found at least one required oligo target absent from this transcript model"
-      }
-    },
-    {
-      "assay_id": "transcript_assay_e9e8cd8b25a1adb7",
+      "assay_id": "transcript_assay_4bfca8feaf7962e9",
       "equivalence_group_id": "cdna_eq_6c73e2052bd828f3",
       "transcript_feature_id": 3,
       "transcript_id": "PATZ1-202",
@@ -827,25 +1069,25 @@
       "detail_status": "single_product",
       "product_count": 1,
       "amplicon_lengths_bp": [
-        43
+        50
       ],
       "exact_negative_prefiltered": false,
       "oligo_dt_5prime_reach": {
         "status": "distance_reported_unthresholded",
-        "maximum_required_cdna_reach_from_3prime_end_bp": 54,
+        "maximum_required_cdna_reach_from_3prime_end_bp": 50,
         "product_reaches": [
           {
-            "amplicon_start_0based": 26,
-            "amplicon_end_0based_exclusive": 69,
-            "amplicon_length_bp": 43,
-            "required_cdna_reach_from_3prime_end_bp": 54
+            "amplicon_start_0based": 30,
+            "amplicon_end_0based_exclusive": 80,
+            "amplicon_length_bp": 50,
+            "required_cdna_reach_from_3prime_end_bp": 50
           }
         ],
         "basis": "required reach is measured from the annotated transcript 3' end to each predicted amplicon's most 5' base; it is not an observed reverse-transcription length"
       }
     },
     {
-      "assay_id": "transcript_assay_e9e8cd8b25a1adb7",
+      "assay_id": "transcript_assay_4bfca8feaf7962e9",
       "equivalence_group_id": "cdna_eq_bf8de0081e092d6f",
       "transcript_feature_id": 4,
       "transcript_id": "PATZ1-203",
@@ -861,7 +1103,7 @@
       }
     },
     {
-      "assay_id": "transcript_assay_e9e8cd8b25a1adb7",
+      "assay_id": "transcript_assay_4bfca8feaf7962e9",
       "equivalence_group_id": "cdna_eq_da6a2f3dbe1d4447",
       "transcript_feature_id": 2,
       "transcript_id": "PATZ1-201",
@@ -1033,7 +1275,7 @@
       "equivalence_group_id": "cdna_eq_6c73e2052bd828f3",
       "status": "specific",
       "covering_assay_ids": [
-        "transcript_assay_e9e8cd8b25a1adb7",
+        "transcript_assay_4bfca8feaf7962e9",
         "transcript_assay_b3964ace800b1035"
       ],
       "notes": []
@@ -1113,29 +1355,28 @@
         40
       ],
       "assay_ids": [
-        "transcript_assay_6b15970fa7d866ef",
-        "transcript_assay_e9e8cd8b25a1adb7"
+        "transcript_assay_4bfca8feaf7962e9"
       ]
     }
   ],
   "short_sybr_junction_assays": [
     {
-      "assay_id": "transcript_assay_6b15970fa7d866ef",
+      "assay_id": "transcript_assay_4bfca8feaf7962e9",
       "rank": 1,
       "assay_kind": "sybr_qpcr",
       "design_equivalence_group_id": "cdna_eq_6c73e2052bd828f3",
       "design_transcript_id": "PATZ1-202",
       "primer_pair": {
         "rank": 1,
-        "score": 1012.5475316228888,
+        "score": 1010.2149849402733,
         "forward": {
-          "sequence": "GTAAGCTAGCATCGGGATCCG",
-          "start_0based": 25,
-          "end_0based_exclusive": 46,
+          "sequence": "CTAGCATCGGGATCCGATCAG",
+          "start_0based": 30,
+          "end_0based_exclusive": 51,
           "length_bp": 21,
           "anneal_length_bp": 21,
           "non_annealing_5prime_tail_bp": 0,
-          "tm_c": 65.23248337752503,
+          "tm_c": 64.77839486413313,
           "gc_fraction": 0.5714285714285714,
           "anneal_hits": 1,
           "three_prime_base": "G",
@@ -1144,165 +1385,26 @@
           "self_complementary_run_bp": 6
         },
         "reverse": {
-          "sequence": "GATCCGTTAGCGTACCTGATCG",
-          "start_0based": 44,
-          "end_0based_exclusive": 66,
-          "length_bp": 22,
-          "anneal_length_bp": 22,
-          "non_annealing_5prime_tail_bp": 0,
-          "tm_c": 65.23510679638059,
-          "gc_fraction": 0.5454545454545454,
-          "anneal_hits": 1,
-          "three_prime_base": "G",
-          "three_prime_gc_clamp": true,
-          "longest_homopolymer_run_bp": 2,
-          "self_complementary_run_bp": 4
-        },
-        "amplicon_start_0based": 25,
-        "amplicon_end_0based_exclusive": 66,
-        "amplicon_length_bp": 41,
-        "tm_delta_c": 0.0026234188555633864,
-        "primer_pair_complementary_run_bp": 5,
-        "primer_pair_3prime_complementary_run_bp": 2,
-        "rule_flags": {
-          "roi_covered": true,
-          "amplicon_size_in_range": true,
-          "tm_delta_in_range": true,
-          "forward_secondary_structure_ok": true,
-          "reverse_secondary_structure_ok": true,
-          "primer_pair_dimer_risk_low": true,
-          "forward_three_prime_gc_clamp": true,
-          "reverse_three_prime_gc_clamp": true
-        }
-      },
-      "end_reaction_ids": [],
-      "junction_matches": [
-        {
-          "junction_id": "JUC2200054820.hg.1:PATZ1-202:1-2",
-          "transcript_id": "PATZ1-202",
-          "transcript_local_position_0based": 40,
-          "forward_spans": true,
-          "reverse_spans": false,
-          "spanning_role": "forward"
-        }
-      ],
-      "single_product_equivalence_group_ids": [],
-      "primer_pair_summary": {
-        "schema": "",
-        "assay_id": "",
-        "pair_rank": 0,
-        "design_transcript_id": "",
-        "design_equivalence_group_id": "",
-        "binding_coordinate_system": "",
-        "forward": {
-          "role": "",
-          "sequence_5_to_3": "",
-          "length_nt": 0,
-          "anneal_length_nt": 0,
-          "tm_c": 0.0,
-          "gc_fraction": 0.0,
-          "gc_percent": 0.0,
-          "anneal_hit_count": 0,
-          "binding_start_0based": 0,
-          "binding_end_0based_exclusive": 0,
-          "three_prime_base": "",
-          "three_prime_gc_clamp": false,
-          "longest_homopolymer_run_bp": 0,
-          "self_complementary_run_bp": 0
-        },
-        "reverse": {
-          "role": "",
-          "sequence_5_to_3": "",
-          "length_nt": 0,
-          "anneal_length_nt": 0,
-          "tm_c": 0.0,
-          "gc_fraction": 0.0,
-          "gc_percent": 0.0,
-          "anneal_hit_count": 0,
-          "binding_start_0based": 0,
-          "binding_end_0based_exclusive": 0,
-          "three_prime_base": "",
-          "three_prime_gc_clamp": false,
-          "longest_homopolymer_run_bp": 0,
-          "self_complementary_run_bp": 0
-        },
-        "tm_delta_c": 0.0,
-        "predicted_amplicon_lengths_bp": [],
-        "predicted_products": [],
-        "oligo_qc": {
-          "status": "",
-          "warnings": [],
-          "rule_flags": {
-            "roi_covered": false,
-            "amplicon_size_in_range": false,
-            "tm_delta_in_range": false,
-            "forward_secondary_structure_ok": false,
-            "reverse_secondary_structure_ok": false,
-            "primer_pair_dimer_risk_low": false,
-            "forward_three_prime_gc_clamp": false,
-            "reverse_three_prime_gc_clamp": false
-          },
-          "primer_pair_complementary_run_bp": 0,
-          "primer_pair_3prime_complementary_run_bp": 0
-        },
-        "junction_spanning_status": "",
-        "junction_matches": [],
-        "genomic_carryover_status": "",
-        "genomic_carryover_rationale": "",
-        "whole_genome_specificity_status": "",
-        "provenance": {
-          "source_report_schema": "",
-          "gentle_version": "",
-          "primer_backend_requested": "",
-          "primer_backend_used": ""
-        }
-      }
-    },
-    {
-      "assay_id": "transcript_assay_e9e8cd8b25a1adb7",
-      "rank": 2,
-      "assay_kind": "sybr_qpcr",
-      "design_equivalence_group_id": "cdna_eq_6c73e2052bd828f3",
-      "design_transcript_id": "PATZ1-202",
-      "primer_pair": {
-        "rank": 2,
-        "score": 1012.1244154683359,
-        "forward": {
-          "sequence": "TAAGCTAGCATCGGGATCCG",
-          "start_0based": 26,
-          "end_0based_exclusive": 46,
+          "sequence": "ATGCCGTAGCTTACGATCCG",
+          "start_0based": 60,
+          "end_0based_exclusive": 80,
           "length_bp": 20,
           "anneal_length_bp": 20,
           "non_annealing_5prime_tail_bp": 0,
-          "tm_c": 64.26996322180901,
+          "tm_c": 64.94264561711947,
           "gc_fraction": 0.55,
           "anneal_hits": 1,
           "three_prime_base": "G",
           "three_prime_gc_clamp": true,
-          "longest_homopolymer_run_bp": 3,
-          "self_complementary_run_bp": 6
-        },
-        "reverse": {
-          "sequence": "TACGATCCGTTAGCGTACCTG",
-          "start_0based": 48,
-          "end_0based_exclusive": 69,
-          "length_bp": 21,
-          "anneal_length_bp": 21,
-          "non_annealing_5prime_tail_bp": 0,
-          "tm_c": 64.2361839952258,
-          "gc_fraction": 0.5238095238095238,
-          "anneal_hits": 1,
-          "three_prime_base": "G",
-          "three_prime_gc_clamp": true,
           "longest_homopolymer_run_bp": 2,
           "self_complementary_run_bp": 4
         },
-        "amplicon_start_0based": 26,
-        "amplicon_end_0based_exclusive": 69,
-        "amplicon_length_bp": 43,
-        "tm_delta_c": 0.03377922658320642,
+        "amplicon_start_0based": 30,
+        "amplicon_end_0based_exclusive": 80,
+        "amplicon_length_bp": 50,
+        "tm_delta_c": 0.16425075298633374,
         "primer_pair_complementary_run_bp": 5,
-        "primer_pair_3prime_complementary_run_bp": 2,
+        "primer_pair_3prime_complementary_run_bp": 3,
         "rule_flags": {
           "roi_covered": true,
           "amplicon_size_in_range": true,
@@ -1329,119 +1431,306 @@
         "cdna_eq_6c73e2052bd828f3"
       ],
       "primer_pair_summary": {
-        "schema": "",
-        "assay_id": "",
-        "pair_rank": 0,
-        "design_transcript_id": "",
-        "design_equivalence_group_id": "",
-        "binding_coordinate_system": "",
+        "schema": "gentle.primer_pair_summary.v2",
+        "assay_id": "transcript_assay_4bfca8feaf7962e9",
+        "pair_rank": 1,
+        "design_transcript_id": "PATZ1-202",
+        "design_equivalence_group_id": "cdna_eq_6c73e2052bd828f3",
+        "display_label": "PATZ1_E1|E2F-E2R",
+        "aliases": [],
+        "selection_role": null,
+        "assay_tier": "isoform_discrimination",
+        "practicality_policy": {
+          "preferred_amplicon_bp": {
+            "min_bp": 50,
+            "max_bp": 100
+          },
+          "allowed_amplicon_bp": {
+            "min_bp": 30,
+            "max_bp": 120
+          }
+        },
+        "practicality_classification": "routine",
+        "common_region_evidence": {
+          "status": "not_common",
+          "basis": "At least one intended transcript annotation does not contain the full designed source intervals as one contiguous mature-cDNA region; array evidence cannot override this structural result.",
+          "intended_transcript_ids": [
+            "PATZ1-201",
+            "PATZ1-202",
+            "PATZ1-203"
+          ],
+          "source_ranges_0based": [
+            {
+              "start_0based": 180,
+              "end_0based_exclusive": 190
+            },
+            {
+              "start_0based": 20,
+              "end_0based_exclusive": 60
+            }
+          ],
+          "supporting_psr_evidence_ids": []
+        },
+        "considered_alternatives": [
+          {
+            "assay_id": "transcript_assay_e9e8cd8b25a1adb7",
+            "design_transcript_id": "PATZ1-202",
+            "design_amplicon_length_bp": 43,
+            "practicality_classification": "allowed_nonpreferred",
+            "common_region_status": "not_common",
+            "existing_candidate_score": 1012.1244154683359,
+            "disposition": "not_selected",
+            "explanation": "Not selected after the same biological requirements, practicality preference, existing score, and stable-id ordering used for the retained pair."
+          },
+          {
+            "assay_id": "transcript_assay_cf3abde10e2184d8",
+            "design_transcript_id": "PATZ1-202",
+            "design_amplicon_length_bp": 43,
+            "practicality_classification": "allowed_nonpreferred",
+            "common_region_status": "not_common",
+            "existing_candidate_score": 1009.6693412358484,
+            "disposition": "not_selected",
+            "explanation": "Not selected after the same biological requirements, practicality preference, existing score, and stable-id ordering used for the retained pair."
+          },
+          {
+            "assay_id": "transcript_assay_45296b483354cbc4",
+            "design_transcript_id": "PATZ1-202",
+            "design_amplicon_length_bp": 42,
+            "practicality_classification": "allowed_nonpreferred",
+            "common_region_status": "not_common",
+            "existing_candidate_score": 1007.4003301878937,
+            "disposition": "not_selected",
+            "explanation": "Not selected after the same biological requirements, practicality preference, existing score, and stable-id ordering used for the retained pair."
+          }
+        ],
+        "satisfied_design_objective": "one_per_class",
+        "selection_reasons": [
+          {
+            "code": "design_objective",
+            "message": "Selected at panel rank 1 to satisfy the 'one_per_class' design objective.",
+            "related_ids": [
+              "one_per_class"
+            ]
+          },
+          {
+            "code": "predicted_product_coverage",
+            "message": "Produces one predicted product for 1 mature-cDNA equivalence class(es).",
+            "related_ids": [
+              "cdna_eq_6c73e2052bd828f3"
+            ]
+          },
+          {
+            "code": "junction_evidence",
+            "message": "Spans 1 external evidence-derived junction target(s); this records region influence, not exact probe-sequence reuse.",
+            "related_ids": [
+              "JUC2200054820.hg.1:PATZ1-202:1-2"
+            ]
+          },
+          {
+            "code": "routine_practicality_preferred",
+            "message": "The 50 bp designed amplicon is within the configured preferred routine range; required biological criteria were evaluated before this preference.",
+            "related_ids": [
+              "transcript_assay_4bfca8feaf7962e9"
+            ]
+          }
+        ],
+        "selection_explanation": "Selected because it satisfies the 'one_per_class' biological objective and remains within the configured preferred product range.",
+        "selection_provenance_status": "de_novo_with_structured_selection_evidence",
+        "binding_coordinate_system": "design_transcript_cdna_0based_half_open",
         "forward": {
-          "role": "",
-          "sequence_5_to_3": "",
-          "length_nt": 0,
-          "anneal_length_nt": 0,
-          "tm_c": 0.0,
-          "gc_fraction": 0.0,
-          "gc_percent": 0.0,
-          "anneal_hit_count": 0,
-          "binding_start_0based": 0,
-          "binding_end_0based_exclusive": 0,
-          "three_prime_base": "",
-          "three_prime_gc_clamp": false,
-          "longest_homopolymer_run_bp": 0,
-          "self_complementary_run_bp": 0
+          "primer_id": "primer_9d7250f82e9836b1",
+          "role": "forward",
+          "display_label": "PATZ1_E1|E2_F",
+          "aliases": [],
+          "origin": "de_novo",
+          "sequence_5_to_3": "CTAGCATCGGGATCCGATCAG",
+          "length_nt": 21,
+          "anneal_length_nt": 21,
+          "tm_c": 64.77839486413313,
+          "gc_fraction": 0.5714285714285714,
+          "gc_percent": 57.14285714285714,
+          "anneal_hit_count": 1,
+          "binding_start_0based": 30,
+          "binding_end_0based_exclusive": 51,
+          "exon_ordinals": [
+            1,
+            2
+          ],
+          "primer_spans_junction": true,
+          "three_prime_base": "G",
+          "three_prime_gc_clamp": true,
+          "longest_homopolymer_run_bp": 3,
+          "self_complementary_run_bp": 6
         },
         "reverse": {
-          "role": "",
-          "sequence_5_to_3": "",
-          "length_nt": 0,
-          "anneal_length_nt": 0,
-          "tm_c": 0.0,
-          "gc_fraction": 0.0,
-          "gc_percent": 0.0,
-          "anneal_hit_count": 0,
-          "binding_start_0based": 0,
-          "binding_end_0based_exclusive": 0,
-          "three_prime_base": "",
-          "three_prime_gc_clamp": false,
-          "longest_homopolymer_run_bp": 0,
-          "self_complementary_run_bp": 0
+          "primer_id": "primer_96f7bdcf9591a2a0",
+          "role": "reverse",
+          "display_label": "PATZ1_E2_R",
+          "aliases": [],
+          "origin": "de_novo",
+          "sequence_5_to_3": "ATGCCGTAGCTTACGATCCG",
+          "length_nt": 20,
+          "anneal_length_nt": 20,
+          "tm_c": 64.94264561711947,
+          "gc_fraction": 0.55,
+          "gc_percent": 55.00000000000001,
+          "anneal_hit_count": 1,
+          "binding_start_0based": 60,
+          "binding_end_0based_exclusive": 80,
+          "exon_ordinals": [
+            2
+          ],
+          "primer_spans_junction": false,
+          "three_prime_base": "G",
+          "three_prime_gc_clamp": true,
+          "longest_homopolymer_run_bp": 2,
+          "self_complementary_run_bp": 4
         },
-        "tm_delta_c": 0.0,
-        "predicted_amplicon_lengths_bp": [],
-        "predicted_products": [],
+        "design_amplicon_start_0based": 30,
+        "design_amplicon_end_0based_exclusive": 80,
+        "design_amplicon_length_bp": 50,
+        "tm_delta_c": 0.16425075298633374,
+        "predicted_amplicon_lengths_bp": [
+          50
+        ],
+        "predicted_products": [
+          {
+            "transcript_feature_id": 2,
+            "transcript_id": "PATZ1-201",
+            "equivalence_group_id": "cdna_eq_da6a2f3dbe1d4447",
+            "detection_status": "no_product",
+            "detail_status": "exact_negative_prefilter",
+            "product_count": 0,
+            "amplicon_lengths_bp": []
+          },
+          {
+            "transcript_feature_id": 3,
+            "transcript_id": "PATZ1-202",
+            "equivalence_group_id": "cdna_eq_6c73e2052bd828f3",
+            "detection_status": "single_product",
+            "detail_status": "single_product",
+            "product_count": 1,
+            "amplicon_lengths_bp": [
+              50
+            ]
+          },
+          {
+            "transcript_feature_id": 4,
+            "transcript_id": "PATZ1-203",
+            "equivalence_group_id": "cdna_eq_bf8de0081e092d6f",
+            "detection_status": "no_product",
+            "detail_status": "exact_negative_prefilter",
+            "product_count": 0,
+            "amplicon_lengths_bp": []
+          }
+        ],
         "oligo_qc": {
-          "status": "",
+          "status": "pass",
           "warnings": [],
           "rule_flags": {
-            "roi_covered": false,
-            "amplicon_size_in_range": false,
-            "tm_delta_in_range": false,
-            "forward_secondary_structure_ok": false,
-            "reverse_secondary_structure_ok": false,
-            "primer_pair_dimer_risk_low": false,
-            "forward_three_prime_gc_clamp": false,
-            "reverse_three_prime_gc_clamp": false
+            "roi_covered": true,
+            "amplicon_size_in_range": true,
+            "tm_delta_in_range": true,
+            "forward_secondary_structure_ok": true,
+            "reverse_secondary_structure_ok": true,
+            "primer_pair_dimer_risk_low": true,
+            "forward_three_prime_gc_clamp": true,
+            "reverse_three_prime_gc_clamp": true
           },
-          "primer_pair_complementary_run_bp": 0,
-          "primer_pair_3prime_complementary_run_bp": 0
+          "primer_pair_complementary_run_bp": 5,
+          "primer_pair_3prime_complementary_run_bp": 3
         },
-        "junction_spanning_status": "",
-        "junction_matches": [],
-        "genomic_carryover_status": "",
-        "genomic_carryover_rationale": "",
-        "whole_genome_specificity_status": "",
+        "amplicon_spans_junction": true,
+        "selected_because_of_junction_evidence": true,
+        "selection_evidence": [
+          {
+            "evidence_id": "JUC2200054820.hg.1",
+            "evidence_kind": "juc",
+            "junction_id": "JUC2200054820.hg.1:PATZ1-202:1-2",
+            "influence": "probe_region_influenced",
+            "applies_to": [
+              "forward",
+              "pair"
+            ],
+            "requirement": "required",
+            "source_kind": "probe_region_evidence_interpretation",
+            "source_id": "patz1_isoform_evidence",
+            "platform": "Clariom_D_Human",
+            "feature_id": "JUC2200054820.hg.1",
+            "chromosome": "22",
+            "region_start_1based": 31325860,
+            "region_end_1based": 31325979,
+            "strand": "-",
+            "transcript_id": "PATZ1-202",
+            "from_exon_ordinal": 1,
+            "to_exon_ordinal": 2,
+            "contrast": "synthetic_case_vs_control",
+            "measured_statistic": "log2_fold_change",
+            "measured_value": -1.2,
+            "intensity_source": "synthetic_log2_fold_change",
+            "source_schema": "gentle.probe_region_evidence_interpretation.v2",
+            "source_path": "./test_files/fixtures/isoform_evidence/patz1/patz1_probe_evidence.json",
+            "source_sha256": "sha256:11e2a7b4cbb83af5868902b1834ecbfe6c5e7ddb80e521c1060abf7a4d8418a9",
+            "notes": [
+              "Projected probe-region geometry influenced the assay target; GENtle did not reuse or match an array-probe sequence.",
+              "mapping_status=ambiguous_parent_feature",
+              "relationship=review_only_constraint",
+              "ambiguity=parent_mixes_transcript_features",
+              "ambiguity=multi_hit_not_assessed"
+            ]
+          }
+        ],
+        "junction_spanning_status": "requested_junction_spanning_primer",
+        "junction_matches": [
+          {
+            "junction_id": "JUC2200054820.hg.1:PATZ1-202:1-2",
+            "transcript_id": "PATZ1-202",
+            "transcript_local_position_0based": 40,
+            "forward_spans": true,
+            "reverse_spans": false,
+            "spanning_role": "forward"
+          }
+        ],
+        "genomic_carryover_status": "not_evaluated",
+        "genomic_carryover_rationale": "Transcript-panel selection does not run a genomic-template PCR carryover test; requested junction overlap is reported separately and must not be interpreted as a whole-genome specificity pass.",
+        "whole_genome_specificity_status": "not_run",
         "provenance": {
-          "source_report_schema": "",
-          "gentle_version": "",
-          "primer_backend_requested": "",
-          "primer_backend_used": ""
+          "source_report_schema": "gentle.transcript_assay_panel.v2",
+          "gentle_version": "0.1.0-internal.10",
+          "primer_backend_requested": "internal",
+          "primer_backend_used": "internal",
+          "annotation_release": "synthetic Ensembl116-like PATZ1 fixture",
+          "exon_numbering_reference_transcript_id": "PATZ1-202",
+          "exon_numbering_basis": "design_transcript_5prime_to_3prime",
+          "exon_numbering_status": "reference_transcript_and_annotation_release_recorded"
         }
       }
     }
   ],
   "order_ready_primers": [
     {
-      "line_id": "transcript_assay_oligo_e94a9af2f1766b0b",
-      "assay_id": "transcript_assay_6b15970fa7d866ef",
+      "line_id": "transcript_assay_oligo_1f90dfbed5ecdeac",
+      "assay_id": "transcript_assay_4bfca8feaf7962e9",
       "assay_rank": 1,
       "name": "patz1_sybr_juc_panel_1_forward",
       "role": "forward",
-      "sequence_5_to_3": "GTAAGCTAGCATCGGGATCCG",
+      "sequence_5_to_3": "CTAGCATCGGGATCCGATCAG",
       "length_nt": 21
     },
     {
-      "line_id": "transcript_assay_oligo_ddd837fb1b6aa617",
-      "assay_id": "transcript_assay_6b15970fa7d866ef",
+      "line_id": "transcript_assay_oligo_270804b3e5ea0768",
+      "assay_id": "transcript_assay_4bfca8feaf7962e9",
       "assay_rank": 1,
       "name": "patz1_sybr_juc_panel_1_reverse",
       "role": "reverse",
-      "sequence_5_to_3": "GATCCGTTAGCGTACCTGATCG",
-      "length_nt": 22
-    },
-    {
-      "line_id": "transcript_assay_oligo_c4e20ffa6790ed10",
-      "assay_id": "transcript_assay_e9e8cd8b25a1adb7",
-      "assay_rank": 2,
-      "name": "patz1_sybr_juc_panel_2_forward",
-      "role": "forward",
-      "sequence_5_to_3": "TAAGCTAGCATCGGGATCCG",
+      "sequence_5_to_3": "ATGCCGTAGCTTACGATCCG",
       "length_nt": 20
-    },
-    {
-      "line_id": "transcript_assay_oligo_b2c3dbc9355fba93",
-      "assay_id": "transcript_assay_e9e8cd8b25a1adb7",
-      "assay_rank": 2,
-      "name": "patz1_sybr_juc_panel_2_reverse",
-      "role": "reverse",
-      "sequence_5_to_3": "TACGATCCGTTAGCGTACCTG",
-      "length_nt": 21
     },
     {
       "line_id": "transcript_assay_oligo_7e7bc7e2fdf98c0c",
       "assay_id": "transcript_assay_b3964ace800b1035",
-      "assay_rank": 3,
-      "name": "patz1_sybr_juc_panel_3_forward",
+      "assay_rank": 2,
+      "name": "patz1_sybr_juc_panel_2_forward",
       "role": "forward",
       "sequence_5_to_3": "TCGTAGCCTAGCATCGGTAAGC",
       "length_nt": 22
@@ -1449,8 +1738,8 @@
     {
       "line_id": "transcript_assay_oligo_d48923c55f190b69",
       "assay_id": "transcript_assay_b3964ace800b1035",
-      "assay_rank": 3,
-      "name": "patz1_sybr_juc_panel_3_reverse",
+      "assay_rank": 2,
+      "name": "patz1_sybr_juc_panel_2_reverse",
       "role": "reverse",
       "sequence_5_to_3": "ATCCGTTAGCGTACCTGATCGG",
       "length_nt": 22
@@ -1458,8 +1747,8 @@
     {
       "line_id": "transcript_assay_oligo_85d49c608d61c42a",
       "assay_id": "transcript_assay_928afef051d25781",
-      "assay_rank": 4,
-      "name": "patz1_sybr_juc_panel_4_forward",
+      "assay_rank": 3,
+      "name": "patz1_sybr_juc_panel_3_forward",
       "role": "forward",
       "sequence_5_to_3": "GTAGCCTAGCATCGGTAAGC",
       "length_nt": 20
@@ -1467,8 +1756,8 @@
     {
       "line_id": "transcript_assay_oligo_043731a423ab4a23",
       "assay_id": "transcript_assay_928afef051d25781",
-      "assay_rank": 4,
-      "name": "patz1_sybr_juc_panel_4_reverse",
+      "assay_rank": 3,
+      "name": "patz1_sybr_juc_panel_3_reverse",
       "role": "reverse",
       "sequence_5_to_3": "GATCGGATCGCTAACGATCC",
       "length_nt": 20
@@ -1477,16 +1766,10 @@
   "genomic_specificity_assessments": [],
   "specificity_followups": [
     {
-      "assay_id": "transcript_assay_6b15970fa7d866ef",
+      "assay_id": "transcript_assay_4bfca8feaf7962e9",
       "local_cdna_matrix_status": "completed",
       "genomic_confirmation_status": "not_run",
-      "shell_command_template": "primers specificity-plan --forward GTAAGCTAGCATCGGGATCCG --reverse GATCCGTTAGCGTACCTGATCG --target-genome GENOME_ID --output-dir OUTPUT_DIR/transcript_assay_6b15970fa7d866ef"
-    },
-    {
-      "assay_id": "transcript_assay_e9e8cd8b25a1adb7",
-      "local_cdna_matrix_status": "completed",
-      "genomic_confirmation_status": "not_run",
-      "shell_command_template": "primers specificity-plan --forward TAAGCTAGCATCGGGATCCG --reverse TACGATCCGTTAGCGTACCTG --target-genome GENOME_ID --output-dir OUTPUT_DIR/transcript_assay_e9e8cd8b25a1adb7"
+      "shell_command_template": "primers specificity-plan --forward CTAGCATCGGGATCCGATCAG --reverse ATGCCGTAGCTTACGATCCG --target-genome GENOME_ID --output-dir OUTPUT_DIR/transcript_assay_4bfca8feaf7962e9"
     },
     {
       "assay_id": "transcript_assay_b3964ace800b1035",
@@ -1514,7 +1797,7 @@
         "source_id": "patz1_isoform_evidence",
         "schema": "gentle.probe_region_evidence_interpretation.v2",
         "path": "./test_files/fixtures/isoform_evidence/patz1/patz1_probe_evidence.json",
-        "sha256": "sha256:87e8fec5d471d009849aa6d46432f0f03f7de38e162478383b2d1f02bc604a9e"
+        "sha256": "sha256:11e2a7b4cbb83af5868902b1834ecbfe6c5e7ddb80e521c1060abf7a4d8418a9"
       }
     ],
     "primer_backend": "internal"

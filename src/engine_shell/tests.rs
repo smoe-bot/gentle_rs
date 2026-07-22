@@ -525,6 +525,10 @@ fn skip_glossary_flag_parse(path: &str, flag: &str) -> bool {
                     "candidates generate-between-anchors",
                     "--anchor-a-json" | "--anchor-b-json"
                 )
+                | (
+                    "primers design-transcript-assay-panel",
+                    "--preferred-min-amplicon-bp" | "--preferred-max-amplicon-bp"
+                )
                 | ("ui selection", "--start" | "--end")
         )
 }
@@ -6682,7 +6686,7 @@ fn parse_primers_seed_from_feature_and_splicing() {
     ));
 
     let panel_v2 = parse_shell_line(
-        "primers design-transcript-assay-panel seq_a 17 --objective minimal-discrimination-panel --coverage-policy best-effort --min-amplicon-bp 70 --max-amplicon-bp 220 --max-assays-per-class 4 --max-mismatches 1 --require-3prime-exact-bases 8 --specificity-check require-pass --specificity-target-genome GRCh38 --specificity-catalog genomes.json --specificity-cache-dir genome-cache --report-id panel_v2 --path panel_v2.json --backend internal",
+        "primers design-transcript-assay-panel seq_a 17 --objective minimal-discrimination-panel --coverage-policy best-effort --assay-tier isoform-discrimination --preferred-min-amplicon-bp 80 --preferred-max-amplicon-bp 160 --min-amplicon-bp 70 --max-amplicon-bp 220 --max-assays-per-class 4 --max-mismatches 1 --require-3prime-exact-bases 8 --specificity-check require-pass --specificity-target-genome GRCh38 --specificity-catalog genomes.json --specificity-cache-dir genome-cache --report-id panel_v2 --path panel_v2.json --backend internal",
     )
     .expect("parse transcript assay panel v2");
     assert!(matches!(
@@ -6692,6 +6696,8 @@ fn parse_primers_seed_from_feature_and_splicing() {
             feature_id,
             objective,
             coverage_policy,
+            assay_tier,
+            practicality,
             min_amplicon_bp,
             max_amplicon_bp,
             max_assays_per_class,
@@ -6706,6 +6712,12 @@ fn parse_primers_seed_from_feature_and_splicing() {
             && feature_id == 17
             && objective == TranscriptAssayPanelObjective::MinimalDiscriminationPanel
             && coverage_policy == TranscriptAssayCoveragePolicy::BestEffort
+            && assay_tier == TranscriptAssayUseTier::IsoformDiscrimination
+            && practicality.as_ref().is_some_and(|policy|
+                policy.preferred_amplicon_bp.as_ref().is_some_and(|range|
+                    range.min_bp == 80 && range.max_bp == 160
+                ) && policy.allowed_amplicon_bp.is_none()
+            )
             && min_amplicon_bp == Some(70)
             && max_amplicon_bp == Some(220)
             && max_assays_per_class == Some(4)
@@ -6720,6 +6732,13 @@ fn parse_primers_seed_from_feature_and_splicing() {
             && report_id.as_deref() == Some("panel_v2")
             && path.as_deref() == Some("panel_v2.json")
             && backend == Some(PrimerDesignBackend::Internal)
+    ));
+    let incomplete_preferred_range = parse_shell_line(
+        "primers design-transcript-assay-panel seq_a 17 --preferred-min-amplicon-bp 80",
+    )
+    .expect_err("preferred transcript-assay range requires both bounds");
+    assert!(incomplete_preferred_range.contains(
+        "requires --preferred-min-amplicon-bp and --preferred-max-amplicon-bp together"
     ));
     let endpoint_panel = parse_shell_line(
         "primers design-transcript-assay-panel seq_a 17 --assay-kind endpoint-rt-pcr --cdna-synthesis oligo-dt --objective isoform-end-matrix --junctions @junctions.json --junction-evidence clariom_juc.json --junction-evidence-priority required --min-3prime-junction-overlap-bp 5 --min-5prime-junction-overlap-bp 8 --annotation-release Ensembl116 --max-amplicon-bp 10000 --oligo-dt-5prime-risk-threshold-bp 5000",
@@ -7758,7 +7777,7 @@ fn parse_cutrun_list_show_and_export_read_reports() {
 #[test]
 fn parse_cutrun_inspect_regulatory_support() {
     let cmd = parse_shell_line(
-        "cutrun inspect-regulatory-support toy_cutrun_roi --dataset toy_ctcf --read-report toy_cutrun_reads --promoter-search-start 10 --promoter-search-end 180 --neighbor-window-bp 42 --species-filter human --species-filter mouse --path support.json",
+        "cutrun inspect-regulatory-support toy_cutrun_roi --dataset toy_ctcf --read-report toy_cutrun_reads --catalog cutrun.json --cache-dir cutrun-cache --promoter-search-start 10 --promoter-search-end 180 --neighbor-window-bp 42 --species-filter human --species-filter mouse --path support.json",
     )
     .expect("parse CUT&RUN inspect-regulatory-support");
     assert!(matches!(
@@ -7767,6 +7786,8 @@ fn parse_cutrun_inspect_regulatory_support() {
             seq_id,
             dataset_ids,
             read_report_ids,
+            catalog_path,
+            cache_dir,
             promoter_search_start_0based,
             promoter_search_end_0based_exclusive,
             neighbor_window_bp,
@@ -7775,6 +7796,8 @@ fn parse_cutrun_inspect_regulatory_support() {
         } if seq_id == "toy_cutrun_roi"
             && dataset_ids == vec!["toy_ctcf".to_string()]
             && read_report_ids == vec!["toy_cutrun_reads".to_string()]
+            && catalog_path.as_deref() == Some("cutrun.json")
+            && cache_dir.as_deref() == Some("cutrun-cache")
             && promoter_search_start_0based == Some(10)
             && promoter_search_end_0based_exclusive == Some(180)
             && neighbor_window_bp == 42
@@ -33239,6 +33262,8 @@ fn execute_cutrun_inspect_regulatory_support_writes_json_payload() {
             seq_id: "toy_cutrun_roi".to_string(),
             dataset_ids: vec![],
             read_report_ids: vec!["toy_cutrun_reads".to_string()],
+            catalog_path: None,
+            cache_dir: None,
             promoter_search_start_0based: None,
             promoter_search_end_0based_exclusive: None,
             neighbor_window_bp: 150,

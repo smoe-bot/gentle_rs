@@ -201,6 +201,9 @@ Catalog path note:
   - project/system overlays under `.gentle/catalogs/` and `/etc/gentle/catalogs/`
   - prepared-cache root defaults to `data/cutrun`
   - override cache root with `GENTLE_CUTRUN_CACHE_DIR`
+  - built-in dataset `tp73_release_smoke_synthetic` is a tiny offline V1-V3
+    integration fixture; it is explicitly synthetic and carries no biological
+    occupancy claim
   - `cutrun prepare` and `cutrun status` now use the same shared lifecycle
     contract as reference/helper prepares:
     - `lifecycle_status = missing|running|ready|failed|cancelled|stale`
@@ -213,6 +216,9 @@ Catalog path note:
   - `cutrun interpret` maps ad hoc `FASTA`/`FASTQ` reads only against one
     selected genome-anchored ROI plus deterministic flanks and stores a shared
     engine-owned read report for later inspection/export
+  - with `--flank-bp 0`, an imported sequence whose anchor span exactly matches
+    its sequence length is itself the mapping reference; this offline path does
+    not require a prepared whole genome, while nonzero flanks still do
   - the same `cutrun interpret` route can also resolve prepared raw reads from
     `cutrun prepare` via `--dataset DATASET_ID [--catalog PATH] [--cache-dir PATH]`
   - catalog entries may declare raw reads with `reads_sra_accession`;
@@ -223,6 +229,8 @@ Catalog path note:
     report
   - `cutrun inspect-regulatory-support` aggregates prepared datasets and/or
     saved ROI read reports into one promoter/ROI support report with:
+    - `--catalog PATH` and `--cache-dir PATH` for replaying the same custom V1
+      dataset location used during prepare/project
     - merged `strong`/`moderate`/`weak` support windows
     - theoretical TFBS rows split into legacy `confirmed` vs `unconfirmed`
       vectors, with additive per-row `support_status` values:
@@ -2068,6 +2076,7 @@ cargo run --bin gentle_cli -- genomes remove-catalog-entry "Human GRCh38 Ensembl
 cargo run --bin gentle_cli -- genomes blast "Human GRCh38 Ensembl 116" ACGTACGTACGT --task blastn-short --max-hits 10 --options-json '{"thresholds":{"min_identity_percent":97.0,"min_query_coverage_percent":80.0}}' --catalog assets/genomes.json --cache-dir data/genomes
 cargo run --bin gentle_cli -- genomes extract-region "Human GRCh38 Ensembl 116" 1 1000000 1001500 --output-id grch38_chr1_slice --annotation-scope core --catalog assets/genomes.json --cache-dir data/genomes
 cargo run --bin gentle_cli -- genomes extract-gene "Human GRCh38 Ensembl 116" TP53 --occurrence 1 --output-id grch38_tp53 --catalog assets/genomes.json --cache-dir data/genomes
+cargo run --bin gentle_cli -- genomes extract-gene "Human GRCh38 Ensembl 116" TP73 --occurrence 1 --output-id grch38_tp73 --catalog assets/genomes.json --cache-dir data/genomes
 cargo run --bin gentle_cli -- helpers vocabulary list --filter fusion
 cargo run --bin gentle_cli -- helpers vocabulary doctor --routine-catalog assets/cloning_routines.json
 cargo run --bin gentle_cli -- tracks import-bed grch38_tp53 data/chipseq/peaks.bed.gz --name H3K27ac --min-score 10 --clear-existing
@@ -2080,18 +2089,18 @@ cargo run --bin gentle_cli -- arrays probe-regions --cel sample1.CEL --cel sampl
 cargo run --bin gentle_cli -- arrays probe-regions --dataset E-MTAB-14704 --gene PATZ1 --gene FUS --gene MDM2 --paired-by-replicate-suffix --platform Clariom_D_Human --plot --dry-run
 cargo run --bin gentle_cli -- arrays probe-regions --dataset E-MTAB-14704 --gene TP73 --platform Clariom_D_Human --dry-run
 cargo run --bin gentle_cli -- arrays inspect-probe-region-output analysis/probe_regions
-cargo run --bin gentle_cli -- cutrun list --catalog assets/cutrun.json --filter CTCF
-cargo run --bin gentle_cli -- cutrun status toy_ctcf --catalog assets/cutrun.json --cache-dir data/cutrun
-cargo run --bin gentle_cli -- cutrun prepare toy_ctcf --catalog assets/cutrun.json --cache-dir data/cutrun
-cargo run --bin gentle_cli -- cutrun project grch38_tp53 toy_ctcf --catalog assets/cutrun.json --cache-dir data/cutrun --clear-existing
+cargo run --bin gentle_cli -- cutrun list --catalog assets/cutrun.json --filter TP73
+cargo run --bin gentle_cli -- cutrun status tp73_release_smoke_synthetic --catalog assets/cutrun.json --cache-dir data/cutrun
+cargo run --bin gentle_cli -- cutrun prepare tp73_release_smoke_synthetic --catalog assets/cutrun.json --cache-dir data/cutrun
+cargo run --bin gentle_cli -- cutrun project grch38_tp73 tp73_release_smoke_synthetic --catalog assets/cutrun.json --cache-dir data/cutrun --clear-existing
 cargo run --bin gentle_cli -- cutrun interpret grch38_tp53 reads_r1.fastq.gz reads_r2.fastq.gz --format fastq --layout paired_end --flank-bp 150 --report-id tp53_cutrun_reads --seed-kmer-len 9 --min-seed-matches 2 --max-mismatches 4 --min-identity 0.9 --max-fragment-span-bp 800
-cargo run --bin gentle_cli -- cutrun interpret grch38_tp53 --dataset toy_ctcf_reads --catalog assets/cutrun.json --cache-dir data/cutrun --report-id tp53_cutrun_reads_from_dataset
+cargo run --bin gentle_cli -- cutrun interpret grch38_tp73 --dataset tp73_release_smoke_synthetic --catalog assets/cutrun.json --cache-dir data/cutrun --flank-bp 0 --report-id tp73_cutrun_reads_from_dataset
 cargo run --bin gentle_cli -- cutrun list-read-reports grch38_tp53
 cargo run --bin gentle_cli -- cutrun show-read-report tp53_cutrun_reads
 cargo run --bin gentle_cli -- cutrun export-coverage tp53_cutrun_reads exports/tp53_cutrun.coverage.tsv --kind coverage
 cargo run --bin gentle_cli -- cutrun export-coverage tp53_cutrun_reads exports/tp53_cutrun.cuts.tsv --kind cut_sites
 cargo run --bin gentle_cli -- cutrun export-coverage tp53_cutrun_reads exports/tp53_cutrun.fragments.tsv --kind fragments
-cargo run --bin gentle_cli -- cutrun inspect-regulatory-support grch38_tp53 --dataset toy_ctcf --read-report tp53_cutrun_reads --neighbor-window-bp 150 --species-filter human --path exports/tp53_cutrun.regulatory_support.json
+cargo run --bin gentle_cli -- cutrun inspect-regulatory-support grch38_tp73 --dataset tp73_release_smoke_synthetic --read-report tp73_cutrun_reads_from_dataset --catalog assets/cutrun.json --cache-dir data/cutrun --neighbor-window-bp 150 --species-filter human --path exports/tp73_cutrun.regulatory_support.json
 cargo run --bin gentle_cli -- cutrun gene-set-regulatory-support "Human GRCh38 Ensembl 116" --group regulation_of_alternative_splicing --relationship co-regulated --dataset toy_ctcf --path exports/splicing_genes.cutrun_support.json
 cargo run --bin gentle_cli -- helpers list
 cargo run --bin gentle_cli -- helpers validate-catalog
@@ -3006,7 +3015,7 @@ Shared shell command:
     - `primers test-cdna-qpcr SEQ_ID FEATURE_ID --forward SEQ --reverse SEQ --probe SEQ [--transcript-id ID] [--transcript-order transcript_id|genomic_first_exon|genomic_last_exon|antisense_first_exon] [--map-coordinate-mode cdna|genomic_aligned] [--min-amplicon-bp N] [--max-amplicon-bp N] [--max-mismatches N] [--require-3prime-exact-bases N] [--path OUTPUT.json] [--svg OUTPUT.svg] [--materialize-products] [--product-output-prefix PREFIX] [--product-gel-svg OUTPUT.svg] [--product-gel-ladder NAME]...`
     - `primers transcript-qpcr-panel SEQ_ID FEATURE_ID SHARED_QPCR_REPORT_ID [--path OUTPUT.json]`
     - `primers design-transcript-assay-panel OPERATION_JSON_OR_@FILE [--backend auto|internal|primer3] [--primer3-exec PATH]`
-    - `primers design-transcript-assay-panel SEQ_ID FEATURE_ID [--assay-kind endpoint-rt-pcr|sybr-qpcr|taqman-qpcr] [--cdna-synthesis oligo-dt|random-hexamers|gene-specific|mixed] [--objective pan-transcript|one-per-class|minimal-discrimination-panel|isoform-end-matrix] [--coverage-policy require-all|best-effort] [--junctions JSON_OR_@FILE] [--junction-evidence PATH ...] [--junction-evidence-priority required|preferred] [--min-3prime-junction-overlap-bp N] [--min-5prime-junction-overlap-bp N] [--annotation-release TEXT] [--min-amplicon-bp N] [--max-amplicon-bp N] [--max-assays-per-class N] [--max-mismatches N] [--require-3prime-exact-bases N] [--oligo-dt-5prime-risk-threshold-bp N] [--report-id ID] [--path OUTPUT.json] [--backend auto|internal|primer3] [--primer3-exec PATH]`
+    - `primers design-transcript-assay-panel SEQ_ID FEATURE_ID [--assay-kind endpoint-rt-pcr|sybr-qpcr|taqman-qpcr] [--cdna-synthesis oligo-dt|random-hexamers|gene-specific|mixed] [--objective pan-transcript|one-per-class|minimal-discrimination-panel|isoform-end-matrix] [--coverage-policy require-all|best-effort] [--assay-tier routine-common-region-screen|isoform-discrimination|long-range-structure-discovery] [--preferred-min-amplicon-bp N --preferred-max-amplicon-bp N] [--junctions JSON_OR_@FILE] [--junction-evidence PATH ...] [--junction-evidence-priority required|preferred] [--min-3prime-junction-overlap-bp N] [--min-5prime-junction-overlap-bp N] [--annotation-release TEXT] [--min-amplicon-bp N] [--max-amplicon-bp N] [--max-assays-per-class N] [--max-mismatches N] [--require-3prime-exact-bases N] [--oligo-dt-5prime-risk-threshold-bp N] [--report-id ID] [--path OUTPUT.json] [--backend auto|internal|primer3] [--primer3-exec PATH]`
       - for oligo-dT cDNA, matrix cells always report each predicted product's
         required reach from the annotated transcript 3-prime end. Supplying
         `--oligo-dt-5prime-risk-threshold-bp` classifies that geometry against
@@ -3633,6 +3642,20 @@ Shared shell command:
         an assay that omits any exact cDNA class is rejected rather than saved
       - `--coverage-policy best-effort` is an explicit opt-in that saves a
         visibly partial report with uncovered class ids and warnings
+      - `--assay-tier` records experimental purpose independently of the
+        objective. `routine-common-region-screen` requires `pan-transcript`
+        and accepts commonality only from transcript annotation; Clariom PSR
+        intensity can support the selected region but cannot establish that it
+        is shared
+      - the paired preferred-range flags add a routine-length preference inside
+        the allowed `--min-amplicon-bp/--max-amplicon-bp` range. Biological
+        coverage remains primary; short allowed products are explicit
+        `allowed_nonpreferred` choices, while only products above the preferred
+        maximum are described as `long_range_fallback`
+      - pair summaries retain separate PSR/JUC evidence, one concise selection
+        explanation, and a bounded deterministic list of considered
+        alternatives. Endpoint gel intensity is rough/semi-quantitative, not
+        a quantitative expression measurement
       - exact cDNA equivalence means byte identity only; near matches remain
         separate classes even when a single assay is difficult to design
       - each selected assay is shown against every transcript in a typed
@@ -3641,15 +3664,33 @@ Shared shell command:
       - reports carry `gentle.transcript_assay_panel.v2` and persist through the
         existing project save/load path; list/show/export use the commands above
       - every newly selected assay also carries a redundant
-        `gentle.primer_pair_summary.v1` communication view. It copies the
+        `gentle.primer_pair_summary.v2` communication view. It copies the
         forward/reverse sequences in 5-prime-to-3-prime orientation, oligo
         lengths, GENtle/Primer3 melting temperatures (`tm_c`), GC fraction and
-        percent, pair `tm_delta_c`, design-transcript binding coordinates,
+        unrounded percent, pair `tm_delta_c`, design-transcript binding
+        coordinates, the canonical designed amplicon coordinates/length,
         transcript product rows, concise oligo-QC reasons derived from the
         stored pair rule flags and metrics, junction matches,
         whole-genome specificity status, and GENtle/backend/Primer3 provenance.
-        Summary generation does not rerun sequence or thermodynamic analysis.
+        `predicted_amplicon_lengths_bp` is instead the deduplicated union from
+        cross-transcript detection and may be empty even when the designed
+        amplicon is present. Summary generation does not rerun sequence or
+        thermodynamic analysis.
         Existing panel reports are enriched when shown or exported
+      - summary v2 adds immutable sequence-derived primer ids, transcript/exon-
+        aware display labels, optional aliases, typed de-novo/literature/lab
+        origin, optional anchor/companion role, the satisfied design objective,
+        structured selection-reason rows (`code`, `message`, `related_ids`),
+        and the annotation release/reference transcript used for exon numbering
+      - primer-junction overlap, amplicon-junction overlap, and selection due
+        to junction evidence are three separate fields. Clariom/JUC inputs are
+        preserved as repeatable `probe_region_influenced` rows with platform,
+        feature/region/junction, contrast/statistic, priority, and source hash;
+        they are never described as exact probe-sequence reuse
+      - an evidence-free panel says
+        `de_novo_no_external_selection_evidence`. A report created before the
+        v2 context was stored asks for a rerun rather than inventing exon labels
+        or external provenance
       - the summary does not invent a PCR annealing temperature. In the absence
         of an explicit chemistry/polymerase protocol model, experimental Ta is
         undetermined. Per-transcript genomic carryover geometry remains in the

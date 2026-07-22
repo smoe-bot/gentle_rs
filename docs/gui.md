@@ -4046,6 +4046,10 @@ qPCR form:
     without changing the engine defaults used by older callers
   - strict `Require all` coverage is the GUI default; `Best effort` remains an
     explicit choice that preserves uncovered cDNA classes in the report
+  - an independent experimental-tier control distinguishes routine common-
+    region screening, isoform discrimination, and long-range structural
+    discovery; optional preferred product limits sit inside the existing hard
+    allowed range
   - Clariom JUC/probe-evidence reports can be supplied as junction-target paths,
     with required/preferred priority and Primer3 overlap controls
   - the saved-report view shows the transcript-by-assay product matrix,
@@ -4054,6 +4058,9 @@ qPCR form:
   - an empty oligo-dT threshold reports annotation-derived distances without
     making a categorical risk call; a user-supplied threshold enables the
     corresponding within/elevated matrix labels
+  - the saved-report rationale shows annotation-confirmed common-region status,
+    separate PSR/JUC support, routine-versus-fallback classification, the
+    concise selection explanation, and bounded rejected alternatives
 
 Buttons:
 
@@ -4372,14 +4379,16 @@ Safety behavior:
 
 The DNA-window Engine Ops panel also includes a `CUT&RUN regulatory support`
 inspector for release smoke/proof runs. It is deliberately thin GUI plumbing:
-dataset ids, saved ROI read-report ids, an optional promoter span, neighbor
-window, and species filters are sent through the shared
-`InspectCutRunRegulatorySupport` engine operation. The panel displays the
-returned `gentle.cutrun_regulatory_support.v1` record: evidence sources,
+dataset ids, saved ROI read-report ids, optional catalog/cache paths, an
+optional promoter span, neighbor window, and species filters are sent through
+the shared `InspectCutRunRegulatorySupport` engine operation. The panel
+displays the returned `gentle.cutrun_regulatory_support.v1` record: evidence sources,
 support windows, the `TFBS + occupancy support` table with additive
 `support_status` and distance fields, motif-absent supported windows,
 recurring motif context, warnings, and JSON export. It does not add GUI-only
-CUT&RUN scoring or motif interpretation logic.
+CUT&RUN scoring or motif interpretation logic. Blank catalog/cache fields use
+normal discovery; explicit values let the GUI reopen reports backed by a
+project-specific prepared cache.
 
 While TFBS annotation is running, GUI shows live progress indicators and keeps
 repainting until completion:

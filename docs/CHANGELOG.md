@@ -14,6 +14,29 @@ Maintenance rule:
 
 ## 2026-07-22
 
+- Added experimental-practicality provenance to multi-transcript primer panels:
+  annotation-only routine common-region screening, separate PSR/JUC support,
+  preferred-versus-allowed product ranges, explicit long-range fallbacks,
+  bounded alternatives, and conservative endpoint-gel interpretation now flow
+  through the shared engine, shell/CLI, GUI, and JSON adapters.
+- Rejected opposing PCR primer pairs whose binding footprints overlap, aligned
+  transcript-panel selection with its product matrix, and regenerated the PATZ1
+  SYBR tutorial so every selected pair detects its own design transcript;
+  legacy summary enrichment now preserves unknown origin and restores only
+  explicitly recorded requested-junction overlaps.
+- Completed the offline CUT&RUN V1-V3 release path with a built-in synthetic
+  TP73 catalog dataset, prepared BED and paired-read evidence, zero-flank
+  mapping against an imported genome anchor, custom catalog/cache replay in V3
+  and its GUI inspector, and deterministic JSON/TSV workflow artifacts.
+- Completed the `gentle.primer_pair_summary.v2` communication contract with
+  canonical design-amplicon coordinates/length, explicit separation from
+  cross-transcript predicted products, blank-specificity normalization, and
+  exact regression checks across primer, QC, backend, junction, and export
+  fields.
+- Extended `gentle.primer_pair_summary.v2` with immutable sequence-derived
+  primer identities, transcript/exon display labels, aliases, typed origin and
+  selection provenance, three distinct junction semantics, and structured
+  Clariom region evidence that never implies exact probe-sequence reuse.
 - Updated the Rust dependency graph to the latest Rust 1.98-beta-compatible
   releases, including Deno 0.408, V8 149, Temporal 0.2.4, ICU 2.2, Serde
   1.0.229, and libc 0.2.189; direct requirements now use normal semver ranges

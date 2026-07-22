@@ -636,7 +636,7 @@ const TRANSCRIPT_ASSAY_PANEL_SPECIFICITY_ACCEPTANCE_SCHEMA: &str =
     "gentle.transcript_assay_panel_specificity_acceptance.v1";
 pub const TRANSCRIPT_QPCR_PANEL_REPORT_SCHEMA: &str = "gentle.transcript_qpcr_panel.v1";
 pub const TRANSCRIPT_ASSAY_PANEL_REPORT_SCHEMA: &str = "gentle.transcript_assay_panel.v2";
-pub const PRIMER_PAIR_SUMMARY_SCHEMA: &str = "gentle.primer_pair_summary.v1";
+pub const PRIMER_PAIR_SUMMARY_SCHEMA: &str = "gentle.primer_pair_summary.v2";
 const RESTRICTION_CLONING_PCR_HANDOFF_REPORT_SCHEMA: &str =
     "gentle.restriction_cloning_pcr_handoff.v1";
 pub const PROTEIN_DERIVATION_REPORTS_METADATA_KEY: &str = "protein_derivation_reports";
@@ -3426,6 +3426,10 @@ pub enum Operation {
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         read_report_ids: Vec<String>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
+        catalog_path: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        cache_dir: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
         promoter_search_start_0based: Option<usize>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         promoter_search_end_0based_exclusive: Option<usize>,
@@ -4150,6 +4154,13 @@ pub enum Operation {
         objective: TranscriptAssayPanelObjective,
         #[serde(default)]
         coverage_policy: TranscriptAssayCoveragePolicy,
+        /// Experimental purpose, independent of the panel-selection objective.
+        #[serde(default, skip_serializing_if = "TranscriptAssayUseTier::is_unspecified")]
+        assay_tier: TranscriptAssayUseTier,
+        /// Optional preferred/allowed product-length policy. Existing
+        /// `min_amplicon_bp`/`max_amplicon_bp` remain the legacy allowed range.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        practicality: Option<TranscriptAssayPracticalityPolicy>,
         #[serde(default)]
         forward: PrimerDesignSideConstraint,
         #[serde(default)]
@@ -12181,6 +12192,7 @@ impl GentleEngine {
                 assay_kind: report.assay_kind,
                 objective: report.objective,
                 coverage_policy: report.coverage_policy,
+                assay_tier: report.assay_tier,
                 completion_status: report.completion_status,
                 transcript_count: report.transcript_count,
                 equivalence_group_count: report.equivalence_group_count,

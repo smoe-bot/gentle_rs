@@ -145,10 +145,12 @@ use crate::{
         TfbsScoreTrackCorrelationMetric, TfbsScoreTrackCorrelationSignalSource,
         TfbsScoreTrackReport, TfbsScoreTrackValueKind, TfbsTrackSimilarityRankingMetric,
         TfbsTrackSimilarityReport, TfbsTrackSimilarityRow, TranscriptAssayCdnaSynthesis,
-        TranscriptAssayCoveragePolicy, TranscriptAssayDetectionStatus,
-        TranscriptAssayJunctionPriority, TranscriptAssayJunctionRequest, TranscriptAssayKind,
-        TranscriptAssayOligoDtReachStatus, TranscriptAssayPanelObjective,
-        TranscriptAssayPanelReport, VariantAlleleChoice, VariantPromoterContextReport, Workflow,
+        TranscriptAssayAmpliconRange, TranscriptAssayCoveragePolicy,
+        TranscriptAssayDetectionStatus, TranscriptAssayJunctionPriority,
+        TranscriptAssayJunctionRequest, TranscriptAssayKind, TranscriptAssayOligoDtReachStatus,
+        TranscriptAssayPanelObjective, TranscriptAssayPanelReport,
+        TranscriptAssayPracticalityClassification, TranscriptAssayPracticalityPolicy,
+        TranscriptAssayUseTier, VariantAlleleChoice, VariantPromoterContextReport, Workflow,
         construct_reasoning_action_dotplot_request,
         resolve_formula_roi_range_inputs_0based_on_sequence,
         resolve_selection_formula_range_0based_on_sequence,
@@ -599,6 +601,10 @@ struct EngineOpsUiState {
     cutrun_regulatory_dataset_ids: String,
     #[serde(default)]
     cutrun_regulatory_read_report_ids: String,
+    #[serde(default)]
+    cutrun_regulatory_catalog_path: String,
+    #[serde(default)]
+    cutrun_regulatory_cache_dir: String,
     #[serde(default)]
     cutrun_regulatory_promoter_start_0based: String,
     #[serde(default)]
@@ -1488,6 +1494,8 @@ pub struct MainAreaDna {
     tfbs_track_similarity_ranking_metric: TfbsTrackSimilarityRankingMetric,
     cutrun_regulatory_dataset_ids: String,
     cutrun_regulatory_read_report_ids: String,
+    cutrun_regulatory_catalog_path: String,
+    cutrun_regulatory_cache_dir: String,
     cutrun_regulatory_promoter_start_0based: String,
     cutrun_regulatory_promoter_end_0based_exclusive: String,
     cutrun_regulatory_neighbor_window_bp: String,
@@ -2261,6 +2269,8 @@ impl MainAreaDna {
                 TfbsTrackSimilarityRankingMetric::SmoothedSpearman,
             cutrun_regulatory_dataset_ids: String::new(),
             cutrun_regulatory_read_report_ids: String::new(),
+            cutrun_regulatory_catalog_path: String::new(),
+            cutrun_regulatory_cache_dir: String::new(),
             cutrun_regulatory_promoter_start_0based: String::new(),
             cutrun_regulatory_promoter_end_0based_exclusive: String::new(),
             cutrun_regulatory_neighbor_window_bp: default_cutrun_neighbor_window_bp_text(),
@@ -7776,6 +7786,23 @@ impl MainAreaDna {
                             {
                                 self.seed_latest_cutrun_read_report_for_active_sequence();
                             }
+                        });
+                        ui.horizontal_wrapped(|ui| {
+                            ui.label("catalog");
+                            if ui
+                                .text_edit_singleline(&mut self.cutrun_regulatory_catalog_path)
+                                .changed()
+                            {
+                                cutrun_settings_changed = true;
+                            }
+                            ui.label("cache dir");
+                            if ui
+                                .text_edit_singleline(&mut self.cutrun_regulatory_cache_dir)
+                                .changed()
+                            {
+                                cutrun_settings_changed = true;
+                            }
+                            ui.label("blank = default discovery");
                         });
                         ui.horizontal_wrapped(|ui| {
                             ui.label("promoter span 0-based");
@@ -23617,6 +23644,8 @@ impl MainAreaDna {
             tfbs_track_similarity_ranking_metric: self.tfbs_track_similarity_ranking_metric,
             cutrun_regulatory_dataset_ids: self.cutrun_regulatory_dataset_ids.clone(),
             cutrun_regulatory_read_report_ids: self.cutrun_regulatory_read_report_ids.clone(),
+            cutrun_regulatory_catalog_path: self.cutrun_regulatory_catalog_path.clone(),
+            cutrun_regulatory_cache_dir: self.cutrun_regulatory_cache_dir.clone(),
             cutrun_regulatory_promoter_start_0based: self
                 .cutrun_regulatory_promoter_start_0based
                 .clone(),
@@ -23913,6 +23942,8 @@ impl MainAreaDna {
         self.tfbs_track_similarity_ranking_metric = s.tfbs_track_similarity_ranking_metric;
         self.cutrun_regulatory_dataset_ids = s.cutrun_regulatory_dataset_ids;
         self.cutrun_regulatory_read_report_ids = s.cutrun_regulatory_read_report_ids;
+        self.cutrun_regulatory_catalog_path = s.cutrun_regulatory_catalog_path;
+        self.cutrun_regulatory_cache_dir = s.cutrun_regulatory_cache_dir;
         self.cutrun_regulatory_promoter_start_0based = s.cutrun_regulatory_promoter_start_0based;
         self.cutrun_regulatory_promoter_end_0based_exclusive =
             s.cutrun_regulatory_promoter_end_0based_exclusive;

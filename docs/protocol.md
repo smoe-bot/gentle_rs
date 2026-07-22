@@ -2563,6 +2563,7 @@ Current draft operations:
 - `ListCutRunReadReports { seq_id? }`
 - `ShowCutRunReadReport { report_id }`
 - `ExportCutRunReadCoverage { report_id, path, kind? }`
+- `InspectCutRunRegulatorySupport { seq_id, dataset_ids, read_report_ids, catalog_path?, cache_dir?, promoter_search_start_0based?, promoter_search_end_0based_exclusive?, neighbor_window_bp, species_filters, path? }`
   - V1 is processed-evidence-first and currently reuses the shared anchored
     `ImportGenomeBedTrack` / `ImportGenomeBigWigTrack` projection behavior.
   - prepared CUT&RUN datasets now also expose one shared lifecycle contract:
@@ -2576,6 +2577,10 @@ Current draft operations:
   - V2 is ROI-first and interprets either ad hoc `FASTA`/`FASTQ` inputs or
     prepared catalog-linked raw reads against one selected genome-anchored
     region plus deterministic flanks.
+  - when `roi_flank_bp = 0` and the anchor span exactly matches the imported
+    sequence length, V2 maps directly against that anchored sequence and does
+    not require the corresponding whole reference genome to be prepared;
+    nonzero flanks still require the prepared reference sequence.
   - paired-end interpretation is first-class: mates are paired by normalized
     read id, concordant pairs emit fragment spans, and orphan/single-ended
     observations are retained as explicit report rows instead of being dropped.
@@ -2592,6 +2597,9 @@ Current draft operations:
   - `InspectCutRunRegulatorySupport` is the first shared V3 reasoning surface:
     - it accepts one anchored `seq_id` plus repeated prepared `dataset_ids`
       and/or saved `read_report_ids`
+    - optional `catalog_path` and `cache_dir` are used for every prepared
+      dataset lookup and are echoed in the portable report, so an inspection
+      can replay the same non-default V1 cache used by prepare/project
     - strong support windows can be derived from saved V2 read reports alone,
       from prepared signal-only evidence, or from prepared peak evidence
     - theoretical TFBS rows keep the legacy `confirmed_tfbs_rows` /
@@ -2780,6 +2788,7 @@ Microarray track projection notes:
   on the target sequence. Optional `--gene LABEL`, `--level all|probe_region|pm_probe`,
   `--min-abs-logfc N`, and `--path FILE` filter/export the read-only report.
   The report records mapping status, overlap transcript ids, ambiguity tags,
+  the projected array `platform` on each evidence row when declared,
   per-transcript compatible/constraining counts, and structured
   `transcript_mappings[]` rows with exon ordinals, exon ranges, junction
   spans, overlap base counts, conservative geometry scores, and score-basis
@@ -8094,7 +8103,7 @@ Primer-design shell command family (implemented):
   - `primers test-cdna-qpcr SEQ_ID FEATURE_ID --forward SEQ --reverse SEQ --probe SEQ [--transcript-id ID] [--transcript-order transcript_id|genomic_first_exon|genomic_last_exon|antisense_first_exon] [--map-coordinate-mode cdna|genomic_aligned] [--min-amplicon-bp N] [--max-amplicon-bp N] [--max-mismatches N] [--require-3prime-exact-bases N] [--path OUTPUT.json] [--svg OUTPUT.svg] [--materialize-products] [--product-output-prefix PREFIX] [--product-gel-svg OUTPUT.svg] [--product-gel-ladder NAME ...]`
   - `primers transcript-qpcr-panel SEQ_ID FEATURE_ID SHARED_QPCR_REPORT_ID [--path OUTPUT.json]`
   - `primers design-transcript-assay-panel OPERATION_JSON_OR_@FILE [--backend auto|internal|primer3] [--primer3-exec PATH]`
-  - `primers design-transcript-assay-panel SEQ_ID FEATURE_ID [--assay-kind endpoint-rt-pcr|sybr-qpcr|taqman-qpcr] [--cdna-synthesis oligo-dt|random-hexamers|gene-specific|mixed] [--objective pan-transcript|one-per-class|minimal-discrimination-panel|isoform-end-matrix] [--coverage-policy require-all|best-effort] [--junctions JSON_OR_@FILE] [--junction-evidence PATH ...] [--junction-evidence-priority required|preferred] [--min-3prime-junction-overlap-bp N] [--min-5prime-junction-overlap-bp N] [--annotation-release TEXT] [--min-amplicon-bp N] [--max-amplicon-bp N] [--max-assays-per-class N] [--max-mismatches N] [--require-3prime-exact-bases N] [--oligo-dt-5prime-risk-threshold-bp N] [--report-id ID] [--path OUTPUT.json] [--backend auto|internal|primer3] [--primer3-exec PATH]`
+  - `primers design-transcript-assay-panel SEQ_ID FEATURE_ID [--assay-kind endpoint-rt-pcr|sybr-qpcr|taqman-qpcr] [--cdna-synthesis oligo-dt|random-hexamers|gene-specific|mixed] [--objective pan-transcript|one-per-class|minimal-discrimination-panel|isoform-end-matrix] [--coverage-policy require-all|best-effort] [--assay-tier routine-common-region-screen|isoform-discrimination|long-range-structure-discovery] [--preferred-min-amplicon-bp N --preferred-max-amplicon-bp N] [--junctions JSON_OR_@FILE] [--junction-evidence PATH ...] [--junction-evidence-priority required|preferred] [--min-3prime-junction-overlap-bp N] [--min-5prime-junction-overlap-bp N] [--annotation-release TEXT] [--min-amplicon-bp N] [--max-amplicon-bp N] [--max-assays-per-class N] [--max-mismatches N] [--require-3prime-exact-bases N] [--oligo-dt-5prime-risk-threshold-bp N] [--report-id ID] [--path OUTPUT.json] [--backend auto|internal|primer3] [--primer3-exec PATH]`
   - `primers test-cdna-qpcr-fasta CDNA_FASTA[.gz] [CDNA_FASTA[.gz] ...] --forward SEQ --reverse SEQ --probe SEQ [--transcript-id ID] [--min-amplicon-bp N] [--max-amplicon-bp N] [--max-mismatches N] [--require-3prime-exact-bases N] [--path OUTPUT.json] [--svg OUTPUT.svg]`
   - `primers preflight [--backend auto|internal|primer3] [--primer3-exec PATH]`
   - `primers prepare-restriction-cloning REQUEST_JSON_OR_@FILE`
@@ -8193,9 +8202,30 @@ Primer-design shell command family (implemented):
     last-junction classes, retains only combinations supported by an annotated
     mature transcript, and permits one physical primer pair to reference more
     than one supported end reaction.
+  - `assay_tier` is an independent experimental-purpose axis:
+    `routine_common_region_screen`, `isoform_discrimination`, or
+    `long_range_structure_discovery`. It does not replace the selection
+    objective. The routine tier requires `pan_transcript` and confirms a
+    common region only from the intersection of transcript annotation source
+    intervals; product detection and Clariom intensity cannot create that
+    structural claim.
+  - `practicality_policy` records a preferred product range inside the allowed
+    `min_amplicon_bp..max_amplicon_bp` range. Objective-specific biological
+    coverage is considered first, preferred routine length second, and the
+    existing primer candidate score last. A selected product below the
+    preferred minimum is `allowed_nonpreferred`; only a product above the
+    preferred maximum is `long_range_fallback`. No universal preferred cutoff
+    is invented when the caller does not supply one.
+  - each pair summary carries a concise `selection_explanation` and at most
+    five deterministic `considered_alternatives[]`. PSR and JUC inputs remain
+    separate `selection_evidence[].evidence_kind` rows: JUC can constrain a
+    junction target, while overlapping PSR evidence is contextual support and
+    never proof that an exon is common.
   - endpoint mode defaults to `200..10000` bp and refuses a configured ceiling
     above 10,000 bp. Its `end_classes[]`, `end_reactions[]`, and
     `band_size_matrix[]` make differently sized transcript products explicit.
+    Endpoint-gel band intensity is rough or semi-quantitative, not a
+    quantitative transcript-abundance measurement.
   - SYBR mode defaults to short products and never fabricates an internal
     probe. `short_sybr_junction_assays[]` is the primer-only subset whose
     selected forward or reverse primer satisfies a requested junction overlap.
@@ -8227,20 +8257,77 @@ Primer-design shell command family (implemented):
     interpretation is typed as `specific`, `shared_family`, `no_product`, or
     `not_distinguishable_between_members`.
   - every new `selected_assays[]` row carries
-    `primer_pair_summary` (`gentle.primer_pair_summary.v1`), an additive
+    `primer_pair_summary` (`gentle.primer_pair_summary.v2`), an additive
     communication projection assembled from the canonical pair, detection
     matrix, junction, specificity-followup, and backend records. It repeats the
     assay id, design transcript, forward/reverse sequence (explicitly
     5-prime-to-3-prime), oligo and annealing lengths, `tm_c`, GC fraction and
-    percent, binding positions, pair `tm_delta_c`, predicted transcript
-    products/sizes, concise oligo-QC status/reasons, junction matches,
+    unrounded percent, binding positions, canonical designed-amplicon
+    coordinates/length, pair `tm_delta_c`, predicted transcript products/sizes,
+    concise oligo-QC status/reasons, junction matches,
     `whole_genome_specificity_status`, GENtle package version, requested/used
     backend, and optional Primer3 version. `length_nt` must equal the returned
     sequence length, and `tm_delta_c` is copied from and checked against the two
     canonical melting temperatures; report consumers must not recompute Tm.
     The QC block interprets the pair's stored rule flags and metrics; summary
     generation does not rerun sequence or thermodynamic analysis. Compatible
-    older reports are enriched when read/exported.
+    older reports are enriched when read/exported. If a legacy payload omitted
+    boolean pair-rule flags, serde defaults them to `false`; GENtle cannot
+    safely infer whether those rules failed or were never recorded, so a rerun
+    is required before treating that enriched QC block as a historical result.
+  - `design_amplicon_start_0based`,
+    `design_amplicon_end_0based_exclusive`, and
+    `design_amplicon_length_bp` are copied verbatim from the selected canonical
+    pair on `design_transcript_id`. They describe the amplicon used during pair
+    design even if the later cross-transcript matrix calls no product.
+    `predicted_amplicon_lengths_bp` is a separate sorted, deduplicated union of
+    product lengths in that matrix and may therefore be empty.
+  - `gc_percent` is the unrounded convenience projection
+    `gc_fraction * 100.0`. Primer binding coordinates are strand-agnostic,
+    zero-based half-open footprints on the design-transcript cDNA; for the
+    reverse primer they do not encode the 5-prime-to-3-prime order of
+    `sequence_5_to_3`.
+  - summary v2 keeps machine identity separate from human naming:
+    - `assay_id` remains the sequence-derived pair/probe identity;
+      `forward.primer_id` and `reverse.primer_id` are stable hashes of the
+      respective primer sequences.
+    - `display_label` values are annotation-context labels such as
+      `GENE_E2_F`, `GENE_E2|E3_R`, and `GENE_E2F-E6R`. They use exon ordinals
+      from `exon_numbering_reference_transcript_id` in transcript 5-prime-to-
+      3-prime order and may change when the annotation reference changes.
+      They never replace the immutable ids.
+    - `aliases[]` preserves optional literature/lab names when a caller has
+      supplied them. GENtle does not derive or fabricate aliases for de-novo
+      designs. `origin` distinguishes `de_novo`, `legacy_literature`, and
+      `legacy_lab`; `selection_role` independently permits `anchor` or
+      `companion` without conflating either with origin.
+    - `satisfied_design_objective` and structured `selection_reasons[]` rows
+      explain the panel-level reason for choosing the pair. Each reason has a
+      typed `code`, readable `message`, and `related_ids[]`; callers do not
+      need to parse one composite provenance string. The separate booleans
+      `forward|reverse.primer_spans_junction`, `amplicon_spans_junction`, and
+      `selected_because_of_junction_evidence` must not be treated as synonyms.
+  - `selection_evidence[]` is a repeatable structured evidence table. A
+    Clariom/JUC-derived row records `probe_region_influenced`, its
+    required/preferred status, platform, PSR/JUC feature id, genomic region,
+    exon junction, contrast, available statistic/intensity source, and source
+    schema/path/SHA-256. It never records `probe_sequence_reused` unless an
+    actual probe sequence has been supplied and matched. The current
+    transcript-panel adapter consumes projected region geometry and therefore
+    emits only `probe_region_influenced`.
+  - `selection_provenance_status = de_novo_no_external_selection_evidence`
+    makes an evidence-free design explicit; empty aliases or evidence rows are
+    not retroactive evidence. Reports predating v2 are refreshed with
+    `legacy_report_selection_provenance_unavailable` and
+    `geometry_not_persisted_in_legacy_report_re_run_required`, preserving
+    sequence/Tm/product data while requiring a rerun for trustworthy labels or
+    selection provenance. For such legacy reports, requested primer-junction
+    overlap booleans can be restored from canonical `junction_matches[]`, but a
+    remaining `false` `primer_spans_junction` or `amplicon_spans_junction`
+    value is not authoritative for unrequested junctions because complete exon
+    geometry was not persisted; rerun the design before interpreting absence.
+    Legacy oligo `origin` remains `unknown` rather than being inferred as
+    `de_novo`.
   - `tm_c` is primer melting temperature, never a recommended PCR annealing
     temperature. This summary has no annealing-temperature field because the
     panel request does not supply a complete chemistry/polymerase model.
@@ -8248,6 +8335,11 @@ Primer-design shell command family (implemented):
     junction overlap is reported separately and does not establish a genomic-
     template or whole-genome specificity pass. Exact per-transcript hit/exon/
     carryover geometry remains available from `gentle.cdna_assay_test_report.v1`.
+    Blank legacy genomic-confirmation values are normalized to `not_run`.
+  - `provenance.gentle_version` identifies the GENtle binary that generated the
+    communication projection. It is not claimed to be the version that
+    originally designed a legacy pair, because older reports did not persist
+    that value.
   - each matrix cell also carries `oligo_dt_5prime_reach`. For oligo-dT cDNA
     and each predicted product, `required_cdna_reach_from_3prime_end_bp`
     measures from the annotated mature-transcript 3-prime end to the product's

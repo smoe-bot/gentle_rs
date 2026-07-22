@@ -24,6 +24,7 @@ use crate::genomes::BlastHit;
 use crate::lineage_export::{LineageSvgNodeKind, build_lineage_svg_graph, export_lineage_svg};
 use bio::io::fasta;
 use flate2::{Compression, write::GzEncoder};
+use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashMap};
 use std::env;
 use std::fs;
@@ -2005,6 +2006,7 @@ fn e_mtab_14704_tp73_validation_report_is_probe_location_figure_ready() {
 
     for row in &report.evidence_rows {
         assert_eq!(row.level, "pm_probe");
+        assert_eq!(row.platform.as_deref(), Some("Clariom_D_Human"));
         assert!(
             row.start_1based.is_some(),
             "missing start for {}",
@@ -2218,6 +2220,7 @@ fn render_probe_region_evidence_svg_is_stable_for_degenerate_single_coordinate_r
             evidence_id: "probe_42:contrast".to_string(),
             level: "pm_probe".to_string(),
             feature_id: "probe_42".to_string(),
+            platform: None,
             contrast: Some("contrast".to_string()),
             parent_feature_id: Some("PSR42".to_string()),
             intensity_source: Some("probe_level_input".to_string()),
@@ -2297,6 +2300,7 @@ fn render_probe_region_evidence_svg_uses_report_frame_without_local_alignment_wa
             evidence_id: "probe_719406:contrast".to_string(),
             level: "pm_probe".to_string(),
             feature_id: "719406".to_string(),
+            platform: None,
             contrast: Some("contrast".to_string()),
             parent_feature_id: Some("PSR0100145779.hg.1".to_string()),
             intensity_source: Some("probe_level_input".to_string()),
@@ -9263,6 +9267,66 @@ fn transcript_qpcr_panel_test_engine() -> GentleEngine {
     engine
 }
 
+fn transcript_assay_common_region_test_engine() -> GentleEngine {
+    let synthetic_dna = |mut state: u64, len: usize| {
+        (0..len)
+            .map(|_| {
+                state ^= state << 13;
+                state ^= state >> 7;
+                state ^= state << 17;
+                [b'A', b'C', b'G', b'T'][(state & 3) as usize] as char
+            })
+            .collect::<String>()
+    };
+    let shared = synthetic_dna(0x4d59_5df4_d0f3_3173, 220);
+    let tx_a_tail = synthetic_dna(0x1a2b_3c4d_5e6f_7788, 100);
+    let tx_b_tail = synthetic_dna(0x8877_6f5e_4d3c_2b1a, 100);
+    let spacer = "N".repeat(24);
+    let shared_start = 0usize;
+    let shared_end = shared.len();
+    let tx_a_start = shared_end + spacer.len();
+    let tx_a_end = tx_a_start + tx_a_tail.len();
+    let tx_b_start = tx_a_end + spacer.len();
+    let tx_b_end = tx_b_start + tx_b_tail.len();
+    let mut dna = seq(&format!("{shared}{spacer}{tx_a_tail}{spacer}{tx_b_tail}"));
+    for (transcript_id, tail_start, tail_end) in [
+        ("TX_COMMON_A", tx_a_start, tx_a_end),
+        ("TX_COMMON_B", tx_b_start, tx_b_end),
+    ] {
+        dna.features_mut().push(gb_io::seq::Feature {
+            kind: "mRNA".into(),
+            location: gb_io::seq::Location::Join(vec![
+                gb_io::seq::Location::simple_range(shared_start as i64, shared_end as i64),
+                gb_io::seq::Location::simple_range(tail_start as i64, tail_end as i64),
+            ]),
+            qualifiers: vec![
+                ("gene".into(), Some("COMMON1".to_string())),
+                ("transcript_id".into(), Some(transcript_id.to_string())),
+                ("label".into(), Some(format!("COMMON1 {transcript_id}"))),
+            ],
+        });
+    }
+    let source_len = dna.len();
+    dna.features_mut().push(gb_io::seq::Feature {
+        kind: "source".into(),
+        location: gb_io::seq::Location::simple_range(0, source_len as i64),
+        qualifiers: vec![
+            ("chromosome".into(), Some("chr1".to_string())),
+            ("genomic_start_1based".into(), Some("1".to_string())),
+            (
+                "genomic_end_1based".into(),
+                Some(source_len.to_string()),
+            ),
+            ("strand".into(), Some("+".to_string())),
+        ],
+    });
+    let mut state = ProjectState::default();
+    state.sequences.insert("panel_src".to_string(), dna);
+    let mut engine = GentleEngine::from_state(state);
+    engine.state_mut().parameters.primer_design_backend = PrimerDesignBackend::Internal;
+    engine
+}
+
 fn transcript_qpcr_single_exon_fallback_engine() -> GentleEngine {
     let tx_a = "ATGCCGTAGCTTACGATCCGTTAGCGTACCTGATCGGATCCGATTAACGCTAGTCGATCGTACCGTACGATCGTACGAGGCTAACGATCCGATGCTAACG";
     let tx_b = "CGTACGATTCGGAACCTGATCGATGCTTACGGTACCGATCTAGGCTTATCGGATCGTAGCTAACCGATGCTAGCTTACCGATGCTAGGCTACGATCG";
@@ -9453,6 +9517,8 @@ fn transcript_assay_panel_operation(
         cdna_synthesis: TranscriptAssayCdnaSynthesis::Unspecified,
         objective: TranscriptAssayPanelObjective::PanTranscript,
         coverage_policy,
+        assay_tier: TranscriptAssayUseTier::Unspecified,
+        practicality: None,
         forward: side.clone(),
         reverse: side.clone(),
         probe: side,
@@ -9904,6 +9970,205 @@ fn transcript_assay_panel_groups_only_byte_identical_cdna_and_persists_matrix() 
 }
 
 #[test]
+fn transcript_assay_practicality_classifies_preferred_range_boundaries() {
+    let policy = TranscriptAssayPracticalityPolicy {
+        preferred_amplicon_bp: Some(TranscriptAssayAmpliconRange {
+            min_bp: 70,
+            max_bp: 150,
+        }),
+        allowed_amplicon_bp: Some(TranscriptAssayAmpliconRange {
+            min_bp: 50,
+            max_bp: 500,
+        }),
+    };
+    for length in [70, 150] {
+        assert_eq!(
+            GentleEngine::transcript_assay_practicality_classification(length, Some(&policy)),
+            TranscriptAssayPracticalityClassification::Routine
+        );
+    }
+    assert_eq!(
+        GentleEngine::transcript_assay_practicality_classification(69, Some(&policy)),
+        TranscriptAssayPracticalityClassification::AllowedNonpreferred
+    );
+    assert_eq!(
+        GentleEngine::transcript_assay_practicality_classification(151, Some(&policy)),
+        TranscriptAssayPracticalityClassification::LongRangeFallback
+    );
+    assert_eq!(
+        GentleEngine::transcript_assay_practicality_classification(100, None),
+        TranscriptAssayPracticalityClassification::Unspecified
+    );
+}
+
+#[test]
+fn transcript_assay_selection_orders_biology_then_practicality_then_score() {
+    let common_fallback = (
+        TranscriptAssayCommonRegionStatus::Confirmed,
+        TranscriptAssayPracticalityClassification::LongRangeFallback,
+        -100.0,
+        "common_fallback",
+    );
+    let noncommon_routine = (
+        TranscriptAssayCommonRegionStatus::NotCommon,
+        TranscriptAssayPracticalityClassification::Routine,
+        100.0,
+        "noncommon_routine",
+    );
+    assert_eq!(
+        GentleEngine::transcript_assay_selection_preference(
+            TranscriptAssayUseTier::RoutineCommonRegionScreen,
+            common_fallback,
+            noncommon_routine,
+        ),
+        Ordering::Greater,
+        "annotation-confirmed biology must outrank routine length"
+    );
+
+    let common_routine = (
+        TranscriptAssayCommonRegionStatus::Confirmed,
+        TranscriptAssayPracticalityClassification::Routine,
+        -100.0,
+        "common_routine",
+    );
+    let common_fallback_high_score = (
+        TranscriptAssayCommonRegionStatus::Confirmed,
+        TranscriptAssayPracticalityClassification::LongRangeFallback,
+        100.0,
+        "common_fallback_high_score",
+    );
+    assert_eq!(
+        GentleEngine::transcript_assay_selection_preference(
+            TranscriptAssayUseTier::RoutineCommonRegionScreen,
+            common_routine,
+            common_fallback_high_score,
+        ),
+        Ordering::Greater,
+        "routine length must outrank the old score after equal biology"
+    );
+
+    let common_allowed_short = (
+        TranscriptAssayCommonRegionStatus::Confirmed,
+        TranscriptAssayPracticalityClassification::AllowedNonpreferred,
+        -100.0,
+        "common_allowed_short",
+    );
+    assert_eq!(
+        GentleEngine::transcript_assay_selection_preference(
+            TranscriptAssayUseTier::RoutineCommonRegionScreen,
+            common_allowed_short,
+            common_fallback_high_score,
+        ),
+        Ordering::Greater,
+        "an allowed short product must outrank a true long-range fallback"
+    );
+
+    let better_score = (
+        TranscriptAssayCommonRegionStatus::Confirmed,
+        TranscriptAssayPracticalityClassification::Routine,
+        2.0,
+        "better_score",
+    );
+    let worse_score = (
+        TranscriptAssayCommonRegionStatus::Confirmed,
+        TranscriptAssayPracticalityClassification::Routine,
+        1.0,
+        "worse_score",
+    );
+    assert_eq!(
+        GentleEngine::transcript_assay_selection_preference(
+            TranscriptAssayUseTier::RoutineCommonRegionScreen,
+            better_score,
+            worse_score,
+        ),
+        Ordering::Greater
+    );
+}
+
+#[test]
+fn transcript_assay_routine_common_region_records_annotation_and_practicality() {
+    let mut engine = transcript_assay_common_region_test_engine();
+    let mut operation = transcript_assay_panel_operation(
+        TranscriptAssayCoveragePolicy::RequireAll,
+        transcript_assay_panel_relaxed_side(),
+        0,
+        "panel_routine_common",
+    );
+    let Operation::DesignTranscriptAssayPanel {
+        assay_kind,
+        assay_tier,
+        practicality,
+        min_amplicon_bp,
+        max_amplicon_bp,
+        max_assays_per_class,
+        ..
+    } = &mut operation
+    else {
+        unreachable!("transcript assay helper returned another operation")
+    };
+    *assay_kind = TranscriptAssayKind::SybrQpcr;
+    *assay_tier = TranscriptAssayUseTier::RoutineCommonRegionScreen;
+    *min_amplicon_bp = Some(50);
+    *max_amplicon_bp = Some(240);
+    *max_assays_per_class = Some(12);
+    *practicality = Some(TranscriptAssayPracticalityPolicy {
+        preferred_amplicon_bp: Some(TranscriptAssayAmpliconRange {
+            min_bp: 50,
+            max_bp: 240,
+        }),
+        allowed_amplicon_bp: Some(TranscriptAssayAmpliconRange {
+            min_bp: 50,
+            max_bp: 240,
+        }),
+    });
+
+    let report = engine
+        .apply(operation)
+        .expect("routine common-region panel")
+        .transcript_assay_panel
+        .expect("routine common-region report");
+    assert_eq!(
+        report.assay_tier,
+        TranscriptAssayUseTier::RoutineCommonRegionScreen
+    );
+    assert_eq!(
+        report
+            .practicality_policy
+            .as_ref()
+            .and_then(|policy| policy.preferred_amplicon_bp.as_ref())
+            .map(|range| (range.min_bp, range.max_bp)),
+        Some((50, 240))
+    );
+    assert!(!report.selected_assays.is_empty());
+    for assay in &report.selected_assays {
+        let summary = &assay.primer_pair_summary;
+        assert_eq!(
+            summary.assay_tier,
+            TranscriptAssayUseTier::RoutineCommonRegionScreen
+        );
+        assert_eq!(
+            summary.common_region_evidence.status,
+            TranscriptAssayCommonRegionStatus::Confirmed
+        );
+        assert_eq!(
+            summary.practicality_classification,
+            TranscriptAssayPracticalityClassification::Routine
+        );
+        assert!(summary
+            .common_region_evidence
+            .basis
+            .contains("array intensity were not used"));
+        assert!(summary.selection_reasons.iter().any(|reason| {
+            reason.code == PrimerPairSelectionReasonCode::CommonRegionAnnotationConfirmed
+        }));
+        assert!(summary
+            .selection_explanation
+            .contains("transcript annotation confirms"));
+        assert!(summary.considered_alternatives.len() <= 5);
+    }
+}
+
+#[test]
 fn transcript_assay_panel_primer_pair_summary_survives_api_shell_and_export() {
     let mut engine = transcript_qpcr_panel_test_engine();
     let report = engine
@@ -9924,6 +10189,21 @@ fn transcript_assay_panel_primer_pair_summary_survives_api_shell_and_export() {
         assert_eq!(summary.assay_id, assay.assay_id);
         assert_eq!(summary.pair_rank, assay.rank);
         assert_eq!(summary.design_transcript_id, assay.design_transcript_id);
+        assert!(summary.display_label.contains("F-R") || summary.display_label.contains("F-E"));
+        assert!(summary.aliases.is_empty());
+        assert_eq!(summary.selection_role, None);
+        assert_eq!(summary.satisfied_design_objective, "pan_transcript");
+        assert!(summary.selection_reasons.iter().any(|reason| {
+            reason.code == PrimerPairSelectionReasonCode::DesignObjective
+                && reason.related_ids.iter().any(|id| id == "pan_transcript")
+        }));
+        assert!(!summary.selection_explanation.is_empty());
+        assert_eq!(
+            summary.selection_provenance_status,
+            "de_novo_no_external_selection_evidence"
+        );
+        assert!(!summary.selected_because_of_junction_evidence);
+        assert!(summary.selection_evidence.is_empty());
         assert_eq!(
             summary.design_equivalence_group_id,
             assay.design_equivalence_group_id
@@ -9932,10 +10212,39 @@ fn transcript_assay_panel_primer_pair_summary_survives_api_shell_and_export() {
             summary.binding_coordinate_system,
             "design_transcript_cdna_0based_half_open"
         );
+        assert_eq!(
+            summary.design_amplicon_start_0based,
+            assay.primer_pair.amplicon_start_0based
+        );
+        assert_eq!(
+            summary.design_amplicon_end_0based_exclusive,
+            assay.primer_pair.amplicon_end_0based_exclusive
+        );
+        assert_eq!(
+            summary.design_amplicon_length_bp,
+            assay.primer_pair.amplicon_length_bp
+        );
+        assert!(
+            summary.design_amplicon_start_0based
+                <= summary.design_amplicon_end_0based_exclusive
+        );
+        assert_eq!(
+            summary.design_amplicon_end_0based_exclusive
+                - summary.design_amplicon_start_0based,
+            summary.design_amplicon_length_bp
+        );
         for (summary_primer, source_primer) in [
             (&summary.forward, &assay.primer_pair.forward),
             (&summary.reverse, &assay.primer_pair.reverse),
         ] {
+            assert_eq!(
+                summary_primer.primer_id,
+                short_sha256_id("primer", &source_primer.sequence)
+            );
+            assert_ne!(summary_primer.primer_id, summary_primer.display_label);
+            assert_eq!(summary_primer.origin, PrimerPairSummaryOrigin::DeNovo);
+            assert!(summary_primer.aliases.is_empty());
+            assert!(!summary_primer.exon_ordinals.is_empty());
             assert_eq!(summary_primer.sequence_5_to_3, source_primer.sequence);
             assert_eq!(summary_primer.length_nt, source_primer.length_bp);
             assert_eq!(
@@ -9954,6 +10263,28 @@ fn transcript_assay_panel_primer_pair_summary_survives_api_shell_and_export() {
             assert!(
                 (summary_primer.gc_percent - source_primer.gc_fraction * 100.0).abs() < 1e-12
             );
+            assert_eq!(summary_primer.anneal_hit_count, source_primer.anneal_hits);
+            assert_eq!(
+                summary_primer.binding_start_0based,
+                source_primer.start_0based
+            );
+            assert_eq!(
+                summary_primer.binding_end_0based_exclusive,
+                source_primer.end_0based_exclusive
+            );
+            assert_eq!(summary_primer.three_prime_base, source_primer.three_prime_base);
+            assert_eq!(
+                summary_primer.three_prime_gc_clamp,
+                source_primer.three_prime_gc_clamp
+            );
+            assert_eq!(
+                summary_primer.longest_homopolymer_run_bp,
+                source_primer.longest_homopolymer_run_bp
+            );
+            assert_eq!(
+                summary_primer.self_complementary_run_bp,
+                source_primer.self_complementary_run_bp
+            );
         }
         assert_eq!(
             summary.tm_delta_c.to_bits(),
@@ -9963,12 +10294,37 @@ fn transcript_assay_panel_primer_pair_summary_survives_api_shell_and_export() {
             (summary.tm_delta_c - (summary.forward.tm_c - summary.reverse.tm_c).abs()).abs()
                 < 1e-12
         );
+        assert_eq!(
+            serde_json::to_value(&summary.oligo_qc.rule_flags).expect("serialize summary flags"),
+            serde_json::to_value(&assay.primer_pair.rule_flags)
+                .expect("serialize canonical pair flags")
+        );
+        assert_eq!(
+            summary.oligo_qc.primer_pair_complementary_run_bp,
+            assay.primer_pair.primer_pair_complementary_run_bp
+        );
+        assert_eq!(
+            summary.oligo_qc.primer_pair_3prime_complementary_run_bp,
+            assay.primer_pair.primer_pair_3prime_complementary_run_bp
+        );
         let expected_products = report
             .detection_matrix
             .iter()
             .filter(|cell| cell.assay_id == assay.assay_id)
             .count();
         assert_eq!(summary.predicted_products.len(), expected_products);
+        let expected_amplicon_lengths = report
+            .detection_matrix
+            .iter()
+            .filter(|cell| cell.assay_id == assay.assay_id)
+            .flat_map(|cell| cell.amplicon_lengths_bp.iter().copied())
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+        assert_eq!(
+            summary.predicted_amplicon_lengths_bp,
+            expected_amplicon_lengths
+        );
         for product in &summary.predicted_products {
             let source = report
                 .detection_matrix
@@ -9985,6 +10341,18 @@ fn transcript_assay_panel_primer_pair_summary_survives_api_shell_and_export() {
             assert_eq!(product.product_count, source.product_count);
             assert_eq!(product.amplicon_lengths_bp, source.amplicon_lengths_bp);
         }
+        assert_eq!(
+            summary.junction_spanning_status,
+            if assay
+                .junction_matches
+                .iter()
+                .any(|row| row.forward_spans || row.reverse_spans)
+            {
+                "requested_junction_spanning_primer"
+            } else {
+                "no_requested_junction_match_reported"
+            }
+        );
         assert_eq!(summary.whole_genome_specificity_status, "not_run");
         assert_eq!(summary.genomic_carryover_status, "not_evaluated");
         assert_eq!(
@@ -9995,30 +10363,54 @@ fn transcript_assay_panel_primer_pair_summary_survives_api_shell_and_export() {
             summary.provenance.gentle_version,
             crate::about::GENTLE_PACKAGE_VERSION
         );
-        assert!(!summary.provenance.primer_backend_used.is_empty());
+        if let Some(backend_run) = report
+            .backend_runs
+            .iter()
+            .find(|run| run.equivalence_group_id == assay.design_equivalence_group_id)
+        {
+            assert_eq!(
+                summary.provenance.primer_backend_requested,
+                backend_run.backend.requested
+            );
+            assert_eq!(
+                summary.provenance.primer_backend_used,
+                if backend_run.backend.used.trim().is_empty() {
+                    report.provenance.primer_backend.as_str()
+                } else {
+                    backend_run.backend.used.as_str()
+                }
+            );
+            assert_eq!(
+                summary.provenance.primer3_version,
+                backend_run.backend.primer3_version
+            );
+        } else {
+            assert_eq!(
+                summary.provenance.primer_backend_requested,
+                report.provenance.primer_backend
+            );
+            assert_eq!(
+                summary.provenance.primer_backend_used,
+                report.provenance.primer_backend
+            );
+            assert_eq!(summary.provenance.primer3_version, None);
+        }
+        assert_eq!(
+            summary.provenance.exon_numbering_reference_transcript_id,
+            assay.design_transcript_id
+        );
+        assert_eq!(
+            summary.provenance.exon_numbering_basis,
+            "design_transcript_5prime_to_3prime"
+        );
+        assert_eq!(
+            summary.provenance.exon_numbering_status,
+            "reference_transcript_recorded_annotation_release_missing"
+        );
     }
 
     let first_summary = serde_json::to_value(&report.selected_assays[0].primer_pair_summary)
         .expect("serialize canonical pair summary");
-    let mut store = engine.read_primer_design_store();
-    let stored = store
-        .transcript_assay_panels
-        .get_mut(&report.report_id)
-        .expect("persisted transcript panel");
-    for assay in &mut stored.selected_assays {
-        assay.primer_pair_summary = PrimerPairCommunicationSummary::default();
-    }
-    engine
-        .write_primer_design_store(store)
-        .expect("store legacy-shaped transcript panel");
-    let enriched = engine
-        .get_transcript_assay_panel_report(&report.report_id)
-        .expect("enrich legacy-shaped transcript panel on read");
-    assert_eq!(
-        serde_json::to_value(&enriched.selected_assays[0].primer_pair_summary)
-            .expect("serialize enriched pair summary"),
-        first_summary
-    );
 
     let shell = execute_shell_command(
         &mut engine,
@@ -10037,13 +10429,13 @@ fn transcript_assay_panel_primer_pair_summary_survives_api_shell_and_export() {
     execute_shell_command(
         &mut engine,
         &ShellCommand::PrimersExportTranscriptAssayPanel {
-            report_id: report.report_id,
+            report_id: report.report_id.clone(),
             path: path.to_string_lossy().to_string(),
         },
     )
     .expect("shared transcript panel export route");
     let exported: serde_json::Value = serde_json::from_slice(
-        &fs::read(path).expect("read exported transcript panel report"),
+        &fs::read(&path).expect("read exported transcript panel report"),
     )
     .expect("parse exported transcript panel report");
     assert_eq!(
@@ -10055,6 +10447,133 @@ fn transcript_assay_panel_primer_pair_summary_survives_api_shell_and_export() {
             .get("recommended_annealing_temperature")
             .is_none(),
         "primer Tm must not be relabeled or converted into a guessed PCR annealing temperature"
+    );
+
+    let mut store = engine.read_primer_design_store();
+    let stored = store
+        .transcript_assay_panels
+        .get_mut(&report.report_id)
+        .expect("persisted transcript panel");
+    let legacy_design_transcript_id = stored.selected_assays[0].design_transcript_id.clone();
+    stored.selected_assays[0].junction_matches = vec![TranscriptAssayJunctionMatch {
+        junction_id: "legacy_requested_junction".to_string(),
+        transcript_id: legacy_design_transcript_id,
+        transcript_local_position_0based: 40,
+        forward_spans: true,
+        reverse_spans: false,
+        spanning_role: "forward".to_string(),
+    }];
+    for assay in &mut stored.selected_assays {
+        assay.primer_pair_summary = PrimerPairCommunicationSummary::default();
+    }
+    engine
+        .write_primer_design_store(store)
+        .expect("store legacy-shaped transcript panel");
+    let enriched = engine
+        .get_transcript_assay_panel_report(&report.report_id)
+        .expect("enrich legacy-shaped transcript panel on read");
+    let legacy = &enriched.selected_assays[0].primer_pair_summary;
+    assert_eq!(legacy.schema, PRIMER_PAIR_SUMMARY_SCHEMA);
+    assert_eq!(legacy.forward.sequence_5_to_3, report.selected_assays[0].primer_pair.forward.sequence);
+    assert_eq!(legacy.reverse.sequence_5_to_3, report.selected_assays[0].primer_pair.reverse.sequence);
+    assert_eq!(
+        legacy.design_amplicon_start_0based,
+        report.selected_assays[0]
+            .primer_pair
+            .amplicon_start_0based
+    );
+    assert_eq!(
+        legacy.design_amplicon_end_0based_exclusive,
+        report.selected_assays[0]
+            .primer_pair
+            .amplicon_end_0based_exclusive
+    );
+    assert_eq!(
+        legacy.design_amplicon_length_bp,
+        report.selected_assays[0].primer_pair.amplicon_length_bp
+    );
+    assert_eq!(
+        legacy.selection_provenance_status,
+        "legacy_report_selection_provenance_unavailable"
+    );
+    assert_eq!(
+        legacy.provenance.exon_numbering_status,
+        "geometry_not_persisted_in_legacy_report_re_run_required"
+    );
+    assert_eq!(legacy.forward.origin, PrimerPairSummaryOrigin::Unknown);
+    assert_eq!(legacy.reverse.origin, PrimerPairSummaryOrigin::Unknown);
+    assert_eq!(
+        legacy.junction_spanning_status,
+        "requested_junction_spanning_primer"
+    );
+    assert!(legacy.forward.primer_spans_junction);
+    assert!(!legacy.reverse.primer_spans_junction);
+    assert!(legacy.amplicon_spans_junction);
+    assert!(legacy.selection_evidence.is_empty());
+    assert!(legacy.selection_explanation.is_empty());
+}
+
+#[test]
+fn transcript_assay_panel_summary_keeps_design_amplicon_without_detected_products() {
+    let mut report = TranscriptAssayPanelReport {
+        schema: TRANSCRIPT_ASSAY_PANEL_REPORT_SCHEMA.to_string(),
+        selected_assays: vec![TranscriptAssayPanelAssay {
+            assay_id: "junction_pair_without_matrix_product".to_string(),
+            rank: 1,
+            design_equivalence_group_id: "eq1".to_string(),
+            design_transcript_id: "TX1".to_string(),
+            primer_pair: PrimerDesignPairRecord {
+                amplicon_start_0based: 25,
+                amplicon_end_0based_exclusive: 66,
+                amplicon_length_bp: 41,
+                ..Default::default()
+            },
+            ..Default::default()
+        }],
+        provenance: TranscriptAssayPanelProvenance {
+            primer_backend: "internal".to_string(),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+
+    GentleEngine::refresh_transcript_assay_panel_primer_pair_summaries(&mut report);
+    let summary = &report.selected_assays[0].primer_pair_summary;
+    assert_eq!(summary.design_amplicon_start_0based, 25);
+    assert_eq!(summary.design_amplicon_end_0based_exclusive, 66);
+    assert_eq!(summary.design_amplicon_length_bp, 41);
+    assert!(summary.predicted_amplicon_lengths_bp.is_empty());
+    assert!(summary.predicted_products.is_empty());
+}
+
+#[test]
+fn transcript_assay_panel_summary_normalizes_blank_specificity_to_not_run() {
+    let mut report = TranscriptAssayPanelReport {
+        schema: TRANSCRIPT_ASSAY_PANEL_REPORT_SCHEMA.to_string(),
+        selected_assays: vec![TranscriptAssayPanelAssay {
+            assay_id: "blank_specificity".to_string(),
+            design_equivalence_group_id: "eq1".to_string(),
+            design_transcript_id: "TX1".to_string(),
+            ..Default::default()
+        }],
+        specificity_followups: vec![TranscriptAssaySpecificityFollowup {
+            assay_id: "blank_specificity".to_string(),
+            genomic_confirmation_status: "  \t".to_string(),
+            ..Default::default()
+        }],
+        provenance: TranscriptAssayPanelProvenance {
+            primer_backend: "internal".to_string(),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+
+    GentleEngine::refresh_transcript_assay_panel_primer_pair_summaries(&mut report);
+    assert_eq!(
+        report.selected_assays[0]
+            .primer_pair_summary
+            .whole_genome_specificity_status,
+        "not_run"
     );
 }
 
@@ -10182,6 +10701,8 @@ fn transcript_assay_panel_does_not_equate_one_base_near_matches() {
             cdna_synthesis: TranscriptAssayCdnaSynthesis::Unspecified,
             objective: TranscriptAssayPanelObjective::PanTranscript,
             coverage_policy: TranscriptAssayCoveragePolicy::BestEffort,
+            assay_tier: TranscriptAssayUseTier::Unspecified,
+            practicality: None,
             forward: impossible_side.clone(),
             reverse: impossible_side.clone(),
             probe: impossible_side,
@@ -10240,6 +10761,8 @@ fn transcript_assay_panel_old_payload_defaults_to_taqman_mode() {
         TranscriptAssayCdnaSynthesis::Unspecified
     );
     assert_eq!(report.oligo_dt_5prime_risk_threshold_bp, None);
+    assert_eq!(report.assay_tier, TranscriptAssayUseTier::Unspecified);
+    assert!(report.practicality_policy.is_none());
 
     let cell: TranscriptAssayDetectionCell = serde_json::from_value(serde_json::json!({
         "assay_id": "legacy_assay",
@@ -10267,6 +10790,8 @@ fn transcript_assay_endpoint_end_matrix_is_primer_only_and_warns_for_oligo_dt() 
             cdna_synthesis: TranscriptAssayCdnaSynthesis::OligoDt,
             objective: TranscriptAssayPanelObjective::IsoformEndMatrix,
             coverage_policy: TranscriptAssayCoveragePolicy::BestEffort,
+            assay_tier: TranscriptAssayUseTier::Unspecified,
+            practicality: None,
             forward: side.clone(),
             reverse: side.clone(),
             probe: side,
@@ -10308,6 +10833,21 @@ fn transcript_assay_endpoint_end_matrix_is_primer_only_and_warns_for_oligo_dt() 
             && assay.assay.is_none()
             && assay.assay_kind == TranscriptAssayKind::EndpointRtPcr
     }));
+    assert!(report.selected_assays.iter().all(|assay| {
+        let summary = &assay.primer_pair_summary;
+        summary.selection_provenance_status == "de_novo_no_external_selection_evidence"
+            && !summary.selected_because_of_junction_evidence
+            && summary.selection_evidence.is_empty()
+            && summary.aliases.is_empty()
+            && summary.provenance.annotation_release.as_deref() == Some("synthetic-test")
+    }));
+    assert!(report.selected_assays.iter().all(|assay| {
+        !assay
+            .primer_pair_summary
+            .selection_reasons
+            .iter()
+            .any(|reason| reason.message.to_ascii_lowercase().contains("clariom"))
+    }));
     assert!(
         report
             .order_ready_primers
@@ -10333,6 +10873,9 @@ fn transcript_assay_endpoint_end_matrix_is_primer_only_and_warns_for_oligo_dt() 
             .iter()
             .any(|warning| warning.contains("5' RACE"))
     );
+    assert!(report.warnings.iter().any(|warning| {
+        warning.contains("semi-quantitative") && warning.contains("not")
+    }));
     assert!(report.detection_matrix.iter().any(|cell| {
         cell.oligo_dt_5prime_reach.status
             == TranscriptAssayOligoDtReachStatus::DistanceReportedUnthresholded
@@ -10373,6 +10916,8 @@ fn transcript_assay_sybr_evaluates_patz1_clariom_juc_without_probe() {
             cdna_synthesis: TranscriptAssayCdnaSynthesis::OligoDt,
             objective: TranscriptAssayPanelObjective::OnePerClass,
             coverage_policy: TranscriptAssayCoveragePolicy::BestEffort,
+            assay_tier: TranscriptAssayUseTier::IsoformDiscrimination,
+            practicality: None,
             forward: side.clone(),
             reverse: side.clone(),
             probe: side,
@@ -10446,6 +10991,150 @@ fn transcript_assay_sybr_evaluates_patz1_clariom_juc_without_probe() {
             .iter()
             .any(|junction| junction.forward_spans || junction.reverse_spans)
     }));
+    for assay in &report.selected_assays {
+        let design_cell = report
+            .detection_matrix
+            .iter()
+            .find(|cell| {
+                cell.assay_id == assay.assay_id && cell.transcript_id == assay.design_transcript_id
+            })
+            .unwrap_or_else(|| {
+                panic!(
+                    "missing detection-matrix row for assay {} on design transcript {}",
+                    assay.assay_id, assay.design_transcript_id
+                )
+            });
+        assert_eq!(
+            design_cell.status,
+            TranscriptAssayDetectionStatus::SingleProduct,
+            "a selected primer pair must detect its own design transcript"
+        );
+        assert!(
+            design_cell
+                .amplicon_lengths_bp
+                .contains(&assay.primer_pair.amplicon_length_bp),
+            "the design-transcript product must retain the selected pair's amplicon length"
+        );
+    }
+    let evidence_assay = report
+        .selected_assays
+        .iter()
+        .find(|assay| {
+            assay
+                .primer_pair_summary
+                .selected_because_of_junction_evidence
+        })
+        .expect("selected assay influenced by structured Clariom junction evidence");
+    let summary = &evidence_assay.primer_pair_summary;
+    assert!(summary.display_label.starts_with("PATZ1_"));
+    assert!(summary.amplicon_spans_junction);
+    assert!(summary.forward.primer_spans_junction || summary.reverse.primer_spans_junction);
+    assert_eq!(
+        summary.junction_spanning_status,
+        "requested_junction_spanning_primer"
+    );
+    assert_eq!(
+        summary.provenance.annotation_release.as_deref(),
+        Some("synthetic GRCh38.p14 fixture")
+    );
+    assert_eq!(
+        summary.provenance.exon_numbering_reference_transcript_id,
+        evidence_assay.design_transcript_id
+    );
+    assert_eq!(
+        summary.selection_provenance_status,
+        "de_novo_with_structured_selection_evidence"
+    );
+    assert!(summary.selection_reasons.iter().any(|reason| {
+        reason.code == PrimerPairSelectionReasonCode::JunctionEvidence
+            && !reason.related_ids.is_empty()
+    }));
+    let junction_evidence = summary
+        .selection_evidence
+        .iter()
+        .filter(|row| row.evidence_kind == PrimerPairSelectionEvidenceKind::Juc)
+        .collect::<Vec<_>>();
+    assert!(!junction_evidence.is_empty());
+    for evidence in junction_evidence {
+        assert_eq!(
+            evidence.influence,
+            PrimerPairSelectionInfluence::ProbeRegionInfluenced
+        );
+        assert_ne!(
+            evidence.influence,
+            PrimerPairSelectionInfluence::ProbeSequenceReused
+        );
+        assert_eq!(evidence.requirement, PrimerPairEvidenceRequirement::Required);
+        assert_eq!(evidence.platform.as_deref(), Some("Clariom_D_Human"));
+        assert_eq!(
+            evidence.contrast.as_deref(),
+            Some("synthetic_case_vs_control")
+        );
+        assert_eq!(evidence.measured_statistic.as_deref(), Some("log2_fold_change"));
+        assert_eq!(evidence.measured_value, Some(-1.2));
+        assert_eq!(
+            evidence.intensity_source.as_deref(),
+            Some("synthetic_log2_fold_change")
+        );
+        assert!(
+            evidence
+                .source_sha256
+                .as_deref()
+                .is_some_and(|value| value.starts_with("sha256:"))
+        );
+        assert!(evidence.applies_to.iter().any(|value| value == "pair"));
+    }
+    let all_selection_evidence = report
+        .selected_assays
+        .iter()
+        .flat_map(|assay| assay.primer_pair_summary.selection_evidence.iter())
+        .collect::<Vec<_>>();
+    assert!(all_selection_evidence.iter().any(|row| {
+        row.evidence_kind == PrimerPairSelectionEvidenceKind::Juc
+            && row.feature_id.as_deref() == Some("JUC2200054820.hg.1")
+    }));
+    assert!(all_selection_evidence.iter().any(|row| {
+        row.evidence_kind == PrimerPairSelectionEvidenceKind::Psr
+            && row.feature_id.as_deref() == Some("PSR2200160982.hg.1")
+            && row.requirement == PrimerPairEvidenceRequirement::Contextual
+            && row.measured_value == Some(0.8)
+            && row.influence == PrimerPairSelectionInfluence::ProbeRegionInfluenced
+    }));
+    let psr_supported_assay = report
+        .selected_assays
+        .iter()
+        .find(|assay| {
+            assay
+                .primer_pair_summary
+                .selection_evidence
+                .iter()
+                .any(|row| row.evidence_kind == PrimerPairSelectionEvidenceKind::Psr)
+        })
+        .expect("selected PATZ1 assay overlapping the synthetic PSR region");
+    assert_eq!(
+        psr_supported_assay
+            .primer_pair_summary
+            .common_region_evidence
+            .status,
+        TranscriptAssayCommonRegionStatus::NotCommon,
+        "PSR support must not manufacture an annotation-common region"
+    );
+    assert!(
+        psr_supported_assay
+            .primer_pair_summary
+            .common_region_evidence
+            .supporting_psr_evidence_ids
+            .is_empty()
+    );
+    let duplicate = report
+        .short_sybr_junction_assays
+        .iter()
+        .find(|assay| assay.assay_id == evidence_assay.assay_id)
+        .expect("short SYBR view carries selected evidence assay");
+    assert_eq!(
+        duplicate.primer_pair_summary.selection_evidence,
+        summary.selection_evidence
+    );
     assert!(report.detection_matrix.iter().all(|cell| {
         cell.product_count == 0
             || cell.oligo_dt_5prime_reach.status
@@ -10470,6 +11159,8 @@ fn transcript_assay_primer3_emits_native_junction_overlap_tags() {
             cdna_synthesis: TranscriptAssayCdnaSynthesis::OligoDt,
             objective: TranscriptAssayPanelObjective::OnePerClass,
             coverage_policy: TranscriptAssayCoveragePolicy::BestEffort,
+            assay_tier: TranscriptAssayUseTier::Unspecified,
+            practicality: None,
             forward: side.clone(),
             reverse: side.clone(),
             probe: side,
@@ -10565,6 +11256,17 @@ fn transcript_assay_endpoint_long_product_respects_ten_kb_ceiling() {
             cdna_synthesis: TranscriptAssayCdnaSynthesis::OligoDt,
             objective: TranscriptAssayPanelObjective::IsoformEndMatrix,
             coverage_policy: TranscriptAssayCoveragePolicy::RequireAll,
+            assay_tier: TranscriptAssayUseTier::LongRangeStructureDiscovery,
+            practicality: Some(TranscriptAssayPracticalityPolicy {
+                preferred_amplicon_bp: Some(TranscriptAssayAmpliconRange {
+                    min_bp: 9_000,
+                    max_bp: 9_500,
+                }),
+                allowed_amplicon_bp: Some(TranscriptAssayAmpliconRange {
+                    min_bp: 9_000,
+                    max_bp: 10_000,
+                }),
+            }),
             forward: side.clone(),
             reverse: side.clone(),
             probe: side,
@@ -10624,6 +11326,17 @@ fn transcript_assay_endpoint_long_product_respects_ten_kb_ceiling() {
             cdna_synthesis: TranscriptAssayCdnaSynthesis::OligoDt,
             objective: TranscriptAssayPanelObjective::IsoformEndMatrix,
             coverage_policy: TranscriptAssayCoveragePolicy::BestEffort,
+            assay_tier: TranscriptAssayUseTier::LongRangeStructureDiscovery,
+            practicality: Some(TranscriptAssayPracticalityPolicy {
+                preferred_amplicon_bp: Some(TranscriptAssayAmpliconRange {
+                    min_bp: 9_000,
+                    max_bp: 9_500,
+                }),
+                allowed_amplicon_bp: Some(TranscriptAssayAmpliconRange {
+                    min_bp: 9_000,
+                    max_bp: 10_001,
+                }),
+            }),
             forward: transcript_assay_panel_relaxed_side(),
             reverse: transcript_assay_panel_relaxed_side(),
             probe: transcript_assay_panel_relaxed_side(),
@@ -12424,6 +13137,34 @@ fn test_primer_pair_scoring_penalizes_dimer_prone_pairs() {
     assert!(good.score > bad.score);
     assert!(good.rule_flags.primer_pair_dimer_risk_low);
     assert!(!bad.rule_flags.primer_pair_dimer_risk_low);
+}
+
+#[test]
+fn test_primer_pair_builder_rejects_overlapping_binding_footprints() {
+    let forward = PrimerDesignPrimerRecord {
+        sequence: "GTAAGCTAGCATCGGGATCCG".to_string(),
+        start_0based: 25,
+        end_0based_exclusive: 46,
+        tm_c: 65.2,
+        gc_fraction: 0.57,
+        anneal_hits: 1,
+        ..PrimerDesignPrimerRecord::default()
+    };
+    let reverse = PrimerDesignPrimerRecord {
+        sequence: "GATCCGTTAGCGTACCTGATCG".to_string(),
+        start_0based: 44,
+        end_0based_exclusive: 66,
+        tm_c: 65.2,
+        gc_fraction: 0.55,
+        anneal_hits: 1,
+        ..PrimerDesignPrimerRecord::default()
+    };
+
+    assert!(
+        GentleEngine::build_primer_design_pair_record(forward, reverse, 25, 66, 40, 250, 3.0, 120,)
+            .is_none(),
+        "opposing PCR primer binding footprints cannot overlap"
+    );
 }
 
 #[test]
@@ -17242,7 +17983,7 @@ fn gene_isoform_evidence_inspector_composes_gene_locus_evidence_for_patz1_minus_
     assert!(report.evidence_items.iter().any(|item| {
         item.source_kind == IsoformEvidenceSourceKind::ArrayProbe
             && item.status == IsoformEvidenceAssessmentStatus::ConstraintOnly
-            && item.condition.is_none()
+            && item.condition.as_deref() == Some("synthetic_case_vs_control")
             && item.notes.iter().any(|note| note.contains("not establish isoform support"))
     }));
     assert!(report.junctions.iter().any(|row| {
@@ -27944,6 +28685,77 @@ fn test_interpret_cutrun_reads_builds_paired_end_roi_report_with_orphans() {
         .get_cutrun_read_report("toy_cutrun_reads")
         .expect("stored CUT&RUN report");
     assert_eq!(stored.fragment_count, 3);
+}
+
+#[test]
+fn test_interpret_cutrun_reads_uses_zero_flank_imported_anchor_without_prepared_genome() {
+    let td = tempdir().expect("tempdir");
+    let input_r1 = td.path().join("reads.fasta");
+    fs::write(&input_r1, ">read_1\nGCCGTAGC\n").expect("write CUT&RUN FASTA");
+
+    let mut engine = GentleEngine::default();
+    engine.state_mut().sequences.insert(
+        "imported_roi".to_string(),
+        DNAsequence::from_sequence("AAAGCCGTAGCTTACGGAACCTTT")
+            .expect("valid imported anchored sequence"),
+    );
+    engine.state_mut().metadata.insert(
+        PROVENANCE_METADATA_KEY.to_string(),
+        serde_json::json!({
+            GENOME_EXTRACTIONS_METADATA_KEY: [
+                {
+                    "seq_id": "imported_roi",
+                    "recorded_at_unix_ms": 1,
+                    "operation": "LoadSequence",
+                    "genome_id": "UnavailableGenome",
+                    "catalog_path": "missing-reference-catalog.json",
+                    "cache_dir": null,
+                    "chromosome": "chr1",
+                    "start_1based": 101,
+                    "end_1based": 124,
+                    "anchor_strand": "+",
+                    "anchor_verified": true
+                }
+            ]
+        }),
+    );
+
+    let result = engine
+        .apply(Operation::InterpretCutRunReads {
+            seq_id: "imported_roi".to_string(),
+            input_r1_path: Some(input_r1.to_string_lossy().to_string()),
+            input_r2_path: None,
+            dataset_id: None,
+            catalog_path: None,
+            cache_dir: None,
+            input_format: CutRunInputFormat::Fasta,
+            read_layout: CutRunReadLayout::SingleEnd,
+            roi_flank_bp: 0,
+            seed_filter: CutRunSeedFilterConfig {
+                kmer_len: 4,
+                min_seed_matches: 1,
+            },
+            align_config: CutRunAlignConfig {
+                max_mismatches: 0,
+                min_identity_fraction: 1.0,
+                max_fragment_span_bp: 64,
+            },
+            deduplicate_fragments: false,
+            report_id: Some("imported_roi_reads".to_string()),
+            checkpoint_path: None,
+            checkpoint_every_reads: 10,
+        })
+        .expect("zero-flank interpretation should reuse the imported anchored sequence");
+    let report = result
+        .cutrun_read_report
+        .expect("zero-flank CUT&RUN read report");
+    assert_eq!(report.reference_window_start_1based, 101);
+    assert_eq!(report.reference_window_end_1based, 124);
+    assert_eq!(report.reference_window_length_bp, 24);
+    assert_eq!(report.roi_local_start_1based, 1);
+    assert_eq!(report.roi_local_end_1based, 24);
+    assert_eq!(report.total_units, 1);
+    assert_eq!(report.mapped_units, 1);
 }
 
 #[test]
