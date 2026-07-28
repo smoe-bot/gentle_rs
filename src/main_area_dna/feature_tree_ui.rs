@@ -104,6 +104,8 @@ pub(super) struct FeatureTreeEntry {
     pub(super) disable_grouping: bool,
     pub(super) supports_splicing_expert: bool,
     pub(super) supports_variant_followup: bool,
+    pub(super) supports_location_edit: bool,
+    pub(super) location_edit_unavailable_reason: Option<String>,
     pub(super) can_seed_promoter_anchor: bool,
     pub(super) regulatory_primary_group_key: Option<String>,
     pub(super) regulatory_primary_group_label: Option<String>,
@@ -1481,6 +1483,14 @@ impl MainAreaDna {
                     let can_seed_promoter_anchor = kind_label.eq_ignore_ascii_case("mrna")
                         || kind_label.eq_ignore_ascii_case("transcript");
                     let disable_grouping = feature.kind.to_string().eq_ignore_ascii_case("GENE");
+                    let location_edit_unavailable_reason =
+                        crate::feature_location::editable_feature_location(
+                            feature,
+                            sequence_length,
+                            dna.is_circular(),
+                        )
+                        .err()
+                        .map(|error| error.message);
                     Some((
                         kind_label,
                         FeatureTreeEntry {
@@ -1508,6 +1518,8 @@ impl MainAreaDna {
                             supports_variant_followup: Self::feature_kind_supports_variant_followup(
                                 kind_upper.as_str(),
                             ),
+                            supports_location_edit: location_edit_unavailable_reason.is_none(),
+                            location_edit_unavailable_reason,
                             can_seed_promoter_anchor,
                             regulatory_primary_group_key: regulatory_grouping
                                 .as_ref()
@@ -1927,6 +1939,8 @@ impl MainAreaDna {
         let mut open_dotplot_feature: Option<usize> = None;
         let mut copy_feature_payload: Option<(usize, FeatureCopyPayloadKind)> = None;
         let mut focus_matching_array_feature: Option<usize> = None;
+        let mut edit_feature_location: Option<usize> = None;
+        let mut delete_feature_record: Option<usize> = None;
         let feature_font_size = feature_details_font_size;
         let kind_font_size = feature_font_size + 1.0;
         let pending_feature_tree_scroll_to = self.pending_feature_tree_scroll_to;
@@ -2105,6 +2119,36 @@ impl MainAreaDna {
                                         }
                                     }
                                     ui.separator();
+                                    let edit_response = ui.add_enabled(
+                                        entry.supports_location_edit,
+                                        egui::Button::new("Edit feature location..."),
+                                    );
+                                    let edit_response = edit_response.on_hover_text(
+                                        if entry.supports_location_edit {
+                                            "Preview an exact simple or flat compound segment boundary edit before applying it"
+                                        } else {
+                                            entry
+                                                .location_edit_unavailable_reason
+                                                .as_deref()
+                                                .unwrap_or("This location is read-only")
+                                        },
+                                    );
+                                    if edit_response.clicked() {
+                                        clicked_feature = Some((entry.id, false));
+                                        edit_feature_location = Some(entry.id);
+                                        ui.close();
+                                    }
+                                    if ui
+                                        .button("Delete feature...")
+                                        .on_hover_text(
+                                            "Preview the complete feature record and related annotations before deletion",
+                                        )
+                                        .clicked()
+                                    {
+                                        clicked_feature = Some((entry.id, false));
+                                        delete_feature_record = Some(entry.id);
+                                        ui.close();
+                                    }
                                     let promoter_response = ui.add_enabled(
                                         entry.can_seed_promoter_anchor,
                                         egui::Button::new("Use as promoter anchor (Engine Ops)"),
@@ -2327,6 +2371,12 @@ impl MainAreaDna {
         }
         if let Some(feature_id) = focus_matching_array_feature {
             self.focus_matching_array_features(feature_id);
+        }
+        if let Some(feature_id) = edit_feature_location {
+            self.focus_feature_location_editor(Some(feature_id));
+        }
+        if let Some(feature_id) = delete_feature_record {
+            self.focus_feature_record_delete_editor(Some(feature_id));
         }
     }
 }

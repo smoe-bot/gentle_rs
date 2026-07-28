@@ -34,6 +34,7 @@ enum DeferredAnalysisFocus {
     FlexibilityTrack(String),
     RnaReadReport(String),
     PrimerDesign(String),
+    PrimerSpecificity(String),
     QpcrDesign(String),
     RestrictionCloningPcrHandoff(String),
     SequencingConfirmation(String),
@@ -129,6 +130,9 @@ impl WindowDna {
             }
             DeferredAnalysisFocus::PrimerDesign(report_id) => {
                 self.main_area.focus_primer_design_report(&report_id);
+            }
+            DeferredAnalysisFocus::PrimerSpecificity(report_id) => {
+                self.main_area.focus_primer_specificity_report(&report_id);
             }
             DeferredAnalysisFocus::QpcrDesign(report_id) => {
                 self.main_area.focus_qpcr_design_report(&report_id);
@@ -447,6 +451,18 @@ impl WindowDna {
         self.main_area.selection_range_0based()
     }
 
+    pub fn focus_feature_location_editor(&mut self, feature_index: Option<usize>) {
+        self.main_area.focus_feature_location_editor(feature_index);
+    }
+
+    pub fn close_feature_location_editor(&mut self) -> bool {
+        self.main_area.close_feature_location_editor()
+    }
+
+    pub fn feature_location_editor_is_open(&self) -> bool {
+        self.main_area.feature_location_editor_is_open()
+    }
+
     pub fn set_selection_range_0based(
         &mut self,
         start: usize,
@@ -574,6 +590,15 @@ impl WindowDna {
             return;
         }
         self.main_area.focus_primer_design_report(report_id);
+    }
+
+    pub fn focus_primer_specificity_report(&mut self, report_id: &str) {
+        if self.pending_dna_load.is_some() {
+            self.deferred_analysis_focus =
+                Some(DeferredAnalysisFocus::PrimerSpecificity(report_id.to_string()));
+            return;
+        }
+        self.main_area.focus_primer_specificity_report(report_id);
     }
 
     pub fn focus_rna_read_report(&mut self, report_id: &str) {

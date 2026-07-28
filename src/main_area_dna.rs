@@ -57,6 +57,9 @@ mod cutrun_support;
 #[path = "main_area_dna/feature_actions.rs"]
 mod feature_actions;
 
+#[path = "main_area_dna/feature_location_editor_ui.rs"]
+mod feature_location_editor_ui;
+
 #[path = "main_area_dna/feature_tree_ui.rs"]
 mod feature_tree_ui;
 
@@ -77,6 +80,8 @@ mod rna_read_mapping_ui;
 
 #[path = "main_area_dna/variant_followup.rs"]
 mod variant_followup;
+
+use feature_location_editor_ui::FeatureLocationEditorUiState;
 
 use crate::{
     app::{
@@ -102,31 +107,32 @@ use crate::{
         DesignDecisionNode, DesignFact, DisplaySettings, DisplayTarget, DotplotMode,
         DotplotOverlayAnchorExonRef, DotplotOverlayXAxisMode, DotplotView, EditableStatus, Engine,
         EngineError, ErrorCode, EvidenceClass, ExonSkipSelectionCriterion, ExonSkipSelectionPlan,
-        ExportFormat, FlexibilityModel, FlexibilityTrack, GenomeAnchorPreparedFallbackPolicy,
-        GenomeAnchorSide, GentleEngine, IsoformPromoterComparisonGroup,
-        IsoformPromoterComparisonReport, JasparCatalogRemoteSummary, LigationProtocol,
-        LinearSequenceLetterLayoutMode, MAX_DOTPLOT_PAIR_EVALUATIONS, MicroarrayProjectionReport,
-        OpResult, Operation, OperationProgress, PairwiseAlignmentMode, PcrPrimerSpec,
-        PrimerDesignBackend, PrimerDesignBaseLock, PrimerDesignPairConstraint,
-        PrimerDesignProgress, PrimerDesignReport, PrimerDesignSideConstraint,
-        PrimerSpecificityPolicy, ProbeRegionAptImportReport, ProbeRegionBackendRunReport,
-        ProbeRegionEvidenceInterpretationReport, ProbeRegionEvidenceMappingRow,
-        ProbeRegionEvidenceSvgExport, ProbeRegionEvidenceTranscriptMapping,
-        ProbeRegionOutputInspection, PromoterEvidenceMatrixReport, PromoterEvidenceMatrixRow,
-        PromoterExpressionEvidenceInput, PromoterExpressionEvidenceReport,
-        PromoterReporterCandidateSet, PromoterWindowCollapseMode, ProtocolCartoonPreviewTelemetry,
-        QpcrDesignReport, QpcrTranscriptSpecificityEvidence, QpcrTranscriptTargeting,
-        QpcrTranscriptTargetingMode, RenderSvgMode, RestrictionCloningPcrHandoffMode,
-        RestrictionCloningPcrHandoffReport, RestrictionCloningPcrHandoffSeedRequest,
-        RestrictionCloningVectorEnzymeSuggestions, RestrictionEnzymeDisplayMode,
-        RestrictionSiteScanReport, RnaReadAlignConfig, RnaReadAlignmentDisplay,
-        RnaReadAlignmentEffect, RnaReadAlignmentInspection, RnaReadAlignmentInspectionEffectFilter,
-        RnaReadAlignmentInspectionRow, RnaReadAlignmentInspectionSortKey,
-        RnaReadAlignmentInspectionSubsetSpec, RnaReadConcatemerInspection,
-        RnaReadConcatemerInspectionSettings, RnaReadExonSupportFrequency,
-        RnaReadGeneSupportCompleteRule, RnaReadGeneSupportSummary, RnaReadHitSelection,
-        RnaReadInputFormat, RnaReadInterpretProgress, RnaReadInterpretationHit,
-        RnaReadInterpretationProfile, RnaReadInterpretationReport,
+        ExperimentalAssayHandoffReport, ExperimentalAssayReadinessPolicy,
+        ExperimentalAssayReadinessState, ExportFormat, FlexibilityModel, FlexibilityTrack,
+        GenomeAnchorPreparedFallbackPolicy, GenomeAnchorSide, GentleEngine,
+        IsoformPromoterComparisonGroup, IsoformPromoterComparisonReport,
+        JasparCatalogRemoteSummary, LigationProtocol, LinearSequenceLetterLayoutMode,
+        MAX_DOTPLOT_PAIR_EVALUATIONS, MicroarrayProjectionReport, OpResult, Operation,
+        OperationProgress, PairwiseAlignmentMode, PcrPrimerSpec, PrimerDesignBackend,
+        PrimerDesignBaseLock, PrimerDesignPairConstraint, PrimerDesignProgress, PrimerDesignReport,
+        PrimerDesignSideConstraint, PrimerSpecificityPolicy, ProbeRegionAptImportReport,
+        ProbeRegionBackendRunReport, ProbeRegionEvidenceInterpretationReport,
+        ProbeRegionEvidenceMappingRow, ProbeRegionEvidenceSvgExport,
+        ProbeRegionEvidenceTranscriptMapping, ProbeRegionOutputInspection,
+        PromoterEvidenceMatrixReport, PromoterEvidenceMatrixRow, PromoterExpressionEvidenceInput,
+        PromoterExpressionEvidenceReport, PromoterReporterCandidateSet, PromoterWindowCollapseMode,
+        ProtocolCartoonPreviewTelemetry, QpcrDesignReport, QpcrTranscriptSpecificityEvidence,
+        QpcrTranscriptTargeting, QpcrTranscriptTargetingMode, RenderSvgMode,
+        RestrictionCloningPcrHandoffMode, RestrictionCloningPcrHandoffReport,
+        RestrictionCloningPcrHandoffSeedRequest, RestrictionCloningVectorEnzymeSuggestions,
+        RestrictionEnzymeDisplayMode, RestrictionSiteScanReport, RnaReadAlignConfig,
+        RnaReadAlignmentDisplay, RnaReadAlignmentEffect, RnaReadAlignmentInspection,
+        RnaReadAlignmentInspectionEffectFilter, RnaReadAlignmentInspectionRow,
+        RnaReadAlignmentInspectionSortKey, RnaReadAlignmentInspectionSubsetSpec,
+        RnaReadConcatemerInspection, RnaReadConcatemerInspectionSettings,
+        RnaReadExonSupportFrequency, RnaReadGeneSupportCompleteRule, RnaReadGeneSupportSummary,
+        RnaReadHitSelection, RnaReadInputFormat, RnaReadInterpretProgress,
+        RnaReadInterpretationHit, RnaReadInterpretationProfile, RnaReadInterpretationReport,
         RnaReadInterpretationReportSummary, RnaReadIsoformSupportRow, RnaReadIsoformTriageBin,
         RnaReadJunctionSupportFrequency, RnaReadLengthDistributionSummary, RnaReadOriginMode,
         RnaReadPairwiseAlignmentDetail, RnaReadReportMode, RnaReadScoreDensityScale,
@@ -144,8 +150,8 @@ use crate::{
         SplicingScopePreset, TfThresholdOverride, TfbsHitScanReport, TfbsProgress,
         TfbsScoreTrackCorrelationMetric, TfbsScoreTrackCorrelationSignalSource,
         TfbsScoreTrackReport, TfbsScoreTrackValueKind, TfbsTrackSimilarityRankingMetric,
-        TfbsTrackSimilarityReport, TfbsTrackSimilarityRow, TranscriptAssayCdnaSynthesis,
-        TranscriptAssayAmpliconRange, TranscriptAssayCoveragePolicy,
+        TfbsTrackSimilarityReport, TfbsTrackSimilarityRow, TranscriptAssayAmpliconRange,
+        TranscriptAssayCdnaSynthesis, TranscriptAssayCoveragePolicy,
         TranscriptAssayDetectionStatus, TranscriptAssayJunctionPriority,
         TranscriptAssayJunctionRequest, TranscriptAssayKind, TranscriptAssayOligoDtReachStatus,
         TranscriptAssayPanelObjective, TranscriptAssayPanelReport,
@@ -1394,6 +1400,7 @@ pub struct MainAreaDna {
     qpcr_design_ui: QpcrDesignOpsUiState,
     transcript_assay_panel_ui: TranscriptAssayPanelUiState,
     cached_transcript_assay_panel_report: Option<Arc<TranscriptAssayPanelReport>>,
+    cached_experimental_assay_handoff: Option<Arc<ExperimentalAssayHandoffReport>>,
     sequencing_confirmation_ui: SequencingConfirmationUiState,
     primer_backend: PrimerDesignBackend,
     primer3_executable: String,
@@ -1693,6 +1700,8 @@ pub struct MainAreaDna {
     show_isoform_expert_window: bool,
     isoform_expert_window_panel_id: Option<String>,
     isoform_expert_window_view: Option<Arc<IsoformArchitectureExpertView>>,
+    show_feature_location_editor: bool,
+    feature_location_editor_ui: FeatureLocationEditorUiState,
     linear_drag_selection_anchor_bp: Option<usize>,
     linear_selection_resize_drag: Option<LinearSelectionResizeDrag>,
     linear_pan_drag_origin_bp: Option<(usize, f32)>,
@@ -2167,6 +2176,7 @@ impl MainAreaDna {
             qpcr_design_ui: QpcrDesignOpsUiState::default(),
             transcript_assay_panel_ui: TranscriptAssayPanelUiState::default(),
             cached_transcript_assay_panel_report: None,
+            cached_experimental_assay_handoff: None,
             sequencing_confirmation_ui: SequencingConfirmationUiState::default(),
             primer_backend: PrimerDesignBackend::Auto,
             primer3_executable: "primer3_core".to_string(),
@@ -2471,6 +2481,8 @@ impl MainAreaDna {
             show_isoform_expert_window: false,
             isoform_expert_window_panel_id: None,
             isoform_expert_window_view: None,
+            show_feature_location_editor: false,
+            feature_location_editor_ui: FeatureLocationEditorUiState::default(),
             linear_drag_selection_anchor_bp: None,
             linear_selection_resize_drag: None,
             linear_pan_drag_origin_bp: None,
@@ -2695,6 +2707,30 @@ impl MainAreaDna {
         self.pcr_designer_mode = PcrDesignerMode::PrimerPairs;
         self.show_engine_ops = true;
         self.show_primer_design_report(normalized_id);
+    }
+
+    pub fn focus_primer_specificity_report(&mut self, report_id: &str) {
+        let normalized_id = report_id.trim();
+        if normalized_id.is_empty() {
+            self.op_status =
+                "Could not open primer-specificity evidence: report_id is empty".to_string();
+            return;
+        }
+        let report = self.engine.as_ref().and_then(|engine| {
+            engine
+                .read()
+                .ok()
+                .and_then(|engine| engine.get_primer_specificity_report(normalized_id).ok())
+        });
+        if let Some(report) = report.as_ref()
+            && let Some(primer_report_id) = report.design_provenance.primer_report_id.as_deref()
+        {
+            self.primer_design_ui.report_id = primer_report_id.to_string();
+        }
+        self.primer_design_ui.specificity_report_id = normalized_id.to_string();
+        self.pcr_designer_mode = PcrDesignerMode::PrimerPairs;
+        self.show_engine_ops = true;
+        self.show_primer_specificity_report(normalized_id);
     }
 
     pub fn focus_qpcr_design_report(&mut self, report_id: &str) {
@@ -4281,6 +4317,7 @@ impl MainAreaDna {
         self.render_rna_read_mapping_window(ctx);
         self.render_variant_followup_window(ctx);
         self.render_isoform_expert_window(ctx);
+        self.render_feature_location_editor(ctx);
         self.render_error_popup(ctx);
         self.render_anchor_prepared_choice_popup(ctx);
     }
@@ -20038,7 +20075,15 @@ impl MainAreaDna {
             match done {
                 Ok(PrimerDesignTaskCompletion::Single(result)) => {
                     let transcript_panel_report = result.transcript_assay_panel.as_deref().cloned();
+                    let experimental_handoff =
+                        result.experimental_assay_handoff.as_deref().cloned();
                     self.handle_operation_success(result, started);
+                    if let Some(report) = experimental_handoff {
+                        self.cached_experimental_assay_handoff = Some(Arc::new(report));
+                        self.pcr_designer_mode = PcrDesignerMode::TranscriptPanels;
+                        self.save_engine_ops_state();
+                        return;
+                    }
                     if let Some(report) = transcript_panel_report {
                         self.transcript_assay_panel_ui.report_id = report.report_id.clone();
                         self.transcript_assay_panel_ui.source_feature_id =
@@ -23825,6 +23870,7 @@ impl MainAreaDna {
         self.qpcr_design_ui = s.qpcr_design_ui;
         self.transcript_assay_panel_ui = s.transcript_assay_panel_ui;
         self.cached_transcript_assay_panel_report = None;
+        self.cached_experimental_assay_handoff = None;
         self.sequencing_confirmation_ui = s.sequencing_confirmation_ui;
         self.primer_backend = s.primer_backend;
         self.primer3_executable = if s.primer3_executable.trim().is_empty() {
@@ -26041,6 +26087,9 @@ impl MainAreaDna {
                 let mut map_open_splicing_feature: Option<usize> = None;
                 let mut map_open_rna_read_mapping_feature: Option<usize> = None;
                 let mut map_open_dotplot_feature: Option<usize> = None;
+                let mut map_edit_feature_location: Option<usize> = None;
+                let mut map_create_feature_range: Option<(usize, usize)> = None;
+                let mut map_delete_feature: Option<usize> = None;
                 response.context_menu(|ui| {
                     let mut showed_any = false;
                     if self.render_selection_simple_pcr_context_action(ui) {
@@ -26085,6 +26134,23 @@ impl MainAreaDna {
                             return;
                         }
                     }
+                    if let Some(selected_range) = self.current_selection_range_0based() {
+                        if showed_any {
+                            ui.separator();
+                        }
+                        showed_any = true;
+                        if ui
+                            .button("Create feature from selection...")
+                            .on_hover_text(
+                                "Open the shared Feature Editor with this selected range",
+                            )
+                            .clicked()
+                        {
+                            map_create_feature_range = Some(selected_range);
+                            ui.close();
+                            return;
+                        }
+                    }
                     let Some(feature_id) = candidate_feature_id else {
                         if let Some(evidence_id) = promoter_reasoning_evidence_id {
                             if showed_any {
@@ -26115,6 +26181,31 @@ impl MainAreaDna {
                         return;
                     }
                     ui.separator();
+                    let location_edit_unavailable_reason =
+                        self.feature_location_edit_unavailable_reason(feature_id);
+                    let edit_response = ui.add_enabled(
+                        location_edit_unavailable_reason.is_none(),
+                        egui::Button::new("Edit feature location..."),
+                    );
+                    let edit_response = edit_response.on_hover_text(
+                        location_edit_unavailable_reason.as_deref().unwrap_or(
+                            "Preview an exact simple or flat compound segment boundary edit before applying it",
+                        ),
+                    );
+                    if edit_response.clicked() {
+                        map_edit_feature_location = Some(feature_id);
+                        ui.close();
+                    }
+                    if ui
+                        .button("Delete feature...")
+                        .on_hover_text(
+                            "Preview the complete feature record and related annotations before deletion",
+                        )
+                        .clicked()
+                    {
+                        map_delete_feature = Some(feature_id);
+                        ui.close();
+                    }
                     let variant_response = ui.add_enabled(
                         promoter_feature_id.is_some() || promoter_reasoning_evidence_id.is_some(),
                         egui::Button::new("Open Promoter Design"),
@@ -26277,6 +26368,15 @@ impl MainAreaDna {
                 if let Some(feature_id) = map_open_dotplot_feature {
                     self.open_dotplot_for_feature(feature_id, "map context menu");
                 }
+                if let Some(feature_id) = map_edit_feature_location {
+                    self.focus_feature_location_editor(Some(feature_id));
+                }
+                if let Some(range) = map_create_feature_range {
+                    self.focus_feature_record_create_editor(Some(range));
+                }
+                if let Some(feature_id) = map_delete_feature {
+                    self.focus_feature_record_delete_editor(Some(feature_id));
+                }
             }
         });
         if render_auxiliary_windows {
@@ -26285,6 +26385,7 @@ impl MainAreaDna {
             self.render_rna_read_mapping_window(ctx);
             self.render_variant_followup_window(ctx);
             self.render_isoform_expert_window(ctx);
+            self.render_feature_location_editor(ctx);
         }
     }
 }

@@ -2929,6 +2929,9 @@ Shared shell command:
     - `guides oligos-export GUIDE_SET_ID OUTPUT_PATH [--format csv_table|plate_csv|fasta] [--plate 96|384] [--oligo-set ID]`
     - `guides protocol-export GUIDE_SET_ID OUTPUT_PATH [--oligo-set ID] [--no-qc]`
     - `features formula SEQ_ID EXPR`
+    - `features edit-location SEQ_ID FEATURE_INDEX [--segment-index INDEX] --start-1based N --end-1based-inclusive M [--dry-run] [--expected-feature-fingerprint-sha256 SHA] [--path OUT.json]`
+    - `features create SEQ_ID --kind KIND --start-1based N --end-1based-inclusive M [--strand forward|reverse] [--qualifier KEY[=VALUE] ...] [--dry-run] [--expected-annotation-state-fingerprint-sha256 SHA] [--path OUT.json]`
+    - `features delete SEQ_ID FEATURE_INDEX [--dry-run] [--expected-feature-fingerprint-sha256 SHA] [--expected-annotation-state-fingerprint-sha256 SHA] [--path OUT.json]`
     - `features query SEQ_ID [--kind KIND] [--kind-not KIND] [--range START..END|--start N --end N] [--overlap|--within|--contains] [--strand any|forward|reverse] [--label TEXT] [--label-regex REGEX] [--qual KEY] [--qual-contains KEY=VALUE] [--qual-regex KEY=REGEX] [--min-len N] [--max-len N] [--limit N] [--offset N] [--sort feature_id|start|end|kind|length] [--desc] [--include-source] [--include-qualifiers]`
     - `features export-bed SEQ_ID OUTPUT.bed [--coordinate-mode auto|local|genomic] [--include-restriction-sites] [--restriction-enzyme NAME] [--kind KIND] [--kind-not KIND] [--range START..END|--start N --end N] [--overlap|--within|--contains] [--strand any|forward|reverse] [--label TEXT] [--label-regex REGEX] [--qual KEY] [--qual-contains KEY=VALUE] [--qual-regex KEY=REGEX] [--min-len N] [--max-len N] [--limit N] [--offset N] [--sort feature_id|start|end|kind|length] [--desc] [--include-source] [--include-qualifiers]`
     - `features tfbs-summary SEQ_ID --focus START..END [--context START..END] [--min-focus-count N] [--min-context-count N] [--limit N]`
@@ -3011,6 +3014,41 @@ Shared shell command:
     - `primers specificity-import HANDOFF.json [--path OUTPUT.json]`
     - `primers transcript-assay-specificity-plan PANEL_REPORT_ID --target-genome GENOME_ID --output-dir DIR [same policy/catalog/cache options as specificity]`
     - `primers transcript-assay-specificity-finalize HANDOFF.json EXECUTION_MANIFEST_JSON_OR_@FILE [--path ACCEPTANCE.json]`
+    - PrimerBank lookup and transcript checks:
+      - `primers primerbank search QUERY [--by gene-symbol|gene-id|genbank|protein|primerbank-id|keyword] [--species human|mouse|all] [--html SAVED.html] [--path OUTPUT.json]`
+      - `primers primerbank show PRIMERBANK_ID [--species human|mouse|all] [--html SAVED.html] [--path OUTPUT.json]`
+      - `primers primerbank test-cdna SEQ_ID FEATURE_ID PRIMERBANK_ID --species human|mouse [--html SAVED.html] [--transcript-id ID] [--min-amplicon-bp N] [--max-amplicon-bp N] [--max-mismatches N] [--require-3prime-exact-bases N] [--transcript-order transcript_id|genomic_first_exon|genomic_last_exon|antisense_first_exon] [--map-coordinate-mode cdna|genomic_aligned] [--path OUTPUT.json] [--svg OUTPUT.svg]`
+      - live lookup submits one query to PrimerBank's public HTML search form;
+        `--html` parses a saved result instead for offline/reproducible work.
+        GENtle preserves PrimerBank coding-sequence coordinates and source links
+        but does not reinterpret catalog presence as current-transcript
+        compatibility, genomic specificity, or experimental validation.
+        `test-cdna` is the explicit compatibility continuation through the
+        existing transcript-aware PCR route; whole-genome specificity remains
+        a separate `primers specificity-plan`/`specificity-import` step.
+        Search/show JSON includes `species_check` and per-gene match status.
+        `test-cdna` requires a concrete expected species and refuses mismatch
+        or unresolved PrimerBank records before running the transcript assay.
+        It also compares an available `organism` annotation on the selected
+        project sequence/transcript with that expected species. A known target
+        mismatch is refused; absent target-species metadata is reported as
+        `unresolved` with a warning rather than silently presented as verified.
+        `--path` preserves the complete catalog-plus-cDNA report, while
+        `--svg` writes its transcript map.
+    - `primers import-external-pairs INPUT.json|tsv SEQ_ID FEATURE_ID [--format auto|json|tsv] [--report-id ID] [--transcript-id ID] [--transcript-order transcript_id|genomic_first_exon|genomic_last_exon|antisense_first_exon] [--map-coordinate-mode cdna|genomic_aligned] [--min-amplicon-bp N] [--max-amplicon-bp N] [--max-mismatches N] [--require-3prime-exact-bases N] [--specificity-target-genome GENOME_ID] [--specificity-catalog PATH] [--specificity-cache-dir DIR] [--artifact-output-dir DIR] [--materialize-products] [--product-gel-ladder NAME]... [--path OUTPUT.json]`
+      - imports exact 5-prime-to-3-prime forward/reverse sequences with provider,
+        catalogue/source/accession provenance and aliases. Commercial rows require
+        both provider and catalogue id
+      - whitespace and copied position digits are removed, RNA `U` is normalized
+        to DNA `T`, and the remaining sequence must be valid IUPAC
+      - duplicate oriented sequence pairs share stable sequence-derived oligo/pair
+        ids while every distinct source row and claim remains attached
+      - GENtle recomputes cDNA products, transcript maps, genomic carryover, oligo
+        QC, Tm, GC, and pair delta-Tm. Source targeting/validation claims never
+        establish transcript coverage or specificity
+      - whole-genome specificity is `not_run` unless a prepared target genome is
+        requested. `--materialize-products` makes the import state-changing and,
+        with `--artifact-output-dir`, writes the corresponding product gel
     - `primers test-cdna-pcr SEQ_ID FEATURE_ID --forward SEQ --reverse SEQ [--transcript-id ID] [--transcript-order transcript_id|genomic_first_exon|genomic_last_exon|antisense_first_exon] [--map-coordinate-mode cdna|genomic_aligned] [--min-amplicon-bp N] [--max-amplicon-bp N] [--max-mismatches N] [--require-3prime-exact-bases N] [--path OUTPUT.json] [--svg OUTPUT.svg] [--materialize-products] [--product-output-prefix PREFIX] [--product-gel-svg OUTPUT.svg] [--product-gel-ladder NAME]...`
     - `primers test-cdna-qpcr SEQ_ID FEATURE_ID --forward SEQ --reverse SEQ --probe SEQ [--transcript-id ID] [--transcript-order transcript_id|genomic_first_exon|genomic_last_exon|antisense_first_exon] [--map-coordinate-mode cdna|genomic_aligned] [--min-amplicon-bp N] [--max-amplicon-bp N] [--max-mismatches N] [--require-3prime-exact-bases N] [--path OUTPUT.json] [--svg OUTPUT.svg] [--materialize-products] [--product-output-prefix PREFIX] [--product-gel-svg OUTPUT.svg] [--product-gel-ladder NAME]...`
     - `primers transcript-qpcr-panel SEQ_ID FEATURE_ID SHARED_QPCR_REPORT_ID [--path OUTPUT.json]`
@@ -3023,6 +3061,7 @@ Shared shell command:
         visible without inventing a universal safe cutoff. A missing primer
         target remains structurally distinct from an indeterminate no-product
         result.
+    - `primers experimental-handoff PANEL_REPORT_ID [--policy JSON_OR_@FILE] [--variant-evidence PATH ...] [--order-form-id ID] [--path OUTPUT.json] [--order-table OUTPUT.tsv]`
     - `primers test-cdna-qpcr-fasta CDNA_FASTA[.gz] [CDNA_FASTA[.gz] ...] --forward SEQ --reverse SEQ --probe SEQ [--transcript-id ID] [--min-amplicon-bp N] [--max-amplicon-bp N] [--max-mismatches N] [--require-3prime-exact-bases N] [--path OUTPUT.json] [--svg OUTPUT.svg]`
     - `primers preflight [--backend auto|internal|primer3] [--primer3-exec PATH]`
       - returns `gentle.primer3_preflight.v1` with configured/effective
@@ -3033,10 +3072,15 @@ Shared shell command:
     - `primers seed-qpcr-from-feature SEQ_ID FEATURE_ID`
     - `primers seed-qpcr-from-splicing SEQ_ID FEATURE_ID [--mode shared_gene|distinguish_transcript] [--transcript-id ID] [--specificity-evidence junction_only|unique_exon_or_chain|either_prefer_junction]`
     - `primers list-reports`
+      - lists both persisted primer-design reports and persisted
+        primer-specificity artifacts in separate arrays
     - `primers show-report REPORT_ID`
-      - includes `simple_pcr_pairs` with per-pair left/right distance from the
-        core ROI, overlap flags, and flanking labels for quick CLI inspection
+      - accepts either kind; design reports include `simple_pcr_pairs` with
+        per-pair left/right distance from the core ROI, overlap flags, and
+        flanking labels for quick CLI inspection
     - `primers export-report REPORT_ID OUTPUT.json`
+      - exports either a primer-design report or a persisted
+        primer-specificity artifact without rerunning BLAST
     - `primers list-qpcr-reports`
     - `primers show-qpcr-report REPORT_ID`
       - persisted qPCR report output now includes `best_assay_summary` plus
@@ -3457,7 +3501,20 @@ Shared shell command:
         shell/CLI/ClawBio flows can promote the same qPCR strip without hard-
         coding that protocol id elsewhere
     - Primer specificity confirmation notes (`primers specificity`):
-      - returns `gentle.primer_specificity_report.v1`
+      - returns and persists `gentle.primer_specificity_report.v2`; repeated
+        assessment of the same biological inputs and policy reuses one stable
+        content-derived `report_id`
+      - the report follows GENtle's computational-artifact contract with
+        `op_id`, `run_id`, sequence links, external inputs/database
+        fingerprints, request/effective-setting summaries, a reopen hint, and
+        supported export kinds
+      - independent characterization rows use
+        `pass|fail|incomplete|not_run`; design provenance is cited when the
+        assessed pair came from a persisted primer-design report, while raw or
+        commercial/literature primer strings explicitly remain `not_run`
+      - this operation does not silently rerun Primer3/oligo-pair QC, variant
+        masking, or repeat/low-complexity masking. Those dimensions remain
+        `not_run` unless their own evidence exists
       - uses local BLAST+ through the prepared reference-genome index path; no
         NCBI remote submission is performed
       - saved report mode consumes `REPORT_ID --pair-rank N` from a persisted
@@ -3469,8 +3526,18 @@ Shared shell command:
         forward/reverse products, forward/forward and reverse/reverse warning
         products, intended/unintended classification, and pass/fail summary
       - short-primer searches are exhaustive with respect to database subjects:
-        GENtle does not pass `max_hits_per_primer` to BLAST as
-        `-max_target_seqs`; the value is a post-search review threshold
+        GENtle validates the database sequence count with `blastdbcmd` and sets
+        `-max_target_seqs` above that count. `max_hits_per_primer` remains a
+        post-search review threshold and does not truncate the search
+      - `search_completeness` records the validated database count, required
+        subject limit, observed command limit, and `complete|incomplete`
+        status. An unproven search can never produce a specificity pass
+      - per-hit primer coverage is calculated from that HSP's inclusive
+        `qstart..qend` span and primer length; BLAST's subject-aggregated
+        `qcovs` value is retained only in raw BLAST provenance
+      - inward-facing products are paired by subject coordinates and strands,
+        independently of whether the forward-role primer is the leftmost hit;
+        minus-strand intended products are therefore treated symmetrically
       - intended genomic products are matched by prepared-FASTA subject and
         genomic interval, never by equality to a cDNA amplicon length;
         junction-spanning primers may therefore have no contiguous intended
@@ -3479,7 +3546,8 @@ Shared shell command:
         FASTA index, repeated warnings are aggregated, and genomic-DNA versus
         transcriptome/cDNA assessments remain separate in the report
       - `--path OUTPUT.json` writes the same structured report returned on
-        stdout
+        stdout; the persisted copy can later be inspected or exported with
+        `primers show-report REPORT_ID` and `primers export-report`
       - use `primers specificity-plan` when a scheduler, ClawBio skill, or
         another wrapper should own the BLAST processes. The returned
         `gentle.primer_specificity_handoff.v1` stores authoritative
@@ -3495,8 +3563,10 @@ Shared shell command:
       - regenerating the same deterministic handoff clears its old declared
         output TSVs, preventing a fresh run from importing stale results
       - planned handoffs bind the inspected BLAST database content fingerprint
-        and index kind; import/finalization rejects replacement content at the
-        same prefix
+        and index kind, and each command carries the same proven subject limit;
+        import/finalization rejects replacement content at the same prefix.
+        Legacy or modified commands lacking sufficient subject coverage yield
+        `incomplete`, not `pass`
       - the plan/import convenience commands dispatch the shared
         `PreparePrimerPairSpecificityHandoff` and
         `ImportPrimerPairSpecificityHandoff` operations. The same operation
@@ -3707,6 +3777,26 @@ Shared shell command:
       - deterministic worked example:
         `docs/examples/workflows/patz1_endpoint_sybr_transcript_assay_panel_offline.json`
         (synthetic sequence; not orderable human PATZ1 primers)
+    - Experimental handoff notes (`primers experimental-handoff`):
+      - consumes one persisted transcript-panel report and emits one
+        deterministic card per selected primer pair; it automatically runs the
+        shared cDNA assay test for each pair and links it by canonical `pair_id`
+        plus instance-specific `assay_test_id`
+      - the default policy requires critical oligo QC, annotation provenance,
+        and completed whole-genome specificity. Missing variant evidence is
+        shown as `not_evaluated` but is optional unless the supplied policy
+        requires it. Evaluated failures remain visible blockers
+      - `--policy` accepts inline JSON or `@FILE`; `--variant-evidence` may be
+        repeated; `--order-form-id` projects existing modifications, scale,
+        purification, and duplicate-review state without merging order lines
+      - `--path` writes the complete JSON package and `--order-table` writes a
+        compact TSV. Neither route submits an order or records a wet-lab result
+      - exact cDNA product digests define sequence classes only. Gel separation
+        is assessed separately and only when named gel conditions are present
+        in the policy
+      - the typed `BuildExperimentalAssayHandoff` operation is also available
+        through generic MCP `op`, workflows, JavaScript, and Lua; the GUI Shell
+        surface accepts the same command
     - Restriction-cloning handoff notes (`primers prepare-restriction-cloning`):
       - expects an `Operation` payload whose root variant is
         `PrepareRestrictionCloningPcrHandoff`
@@ -3750,6 +3840,35 @@ Shared shell command:
       - range expressions return normalized `start_0based` /
         `end_0based_exclusive` intervals, so reverse-strand upstream/TSS
         formulas are directly usable by agents
+    - Feature-location edit notes (`features edit-location`):
+      - use `--dry-run` first; applying requires the returned
+        `before_feature_fingerprint_sha256`
+      - without `--segment-index`, accepts an exact simple GenBank range and
+        preserves its strand
+      - `--segment-index` selects one zero-based child in an exact flat
+        `Join`/`Order`, optionally under one outer `Complement`; the operation
+        preserves operator kind, wrapper, child count/order, qualifiers, and
+        every unedited child
+      - nested, fuzzy, between-base, external, gap, bond, one-of,
+        non-monotonic, and circular cross-origin compounds remain read-only
+      - compound reports distinguish stored child index from biological
+        5-prime-to-3-prime segment number and emit review warnings for overlap,
+        changed stored direction, or a CDS length delta not divisible by three
+      - the report lists boundary-sharing annotations for review but modifies
+        only the selected feature
+      - a successful apply is a normal undoable project mutation
+    - Feature-record curation notes (`features create`, `features delete`):
+      - always preview first; apply uses the returned annotation-state lock,
+        and Delete additionally uses the complete selected-feature lock
+      - Create appends one exact forward or reverse range; repeat
+        `--qualifier` in the required stored order and omit `=VALUE` for a
+        valueless qualifier
+      - Delete accepts any existing location shape and reports the complete
+        deleted record; later feature indices shift down by one
+      - overlap and matching `locus_tag`, `gene`, `protein_id`, or
+        `transcript_id` values are informational review candidates, not
+        inferred dependencies or automatic propagation
+      - both successful applies use the normal undo/redo history
     - Feature query helper notes (`features query`):
       - non-mutating structured result schema:
         `gentle.sequence_feature_query_result.v1`

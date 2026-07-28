@@ -459,14 +459,19 @@ an agent has selected a deterministic operation.
 - `primers design`
 - `primers design-transcript-assay-panel`
 - `primers design-qpcr`
+- `primers experimental-handoff` (the typed `BuildExperimentalAssayHandoff` operation remains available through the generic MCP `op` tool)
 - `primers export-qpcr-report`
 - `primers export-report`
 - `primers export-restriction-cloning-handoff`
 - `primers export-transcript-assay-panel`
+- `primers import-external-pairs`
 - `primers list-qpcr-reports`
 - `primers list-reports`
 - `primers list-restriction-cloning-handoffs`
 - `primers list-transcript-assay-panels`
+- `primers primerbank search`
+- `primers primerbank show`
+- `primers primerbank test-cdna`
 - `primers preflight`
 - `primers prepare-restriction-cloning`
 - `primers restriction-cloning-vector-suggestions`

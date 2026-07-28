@@ -1,11 +1,10 @@
 use super::{
-    AGENT_BASE_URL_ENV, AGENT_CONNECT_TIMEOUT_SECS_ENV, AGENT_MAX_RESPONSE_BYTES_ENV,
-    AGENT_MAX_RETRIES_ENV, AGENT_MODEL_ENV, AGENT_READ_TIMEOUT_SECS_ENV, AGENT_TIMEOUT_SECS_ENV,
-    ANTHROPIC_API_KEY_AUTH_HINT, ANTHROPIC_API_KEY_ENV, APP_CONFIGURATION_SCHEMA_VERSION,
-    AGENT_CONVERSATION_METADATA_KEY, AgentAskTask, AgentAskTaskMessage,
-    BACKGROUND_JOB_HISTORY_METADATA_KEY,
-    BACKGROUND_JOB_HISTORY_SCHEMA, BACKGROUND_JOBS_RECENT_JOB_EVENTS_SCROLL_ID,
-    BACKGROUND_JOBS_RETRY_CLEANUP_AUDIT_SCROLL_ID,
+    AGENT_BASE_URL_ENV, AGENT_CONNECT_TIMEOUT_SECS_ENV, AGENT_CONVERSATION_METADATA_KEY,
+    AGENT_MAX_RESPONSE_BYTES_ENV, AGENT_MAX_RETRIES_ENV, AGENT_MODEL_ENV,
+    AGENT_READ_TIMEOUT_SECS_ENV, AGENT_TIMEOUT_SECS_ENV, ANTHROPIC_API_KEY_AUTH_HINT,
+    ANTHROPIC_API_KEY_ENV, APP_CONFIGURATION_SCHEMA_VERSION, AgentAskTask, AgentAskTaskMessage,
+    BACKGROUND_JOB_HISTORY_METADATA_KEY, BACKGROUND_JOB_HISTORY_SCHEMA,
+    BACKGROUND_JOBS_RECENT_JOB_EVENTS_SCROLL_ID, BACKGROUND_JOBS_RETRY_CLEANUP_AUDIT_SCROLL_ID,
     BACKGROUND_JOBS_RETRY_SNAPSHOTS_REMOVED_PREVIEW_SCROLL_ID,
     BACKGROUND_JOBS_RETRY_SNAPSHOTS_RETAINED_PREVIEW_SCROLL_ID,
     BACKGROUND_JOBS_RETRY_SNAPSHOTS_SCROLL_ID, BackgroundJobEventPhase, BackgroundJobKind,
@@ -32,8 +31,7 @@ use super::{
     RetrySnapshotKindFilter, RetrySnapshotPendingCleanupAction, RoutineAssistantStage,
     SequenceIngressTask, SequenceIngressTaskKind, SequenceIngressTaskMessage,
     TutorialProjectOpenOutcome, TutorialProjectTask, TutorialProjectTaskMessage,
-    TutorialProjectTaskProgress, gui_prominent_glossary_entries,
-    load_agent_token_file_credentials,
+    TutorialProjectTaskProgress, gui_prominent_glossary_entries, load_agent_token_file_credentials,
     preferred_anthropic_agent_system_id, preferred_local_agent_system_id,
     preferred_mistral_agent_system_id, preferred_openai_agent_system_id,
 };
@@ -51,12 +49,14 @@ use crate::{
         ContainerKind, DbSnpFetchProgress, DbSnpFetchStage, DisplaySettings, DotplotMode, Engine,
         FlexibilityModel, GenomeAnnotationProjectionTelemetry, GenomeGeneExtractMode,
         GenomeTrackSource, GenomeTrackSubscription, GentleEngine, LineageEdge, LineageNode,
-        LinearSequenceLetterLayoutMode, OpResult, Operation,
-        PLANNING_ESTIMATE_SCHEMA, PairwiseAlignmentMode, PlanningEstimate, PlanningObjective,
-        PrimerDesignPairConstraint, PrimerDesignSideConstraint, ProjectState,
-        ProteinToDnaHandoffRankingGoal, ProteinToDnaHandoffStrategy, Rack, RackAuthoringTemplate,
-        RackFillDirection, RackProfileKind, RackProfileSnapshot, RenderSvgMode,
-        RestrictionCloningPcrHandoffMode, RestrictionEnzymeDisplayMode, ReverseTranslationReport,
+        LinearSequenceLetterLayoutMode, OpResult, Operation, PLANNING_ESTIMATE_SCHEMA,
+        PairwiseAlignmentMode, PlanningEstimate, PlanningObjective, PrimerDesignPairConstraint,
+        PrimerDesignProvenanceCitation, PrimerDesignSideConstraint,
+        PrimerPairCharacterizationStatus, PrimerSpecificityReport, PrimerSpecificitySummary,
+        ProjectState, ProteinToDnaHandoffRankingGoal, ProteinToDnaHandoffStrategy,
+        PRIMER_DESIGN_REPORTS_METADATA_KEY, Rack, RackAuthoringTemplate, RackFillDirection,
+        RackProfileKind, RackProfileSnapshot, RenderSvgMode, RestrictionCloningPcrHandoffMode,
+        RestrictionEnzymeDisplayMode, ReverseTranslationReport,
         RoutineDecisionTraceDisambiguationAnswer, RoutineDecisionTraceDisambiguationQuestion,
         RoutineDecisionTracePreflightSnapshot, RoutineDecisionTraceStore, SequenceOrigin,
         TranslationSpeedMark, TranslationSpeedProfile, TranslationSpeedProfileSource,
@@ -73,12 +73,11 @@ use crate::{
     ensembl_protein::{EnsemblProteinEntry, EnsemblProteinEntrySummary, EnsemblProteinFeature},
     genomes::{
         BlastDatabaseIndexKind, BlastDatabaseInspectionReport, EnsemblCatalogUpdatePreview,
-        EnsemblInstallableGenomeCatalog, EnsemblQuickInstallPreview,
-        HelperConstructInterpretation, PrepareGenomePlan, PrepareGenomePlanStep,
-        PrepareGenomeProgress, PrepareGenomeStepId, PreparedCacheArtifactGroup,
-        PreparedCacheArtifactStat, PreparedCacheCleanupItemReport, PreparedCacheCleanupMode,
-        PreparedCacheCleanupReport, PreparedCacheEntryKind, PreparedCacheInspectionEntry,
-        PreparedCacheInspectionReport, PreparedGenomeInspection,
+        EnsemblInstallableGenomeCatalog, EnsemblQuickInstallPreview, HelperConstructInterpretation,
+        PrepareGenomePlan, PrepareGenomePlanStep, PrepareGenomeProgress, PrepareGenomeStepId,
+        PreparedCacheArtifactGroup, PreparedCacheArtifactStat, PreparedCacheCleanupItemReport,
+        PreparedCacheCleanupMode, PreparedCacheCleanupReport, PreparedCacheEntryKind,
+        PreparedCacheInspectionEntry, PreparedCacheInspectionReport, PreparedGenomeInspection,
     },
     gibson_planning::{
         GibsonAssemblyPlan, GibsonAssemblyPreview, GibsonCartoonPreview,
@@ -962,11 +961,9 @@ fn native_agent_uses_token_file_after_session_and_environment_sources() {
         .unwrap_or_else(|e| e.into_inner());
     let _guard = EnvVarGuard::set(OPENAI_API_KEY_ENV, "");
     let temp = tempdir().expect("temp home");
-    fs::write(temp.path().join(".codex_token"), "file-token")
-        .expect("write token file");
+    fs::write(temp.path().join(".codex_token"), "file-token").expect("write token file");
     let mut app = GENtleApp::default();
-    app.agent_token_file_credentials =
-        load_agent_token_file_credentials(Some(temp.path()));
+    app.agent_token_file_credentials = load_agent_token_file_credentials(Some(temp.path()));
     app.agent_token_file_credentials_loaded = true;
     let system = test_agent_system("openai_gpt5_native", AgentSystemTransport::NativeOpenai);
 
@@ -1001,11 +998,9 @@ fn native_agent_uses_token_file_after_session_and_environment_sources() {
 #[test]
 fn codex_local_keeps_cli_login_and_does_not_import_api_key_sources() {
     let temp = tempdir().expect("temp home");
-    fs::write(temp.path().join(".codex_token"), "file-token")
-        .expect("write token file");
+    fs::write(temp.path().join(".codex_token"), "file-token").expect("write token file");
     let mut app = GENtleApp::default();
-    app.agent_token_file_credentials =
-        load_agent_token_file_credentials(Some(temp.path()));
+    app.agent_token_file_credentials = load_agent_token_file_credentials(Some(temp.path()));
     app.agent_token_file_credentials_loaded = true;
     app.agent_openai_api_key = "session-token".to_string();
     let system = test_agent_system("codex_local_stdio", AgentSystemTransport::ExternalJsonStdio);
@@ -1361,7 +1356,14 @@ fn agent_prompt_history_aliases_use_guarded_gui_transitions() {
 
     app.execute_agent_prompt_command("/undo");
 
-    assert!(app.engine.read().expect("engine").state().display.show_features);
+    assert!(
+        app.engine
+            .read()
+            .expect("engine")
+            .state()
+            .display
+            .show_features
+    );
     assert!(!app.lineage_cache_valid);
     assert!(app.tracked_autosync_last_key.is_none());
     assert!(app.agent_status.contains("Undo applied"));
@@ -1371,7 +1373,14 @@ fn agent_prompt_history_aliases_use_guarded_gui_transitions() {
 
     app.execute_agent_prompt_command("/redo");
 
-    assert!(!app.engine.read().expect("engine").state().display.show_features);
+    assert!(
+        !app.engine
+            .read()
+            .expect("engine")
+            .state()
+            .display
+            .show_features
+    );
     assert!(app.agent_status.contains("Redo applied"));
     let redo_entry = app.agent_execution_log.last().expect("redo log entry");
     assert!(redo_entry.ok);
@@ -1391,7 +1400,14 @@ fn agent_history_transition_rejects_auto_execution_and_active_background_jobs() 
         .expect("create undo checkpoint");
 
     app.execute_agent_suggested_command(1, "/undo", "auto");
-    assert!(!app.engine.read().expect("engine").state().display.show_features);
+    assert!(
+        !app.engine
+            .read()
+            .expect("engine")
+            .state()
+            .display
+            .show_features
+    );
     assert!(
         app.agent_status
             .contains(AGENT_HISTORY_CONFIRMATION_REQUIRED)
@@ -1408,7 +1424,14 @@ fn agent_history_transition_rejects_auto_execution_and_active_background_jobs() 
     });
     app.execute_agent_suggested_command(2, "/undo", "manual");
 
-    assert!(!app.engine.read().expect("engine").state().display.show_features);
+    assert!(
+        !app.engine
+            .read()
+            .expect("engine")
+            .state()
+            .display
+            .show_features
+    );
     assert!(app.agent_status.contains("background jobs are active"));
     assert!(!app.agent_execution_log.last().expect("guard log entry").ok);
 }
@@ -1799,8 +1822,7 @@ fn agent_response_sanity_flags_auto_history_transition() {
 
     assert!(
         warnings.iter().any(|warning| {
-            warning.contains(AGENT_HISTORY_CONFIRMATION_REQUIRED)
-                && warning.contains("Click Run")
+            warning.contains(AGENT_HISTORY_CONFIRMATION_REQUIRED) && warning.contains("Click Run")
         }),
         "warnings: {warnings:?}"
     );
@@ -6234,6 +6256,13 @@ fn assert_command_palette_ui_intent_side_effect(app: &GENtleApp, target: UiInten
         UiIntentTarget::ImportGenomeTrack => {
             assert!(app.show_genome_bed_track_dialog);
         }
+        UiIntentTarget::FeatureLocationEditor => {
+            assert!(
+                app.new_windows
+                    .iter()
+                    .any(|window| window.feature_location_editor_is_open())
+            );
+        }
         UiIntentTarget::PcrDesign => {
             assert!(app.show_pcr_design_dialog);
             assert_eq!(app.pcr_design_seq_id, "seq1");
@@ -6291,6 +6320,7 @@ fn command_palette_gui_prominent_ui_intents_dispatch_to_expected_windows() {
             UiIntentTarget::RetrieveHelperSequence.as_str(),
             UiIntentTarget::BlastHelperSequence.as_str(),
             UiIntentTarget::ImportGenomeTrack.as_str(),
+            UiIntentTarget::FeatureLocationEditor.as_str(),
             UiIntentTarget::PcrDesign.as_str(),
             UiIntentTarget::SequencingConfirmation.as_str(),
         ])
@@ -7574,8 +7604,8 @@ fn persisting_agent_selection_preserves_other_saved_settings() {
     app.persist_agent_system_selection_to_path(&path)
         .expect("persist agent selection");
 
-    let loaded = GENtleApp::read_persisted_configuration_from_path(&path)
-        .expect("read updated settings");
+    let loaded =
+        GENtleApp::read_persisted_configuration_from_path(&path).expect("read updated settings");
     assert_eq!(loaded.agent_system_id, "codex_local_stdio");
     assert_eq!(loaded.rnapkin_executable, "/saved/rnapkin");
 }
@@ -11402,13 +11432,14 @@ fn dbsnp_dialog_fetch_extracts_region_and_opens_window() {
         "status was: {}",
         app.dbsnp_status
     );
-    let wait_started = Instant::now();
-    while app.dbsnp_fetch_task.is_some() && wait_started.elapsed() < Duration::from_secs(15) {
-        app.poll_dbsnp_fetch_task(&egui::Context::default());
+    let ctx = egui::Context::default();
+    let deadline = Instant::now() + Duration::from_secs(30);
+    while app.dbsnp_fetch_task.is_some() && Instant::now() < deadline {
+        app.poll_dbsnp_fetch_task(&ctx);
         std::thread::sleep(Duration::from_millis(10));
     }
     if app.dbsnp_fetch_task.is_some() {
-        app.poll_dbsnp_fetch_task(&egui::Context::default());
+        app.poll_dbsnp_fetch_task(&ctx);
     }
     assert!(
         app.dbsnp_fetch_task.is_none(),
@@ -12313,6 +12344,7 @@ fn poll_prepare_success_after_cancel_request_reports_completion_prefix() {
     tx.send(GenomePrepareTaskMessage::Done {
         job_id: 54,
         result: Ok(OpResult {
+            experimental_assay_handoff: None,
             op_id: "background-prepare-genome".to_string(),
             created_seq_ids: vec![],
             changed_seq_ids: vec![],
@@ -12329,10 +12361,12 @@ fn poll_prepare_success_after_cancel_request_reports_completion_prefix() {
             exon_skip_materialization: None,
             cdna_assay_test_report: None,
             cdna_assay_product_materialization: None,
+            primerbank_search_report: None,
             transcript_qpcr_panel: None,
             transcript_assay_panel: None,
             primer_specificity_handoff: None,
             primer_specificity_report: None,
+            external_primer_pair_import_report: None,
             construct_reasoning_graph: None,
             sequencing_confirmation_report: None,
             sequencing_primer_overlay_report: None,
@@ -12394,6 +12428,8 @@ fn poll_prepare_success_after_cancel_request_reports_completion_prefix() {
             uniprot_projection_audit: None,
             uniprot_projection_audit_parity: None,
             lab_assistant_instructions: None,
+            feature_location_edit_report: None,
+            feature_record_curation_report: None,
         }),
     })
     .expect("send prepare done");
@@ -12534,6 +12570,7 @@ fn poll_track_import_refreshes_only_changed_sequence_windows() {
     tx.send(GenomeTrackImportTaskMessage::Done {
         job_id: 91,
         result: Ok(GenomeTrackTaskResult::Operation(OpResult {
+            experimental_assay_handoff: None,
             op_id: "op_track_refresh_changed".to_string(),
             created_seq_ids: vec![],
             changed_seq_ids: vec!["seq_b".to_string()],
@@ -12550,10 +12587,12 @@ fn poll_track_import_refreshes_only_changed_sequence_windows() {
             exon_skip_materialization: None,
             cdna_assay_test_report: None,
             cdna_assay_product_materialization: None,
+            primerbank_search_report: None,
             transcript_qpcr_panel: None,
             transcript_assay_panel: None,
             primer_specificity_handoff: None,
             primer_specificity_report: None,
+            external_primer_pair_import_report: None,
             construct_reasoning_graph: None,
             sequencing_confirmation_report: None,
             sequencing_primer_overlay_report: None,
@@ -12615,6 +12654,8 @@ fn poll_track_import_refreshes_only_changed_sequence_windows() {
             uniprot_projection_audit: None,
             uniprot_projection_audit_parity: None,
             lab_assistant_instructions: None,
+            feature_location_edit_report: None,
+            feature_record_curation_report: None,
         })),
     })
     .expect("send track import done");
@@ -12645,6 +12686,7 @@ fn poll_track_import_refreshes_all_open_windows_when_changed_ids_missing() {
     tx.send(GenomeTrackImportTaskMessage::Done {
         job_id: 92,
         result: Ok(GenomeTrackTaskResult::Operation(OpResult {
+            experimental_assay_handoff: None,
             op_id: "op_track_refresh_fallback".to_string(),
             created_seq_ids: vec![],
             changed_seq_ids: vec![],
@@ -12661,10 +12703,12 @@ fn poll_track_import_refreshes_all_open_windows_when_changed_ids_missing() {
             exon_skip_materialization: None,
             cdna_assay_test_report: None,
             cdna_assay_product_materialization: None,
+            primerbank_search_report: None,
             transcript_qpcr_panel: None,
             transcript_assay_panel: None,
             primer_specificity_handoff: None,
             primer_specificity_report: None,
+            external_primer_pair_import_report: None,
             construct_reasoning_graph: None,
             sequencing_confirmation_report: None,
             sequencing_primer_overlay_report: None,
@@ -12726,6 +12770,8 @@ fn poll_track_import_refreshes_all_open_windows_when_changed_ids_missing() {
             uniprot_projection_audit: None,
             uniprot_projection_audit_parity: None,
             lab_assistant_instructions: None,
+            feature_location_edit_report: None,
+            feature_record_curation_report: None,
         })),
     })
     .expect("send track import done");
@@ -12798,7 +12844,10 @@ fn genome_track_autosync_key_ignores_read_only_operation_log_growth() {
         .expect("engine")
         .state_mut()
         .metadata
-        .insert("unrelated_structural_test".to_string(), serde_json::json!(true));
+        .insert(
+            "unrelated_structural_test".to_string(),
+            serde_json::json!(true),
+        );
     app.sync_tracked_bed_tracks_for_new_anchors();
     assert_eq!(app.tracked_autosync_full_scan_count, 4);
     assert!(
@@ -12825,9 +12874,8 @@ fn failed_tracked_import_still_marks_project_dirty() {
         .expect("temporary directory")
         .path()
         .join("missing-track.bed");
-    let report = crate::background_engine::execute_on_engine_snapshot(
-        &app.engine,
-        move |snapshot| {
+    let report =
+        crate::background_engine::execute_on_engine_snapshot(&app.engine, move |snapshot| {
             snapshot.import_genome_track_to_all_anchored(
                 GenomeTrackSubscription {
                     source: GenomeTrackSource::Bed,
@@ -12839,9 +12887,8 @@ fn failed_tracked_import_still_marks_project_dirty() {
                 },
                 true,
             )
-        },
-    )
-    .expect("failed individual imports still return a sync report");
+        })
+        .expect("failed individual imports still return a sync report");
 
     assert_eq!(report.applied_imports, 0);
     assert_eq!(report.failed_imports, 1);
@@ -12863,10 +12910,9 @@ fn bigwig_converter_preflight_keeps_actionable_failure_message() {
         .path()
         .join("missing-bigWigToBedGraph");
 
-    let error = GENtleApp::validate_bigwig_converter_in_background(
-        missing.to_string_lossy().as_ref(),
-    )
-    .expect_err("missing converter should fail");
+    let error =
+        GENtleApp::validate_bigwig_converter_in_background(missing.to_string_lossy().as_ref())
+            .expect_err("missing converter should fail");
 
     assert_eq!(error.code, ErrorCode::InvalidInput);
     assert!(error.message.contains("BigWig import preflight failed"));
@@ -12978,6 +13024,7 @@ fn poll_track_autosync_marks_stale_result_and_allows_new_key_retry() {
 #[test]
 fn format_extract_region_status_includes_annotation_fallback_reason() {
     let status = GENtleApp::format_extract_region_status(&OpResult {
+        experimental_assay_handoff: None,
         op_id: "op_extract".to_string(),
         created_seq_ids: vec!["grch38_tp73".to_string()],
         changed_seq_ids: vec![],
@@ -13009,10 +13056,12 @@ fn format_extract_region_status_includes_annotation_fallback_reason() {
         exon_skip_materialization: None,
         cdna_assay_test_report: None,
         cdna_assay_product_materialization: None,
+        primerbank_search_report: None,
         transcript_qpcr_panel: None,
         transcript_assay_panel: None,
         primer_specificity_handoff: None,
         primer_specificity_report: None,
+        external_primer_pair_import_report: None,
         construct_reasoning_graph: None,
         sequencing_confirmation_report: None,
         sequencing_primer_overlay_report: None,
@@ -13074,6 +13123,8 @@ fn format_extract_region_status_includes_annotation_fallback_reason() {
         uniprot_projection_audit: None,
         uniprot_projection_audit_parity: None,
         lab_assistant_instructions: None,
+        feature_location_edit_report: None,
+        feature_record_curation_report: None,
     });
     assert!(status.contains("annotation: requested=full effective=core"));
     assert!(status.contains("annotation kinds: genes=12 transcripts=26 exons=420 cds=22"));
@@ -13482,6 +13533,21 @@ fn lineage_analysis_open_payload_infers_missing_metadata_from_node_id() {
             LineageAnalysisKind::PrimerDesign,
             "seq_primer".to_string(),
             "tp73_primer".to_string(),
+        ))
+    );
+
+    let mut specificity_row =
+        make_lineage_row("analysis:primer_specificity:tp73_specificity", "seq_primer");
+    specificity_row.kind = LineageNodeKind::Analysis;
+    specificity_row.display_name.clear();
+    specificity_row.analysis_kind = None;
+    specificity_row.analysis_artifact_id = None;
+    assert_eq!(
+        GENtleApp::lineage_analysis_open_payload(&specificity_row),
+        Some((
+            LineageAnalysisKind::PrimerSpecificity,
+            "seq_primer".to_string(),
+            "tp73_specificity".to_string(),
         ))
     );
 
@@ -14095,6 +14161,56 @@ fn refresh_lineage_cache_includes_primer_and_qpcr_design_analysis_nodes() {
             .expect("design qpcr assays");
         (primer_result.op_id, qpcr_result.op_id)
     };
+    let specificity_op_id = "op-primer-specificity-test".to_string();
+    {
+        let mut engine = app.engine.write().unwrap();
+        let report = PrimerSpecificityReport {
+            schema: "gentle.primer_specificity_report.v2".to_string(),
+            report_id: "tp73_primer_specificity".to_string(),
+            generated_at_unix_ms: 42,
+            op_id: Some(specificity_op_id.clone()),
+            run_id: Some("run-primer-specificity-test".to_string()),
+            primary_seq_id: Some("tpl".to_string()),
+            primer_report_id: Some("tp73_primer".to_string()),
+            pair_rank: Some(1),
+            target_kind: "genomic_dna".to_string(),
+            target_genome_id: "GRCh38".to_string(),
+            summary: PrimerSpecificitySummary {
+                specificity_pass: true,
+                status: "pass".to_string(),
+                amplicon_count: 1,
+                summary: "Synthetic persisted specificity result".to_string(),
+                ..PrimerSpecificitySummary::default()
+            },
+            design_provenance: PrimerDesignProvenanceCitation {
+                status: PrimerPairCharacterizationStatus::Pass,
+                primer_report_id: Some("tp73_primer".to_string()),
+                pair_rank: Some(1),
+                pair_index: Some(0),
+                primary_seq_id: Some("tpl".to_string()),
+                summary: "Cited synthetic primer-design report".to_string(),
+                ..PrimerDesignProvenanceCitation::default()
+            },
+            ..PrimerSpecificityReport::default()
+        };
+        let metadata = engine
+            .state_mut()
+            .metadata
+            .get_mut(PRIMER_DESIGN_REPORTS_METADATA_KEY)
+            .expect("primer design metadata");
+        let store = metadata
+            .as_object_mut()
+            .expect("primer design store object");
+        let reports = store
+            .entry("primer_specificity_reports")
+            .or_insert_with(|| serde_json::json!({}))
+            .as_object_mut()
+            .expect("specificity report store object");
+        reports.insert(
+            report.report_id.clone(),
+            serde_json::to_value(report).expect("serialize specificity report"),
+        );
+    }
 
     app.refresh_lineage_cache_if_needed();
 
@@ -14131,6 +14247,30 @@ fn refresh_lineage_cache_includes_primer_and_qpcr_design_analysis_nodes() {
     assert!(qpcr_row.analysis_target_count.is_some());
     assert_eq!(qpcr_row.created_by_op, qpcr_op_id);
 
+    let specificity_row = app
+        .lineage_rows
+        .iter()
+        .find(|row| row.node_id == "analysis:primer_specificity:tp73_primer_specificity")
+        .expect("primer-specificity lineage row");
+    assert_eq!(
+        specificity_row.analysis_kind,
+        Some(LineageAnalysisKind::PrimerSpecificity)
+    );
+    assert_eq!(
+        specificity_row.analysis_artifact_id.as_deref(),
+        Some("tp73_primer_specificity")
+    );
+    assert_eq!(
+        specificity_row.analysis_mode.as_deref(),
+        Some("genomic_dna")
+    );
+    assert_eq!(specificity_row.analysis_status.as_deref(), Some("pass"));
+    assert_eq!(
+        specificity_row.analysis_reference_seq_id.as_deref(),
+        Some("GRCh38")
+    );
+    assert_eq!(specificity_row.created_by_op, specificity_op_id);
+
     assert!(
         app.lineage_edges
             .iter()
@@ -14144,6 +14284,13 @@ fn refresh_lineage_cache_includes_primer_and_qpcr_design_analysis_nodes() {
             .any(|(from, to, op_id)| from == "n_tpl"
                 && to == "analysis:qpcr:tp73_qpcr"
                 && op_id == &qpcr_op_id)
+    );
+    assert!(
+        app.lineage_edges
+            .iter()
+            .any(|(from, to, op_id)| from == "n_tpl"
+                && to == "analysis:primer_specificity:tp73_primer_specificity"
+                && op_id == &specificity_op_id)
     );
     assert_eq!(
         app.lineage_reopenable_pcr_op_seq_ids.get(&primer_op_id),

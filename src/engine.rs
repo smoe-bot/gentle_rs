@@ -25,7 +25,11 @@
 use crate::{
     DNA_LADDERS, RNA_LADDERS,
     amino_acids::{STOP_CODON, UNKNOWN_CODON},
-    digest_utils::{sha256_prefixed_bytes, sha256_prefixed_str, short_sha256_id},
+    digest_utils::{
+        canonical_oligo_sequence, oligo_full_id, oligo_sequence_sha256, oligo_tube_id,
+        primer_pair_full_id, sha256_hex_str, sha256_prefixed_bytes, sha256_prefixed_str,
+        short_sha256_id,
+    },
     dna_sequence::DNAsequence,
     ensembl_protein::EnsemblProteinEntry,
     enzymes::{
@@ -34,9 +38,8 @@ use crate::{
     feature_location::{collect_location_ranges_usize, feature_is_reverse},
     genomes::{
         BlastDatabaseIndexKind, BlastDatabaseInspectionReport, BlastExternalBinaryPreflightReport,
-        DEFAULT_HELPER_CATALOG_DISCOVERY_TOKEN,
-        DEFAULT_REFERENCE_CATALOG_DISCOVERY_TOKEN, EnsemblCatalogUpdatePreview,
-        EnsemblCatalogUpdateReport, EnsemblInstallableGenomeCatalog,
+        DEFAULT_HELPER_CATALOG_DISCOVERY_TOKEN, DEFAULT_REFERENCE_CATALOG_DISCOVERY_TOKEN,
+        EnsemblCatalogUpdatePreview, EnsemblCatalogUpdateReport, EnsemblInstallableGenomeCatalog,
         EnsemblQuickInstallCatalogWriteReport, EnsemblQuickInstallPreview,
         EnsemblQuickInstallReport, GenomeBlastReport, GenomeCatalog,
         GenomeCatalogEntryRemovalReport, GenomeCatalogListEntry, GenomeGeneRecord,
@@ -56,6 +59,7 @@ use crate::{
     lineage_export::export_lineage_svg,
     methylation_sites::MethylationMode,
     pool_gel::{GelSampleInput, export_pool_gel_svg, export_pool_gel_svg_with_options},
+    primerbank::PrimerBankSearchRequest,
     protease::{Protease, normalize_protease_name_token},
     protocol_cartoon::ProtocolCartoonTemplateBindings,
     render_export::{export_circular_svg, export_linear_svg},
@@ -109,12 +113,11 @@ pub use gentle_protocol::{
     GelLaneLabelLayout, GelRunConditions, GelTopologyForm, HostLifecycleRole, LineageEdge,
     LineageGraph, LineageMacroInstance, LineageMacroPortBinding, LineageNode, MacroInstanceStatus,
     NodeId, OpId, OrthologAmbiguityPolicy, OrthologPromoterCohortReport,
-    OrthologPromoterComparisonReport, ProteinExternalOpinionSource, ProteinFeatureFilter, Rack,
-    RackAuthoringTemplate, RackCarrierLabelPreset, RackFillDirection, RackLabelSheetPreset,
-    RackOccupant, RackPhysicalTemplateFamily, RackPhysicalTemplateKind, RackPhysicalTemplateSpec,
-    PoolGelRenderOptions, RackPlacementEntry, RackProfileKind, RackProfileSnapshot,
-    ReadAcquisitionAnalysisFormat,
-    ReadAcquisitionReadLayout, RunId, SeqId, SequenceOrigin,
+    OrthologPromoterComparisonReport, PoolGelRenderOptions, ProteinExternalOpinionSource,
+    ProteinFeatureFilter, Rack, RackAuthoringTemplate, RackCarrierLabelPreset, RackFillDirection,
+    RackLabelSheetPreset, RackOccupant, RackPhysicalTemplateFamily, RackPhysicalTemplateKind,
+    RackPhysicalTemplateSpec, RackPlacementEntry, RackProfileKind, RackProfileSnapshot,
+    ReadAcquisitionAnalysisFormat, ReadAcquisitionReadLayout, RunId, SeqId, SequenceOrigin,
 };
 
 #[derive(Clone, Debug, Default)]
@@ -591,8 +594,7 @@ pub use crate::feature_expert::{
     GeneLocusOccupancyGroupRequest, GeneLocusOccupancyLane, GeneLocusOccupancyLaneRequest,
     GeneLocusOccupancyLaneRole, GeneLocusOccupancyLayout, GeneLocusOccupancyScaleMode,
     GeneLocusProbeClass, GeneLocusProbeEffectContrast, GeneLocusProbeEffectOverlay,
-    GeneLocusProbeEffectValue, GeneLocusTranscriptMetrics,
-    ISOFORM_ARCHITECTURE_EXPERT_INSTRUCTION,
+    GeneLocusProbeEffectValue, GeneLocusTranscriptMetrics, ISOFORM_ARCHITECTURE_EXPERT_INSTRUCTION,
     IsoformArchitectureCdsAaSegment, IsoformArchitectureExpertView,
     IsoformArchitectureProteinDomain, IsoformArchitectureProteinLane,
     IsoformArchitectureTranscriptLane, IsoformEvidenceAssessmentStatus, IsoformEvidenceSourceKind,
@@ -621,11 +623,16 @@ const PRIMER_DESIGN_REPORT_SCHEMA: &str = "gentle.primer_design_report.v1";
 const QPCR_DESIGN_REPORT_SCHEMA: &str = "gentle.qpcr_design_report.v1";
 const OLIGO_ORDER_FORM_SCHEMA: &str = "gentle.oligo_order_form.v1";
 const CDNA_ASSAY_TEST_REPORT_SCHEMA: &str = "gentle.cdna_assay_test_report.v1";
+const EXPERIMENTAL_ASSAY_HANDOFF_SCHEMA: &str = "gentle.experimental_assay_handoff.v1";
+const EXPERIMENTAL_ASSAY_CARD_SCHEMA: &str = "gentle.experimental_assay_card.v1";
+const EXPERIMENTAL_ASSAY_READINESS_POLICY_SCHEMA: &str =
+    "gentle.experimental_assay_readiness_policy.v1";
+const PRIMER_VARIANT_EVIDENCE_SCHEMA: &str = "gentle.primer_variant_evidence.v1";
 const CDNA_ASSAY_TRANSCRIPT_MAP_SCHEMA: &str = "gentle.cdna_assay_transcript_map.v1";
 const CDNA_ASSAY_PRODUCT_MATERIALIZATION_SCHEMA: &str =
     "gentle.cdna_assay_product_materialization.v1";
 const OLIGO_QC_REPORT_SCHEMA: &str = "gentle.oligo_qc_report.v1";
-const PRIMER_SPECIFICITY_REPORT_SCHEMA: &str = "gentle.primer_specificity_report.v1";
+const PRIMER_SPECIFICITY_REPORT_SCHEMA: &str = "gentle.primer_specificity_report.v2";
 const PRIMER_SPECIFICITY_HANDOFF_SCHEMA: &str = "gentle.primer_specificity_handoff.v1";
 const PRIMER_SPECIFICITY_POLICY_SCHEMA: &str = "gentle.primer_specificity_policy.v1";
 const TRANSCRIPT_ASSAY_PANEL_SPECIFICITY_HANDOFF_SCHEMA: &str =
@@ -987,6 +994,8 @@ mod microarray_tracks;
 mod motif_statistics;
 #[path = "engine/ops/operation_handlers.rs"]
 mod operation_handlers;
+#[path = "engine/ops/external_primer_pairs.rs"]
+mod external_primer_pairs;
 #[path = "engine/analysis/orthologs.rs"]
 mod orthologs;
 #[path = "engine/io/probe_region_evidence_svg.rs"]
@@ -2530,7 +2539,9 @@ struct PrimerDesignStore {
     updated_at_unix_ms: u128,
     reports: HashMap<String, PrimerDesignReport>,
     qpcr_reports: HashMap<String, QpcrDesignReport>,
+    primer_specificity_reports: HashMap<String, PrimerSpecificityReport>,
     transcript_assay_panels: HashMap<String, TranscriptAssayPanelReport>,
+    external_primer_pair_imports: HashMap<String, ExternalPrimerPairImportReport>,
     restriction_cloning_handoffs: HashMap<String, RestrictionCloningPcrHandoffReport>,
     oligo_order_forms: HashMap<String, OligoOrderForm>,
 }
@@ -4068,6 +4079,13 @@ pub enum Operation {
         transcript_targeting: Option<QpcrTranscriptTargeting>,
         report_id: Option<String>,
     },
+    SearchPrimerBank {
+        request: PrimerBankSearchRequest,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        source_html_path: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        path: Option<String>,
+    },
     TestCdnaPcr {
         seq_id: SeqId,
         source_feature_id: usize,
@@ -4099,6 +4117,11 @@ pub enum Operation {
         product_gel_svg_path: Option<String>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         product_gel_ladders: Option<Vec<String>>,
+    },
+    ImportExternalPrimerPairs {
+        request: ExternalPrimerPairImportRequest,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        path: Option<String>,
     },
     TestCdnaQpcr {
         seq_id: SeqId,
@@ -4155,7 +4178,10 @@ pub enum Operation {
         #[serde(default)]
         coverage_policy: TranscriptAssayCoveragePolicy,
         /// Experimental purpose, independent of the panel-selection objective.
-        #[serde(default, skip_serializing_if = "TranscriptAssayUseTier::is_unspecified")]
+        #[serde(
+            default,
+            skip_serializing_if = "TranscriptAssayUseTier::is_unspecified"
+        )]
         assay_tier: TranscriptAssayUseTier,
         /// Optional preferred/allowed product-length policy. Existing
         /// `min_amplicon_bp`/`max_amplicon_bp` remain the legacy allowed range.
@@ -4209,6 +4235,22 @@ pub enum Operation {
         report_id: Option<String>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         path: Option<String>,
+    },
+    /// Project one persisted transcript assay panel into deterministic
+    /// per-pair bench cards and an order/readiness table. This operation runs
+    /// the shared cDNA assay test for every selected pair.
+    BuildExperimentalAssayHandoff {
+        panel_report_id: String,
+        #[serde(default)]
+        policy: ExperimentalAssayReadinessPolicy,
+        #[serde(default)]
+        variant_evidence_paths: Vec<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        order_form_id: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        path: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        order_table_path: Option<String>,
     },
     TestCdnaQpcrFasta {
         #[serde(default)]
@@ -5443,6 +5485,18 @@ pub enum Operation {
     },
     RecomputeFeatures {
         seq_id: SeqId,
+    },
+    PreviewFeatureLocationEdit {
+        request: FeatureLocationEditRequest,
+    },
+    EditFeatureLocation {
+        request: FeatureLocationEditRequest,
+    },
+    PreviewFeatureRecordCuration {
+        request: FeatureRecordCurationRequest,
+    },
+    ApplyFeatureRecordCuration {
+        request: FeatureRecordCurationRequest,
     },
     SetParameter {
         name: String,
@@ -8950,6 +9004,8 @@ impl GentleEngine {
         if matches!(
             op,
             Operation::SaveFile { .. }
+                | Operation::PreviewFeatureLocationEdit { .. }
+                | Operation::PreviewFeatureRecordCuration { .. }
                 | Operation::RenderSequenceSvg { .. }
                 | Operation::RenderDotplotSvg { .. }
                 | Operation::RenderTfbsScoreTracksSvg { .. }
@@ -8964,9 +9020,7 @@ impl GentleEngine {
                 | Operation::RenderProteaseDigestGelSvg { .. }
                 | Operation::RenderProtein2dGelSvg { .. }
                 | Operation::ExportPrimerDesignReport { .. }
-                | Operation::AssessPrimerPairSpecificity { .. }
                 | Operation::PreparePrimerPairSpecificityHandoff { .. }
-                | Operation::ImportPrimerPairSpecificityHandoff { .. }
                 | Operation::RenderProtocolCartoonSvg { .. }
                 | Operation::RenderProtocolCartoonTemplateSvg { .. }
                 | Operation::ValidateProtocolCartoonTemplate { .. }
@@ -9054,6 +9108,7 @@ impl GentleEngine {
                 | Operation::ExportSequencingConfirmationSupportTsv { .. }
                 | Operation::SuggestSequencingPrimers { .. }
                 | Operation::AlignSequences { .. }
+                | Operation::SearchPrimerBank { .. }
                 | Operation::TestCdnaPcr { .. }
                 | Operation::TestCdnaQpcr { .. }
                 | Operation::BuildTranscriptQpcrPanel { .. }
@@ -9105,16 +9160,12 @@ impl GentleEngine {
 
     #[cfg(test)]
     fn top_undo_checkpoint_kind(&self) -> Option<EngineHistoryCheckpointKind> {
-        self.undo_stack
-            .last()
-            .map(EngineHistoryCheckpoint::kind)
+        self.undo_stack.last().map(EngineHistoryCheckpoint::kind)
     }
 
     #[cfg(test)]
     fn top_redo_checkpoint_kind(&self) -> Option<EngineHistoryCheckpointKind> {
-        self.redo_stack
-            .last()
-            .map(EngineHistoryCheckpoint::kind)
+        self.redo_stack.last().map(EngineHistoryCheckpoint::kind)
     }
 
     pub fn undo_last_operation(&mut self) -> Result<(), EngineError> {
@@ -11489,7 +11540,9 @@ impl GentleEngine {
     ) -> Result<(), EngineError> {
         if store.reports.is_empty()
             && store.qpcr_reports.is_empty()
+            && store.primer_specificity_reports.is_empty()
             && store.transcript_assay_panels.is_empty()
+            && store.external_primer_pair_imports.is_empty()
             && store.restriction_cloning_handoffs.is_empty()
             && store.oligo_order_forms.is_empty()
         {
@@ -12111,6 +12164,89 @@ impl GentleEngine {
         Ok(report)
     }
 
+    fn upsert_primer_specificity_report(
+        &mut self,
+        report: PrimerSpecificityReport,
+    ) -> Result<bool, EngineError> {
+        let mut store = self.read_primer_design_store();
+        let replaced = store
+            .primer_specificity_reports
+            .insert(report.report_id.clone(), report)
+            .is_some();
+        self.write_primer_design_store(store)?;
+        Ok(replaced)
+    }
+
+    pub fn list_primer_specificity_reports(&self) -> Vec<PrimerSpecificityReportSummary> {
+        let store = self.read_primer_design_store();
+        let mut ids = store
+            .primer_specificity_reports
+            .keys()
+            .cloned()
+            .collect::<Vec<_>>();
+        ids.sort();
+        ids.into_iter()
+            .filter_map(|id| store.primer_specificity_reports.get(&id))
+            .map(|report| PrimerSpecificityReportSummary {
+                report_id: report.report_id.clone(),
+                generated_at_unix_ms: report.generated_at_unix_ms,
+                op_id: report.op_id.clone(),
+                run_id: report.run_id.clone(),
+                primary_seq_id: report.primary_seq_id.clone(),
+                primer_report_id: report.primer_report_id.clone(),
+                pair_rank: report.pair_rank,
+                target_kind: report.target_kind.clone(),
+                target_genome_id: report.target_genome_id.clone(),
+                status: report.summary.status.clone(),
+                specificity_pass: report.summary.specificity_pass,
+                amplicon_count: report.summary.amplicon_count,
+                failing_unintended_amplicon_count: report.summary.failing_unintended_amplicon_count,
+                design_provenance_status: report.design_provenance.status,
+            })
+            .collect()
+    }
+
+    pub fn get_primer_specificity_report(
+        &self,
+        report_id: &str,
+    ) -> Result<PrimerSpecificityReport, EngineError> {
+        let report_id = Self::normalize_primer_design_report_id(report_id)?;
+        self.read_primer_design_store()
+            .primer_specificity_reports
+            .get(&report_id)
+            .cloned()
+            .ok_or_else(|| EngineError {
+                code: ErrorCode::NotFound,
+                message: format!("Primer-specificity report '{}' not found", report_id),
+                cause_chain: vec![],
+            })
+    }
+
+    pub fn export_primer_specificity_report(
+        &self,
+        report_id: &str,
+        path: &str,
+    ) -> Result<PrimerSpecificityReport, EngineError> {
+        let report = self.get_primer_specificity_report(report_id)?;
+        let text = serde_json::to_string_pretty(&report).map_err(|error| EngineError {
+            code: ErrorCode::Internal,
+            message: format!(
+                "Could not serialize primer-specificity report '{}': {}",
+                report.report_id, error
+            ),
+            cause_chain: vec![],
+        })?;
+        std::fs::write(path, text).map_err(|error| EngineError {
+            code: ErrorCode::Io,
+            message: format!(
+                "Could not write primer-specificity report '{}' to '{}': {}",
+                report.report_id, path, error
+            ),
+            cause_chain: vec![],
+        })?;
+        Ok(report)
+    }
+
     pub fn list_qpcr_design_reports(&self) -> Vec<QpcrDesignReportSummary> {
         let store = self.read_primer_design_store();
         let mut ids = store.qpcr_reports.keys().cloned().collect::<Vec<_>>();
@@ -12172,9 +12308,7 @@ impl GentleEngine {
         Ok(report)
     }
 
-    pub fn list_transcript_assay_panel_reports(
-        &self,
-    ) -> Vec<TranscriptAssayPanelReportSummary> {
+    pub fn list_transcript_assay_panel_reports(&self) -> Vec<TranscriptAssayPanelReportSummary> {
         let store = self.read_primer_design_store();
         let mut ids = store
             .transcript_assay_panels
@@ -12264,13 +12398,7 @@ impl GentleEngine {
     }
 
     fn normalize_oligo_sequence(raw: &str) -> String {
-        raw.chars()
-            .filter(|ch| !ch.is_whitespace())
-            .map(|ch| {
-                let up = ch.to_ascii_uppercase();
-                if up == 'U' { 'T' } else { up }
-            })
-            .collect()
+        canonical_oligo_sequence(raw)
     }
 
     fn normalize_oligo_modifications(values: &[String]) -> Vec<String> {
@@ -18845,28 +18973,29 @@ impl GentleEngine {
                     .map(Self::normalize_id_token)
                     .unwrap_or_default(),
             );
-            let row = by_family.entry(key).or_insert_with(|| {
-                ConstructReasoningRepeatFamilyProvenance {
-                    source_kind: support.source_kind.clone(),
-                    repeat_name: support.repeat_name.clone(),
-                    repeat_class: support.repeat_class.clone(),
-                    repeat_family: support.repeat_family.clone(),
-                    family_id: support
-                        .repeat_family
-                        .as_ref()
-                        .or(support.repeat_name.as_ref())
-                        .map(|value| Self::normalize_id_token(value)),
-                    family_name: support
-                        .repeat_family
-                        .clone()
-                        .or_else(|| support.repeat_name.clone())
-                        .or_else(|| support.repeat_class.clone()),
-                    agreement,
-                    source_refs: vec![],
-                    evidence_ids: vec![],
-                    confidence: Some(confidence),
-                }
-            });
+            let row =
+                by_family
+                    .entry(key)
+                    .or_insert_with(|| ConstructReasoningRepeatFamilyProvenance {
+                        source_kind: support.source_kind.clone(),
+                        repeat_name: support.repeat_name.clone(),
+                        repeat_class: support.repeat_class.clone(),
+                        repeat_family: support.repeat_family.clone(),
+                        family_id: support
+                            .repeat_family
+                            .as_ref()
+                            .or(support.repeat_name.as_ref())
+                            .map(|value| Self::normalize_id_token(value)),
+                        family_name: support
+                            .repeat_family
+                            .clone()
+                            .or_else(|| support.repeat_name.clone())
+                            .or_else(|| support.repeat_class.clone()),
+                        agreement,
+                        source_refs: vec![],
+                        evidence_ids: vec![],
+                        confidence: Some(confidence),
+                    });
             if agreement > row.agreement {
                 row.agreement = agreement;
                 row.confidence = Some(confidence);
@@ -19431,8 +19560,7 @@ impl GentleEngine {
     ) -> Result<ConstructReasoningInputFingerprint, EngineError> {
         // Serializing through `Value` gives object maps deterministic key order;
         // direct HashMap serialization would make fingerprints process-dependent.
-        let sequence_snapshot =
-            Self::construct_reasoning_canonical_json(dna, "sequence snapshot")?;
+        let sequence_snapshot = Self::construct_reasoning_canonical_json(dna, "sequence snapshot")?;
         let objective_snapshot = Self::construct_reasoning_canonical_json(objective, "objective")?;
         Ok(ConstructReasoningInputFingerprint {
             sequence_snapshot_sha256: sha256_prefixed_str(&sequence_snapshot),

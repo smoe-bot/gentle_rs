@@ -17,6 +17,54 @@
       },
       {
          "aliases": [],
+         "engine_operations": [
+            "PreviewFeatureLocationEdit",
+            "EditFeatureLocation"
+         ],
+         "interfaces": [
+            "cli-shell",
+            "gui-shell",
+            "gui-menu",
+            "cli-direct"
+         ],
+         "path": "features edit-location",
+         "summary": "Preview or apply one exact simple boundary edit or one segment edit in a supported flat Join/Order compound.",
+         "usage": "features edit-location SEQ_ID FEATURE_INDEX [--segment-index INDEX] --start-1based N --end-1based-inclusive M [--dry-run] [--expected-feature-fingerprint-sha256 SHA] [--path OUT.json]"
+      },
+      {
+         "aliases": [],
+         "engine_operations": [
+            "PreviewFeatureRecordCuration",
+            "ApplyFeatureRecordCuration"
+         ],
+         "interfaces": [
+            "cli-shell",
+            "gui-shell",
+            "gui-menu",
+            "cli-direct"
+         ],
+         "path": "features create",
+         "summary": "Preview or append one exact simple feature record with ordered GenBank qualifiers.",
+         "usage": "features create SEQ_ID --kind KIND --start-1based N --end-1based-inclusive M [--strand forward|reverse] [--qualifier KEY[=VALUE] ...] [--dry-run] [--expected-annotation-state-fingerprint-sha256 SHA] [--path OUT.json]"
+      },
+      {
+         "aliases": [],
+         "engine_operations": [
+            "PreviewFeatureRecordCuration",
+            "ApplyFeatureRecordCuration"
+         ],
+         "interfaces": [
+            "cli-shell",
+            "gui-shell",
+            "gui-menu",
+            "cli-direct"
+         ],
+         "path": "features delete",
+         "summary": "Preview or delete one complete feature record of any existing location shape.",
+         "usage": "features delete SEQ_ID FEATURE_INDEX [--dry-run] [--expected-feature-fingerprint-sha256 SHA] [--expected-annotation-state-fingerprint-sha256 SHA] [--path OUT.json]"
+      },
+      {
+         "aliases": [],
          "engine_operations": [],
          "interfaces": [
             "cli-shell",
@@ -3399,6 +3447,77 @@
          "path": "primers design-transcript-assay-panel",
          "summary": "Design and persist an exact-cDNA-equivalence-aware endpoint RT-PCR, SYBR qPCR, or TaqMan qPCR transcript assay panel with explicit coverage and junction targets.",
          "usage": "primers design-transcript-assay-panel SEQ_ID FEATURE_ID [--assay-kind endpoint-rt-pcr|sybr-qpcr|taqman-qpcr] [--cdna-synthesis oligo-dt|random-hexamers|gene-specific|mixed] [--objective pan-transcript|one-per-class|minimal-discrimination-panel|isoform-end-matrix] [--coverage-policy require-all|best-effort] [--assay-tier routine-common-region-screen|isoform-discrimination|long-range-structure-discovery] [--preferred-min-amplicon-bp N --preferred-max-amplicon-bp N] [--junctions JSON_OR_@FILE] [--junction-evidence PATH ...] [--junction-evidence-priority required|preferred] [--min-3prime-junction-overlap-bp N] [--min-5prime-junction-overlap-bp N] [--annotation-release TEXT] [--min-amplicon-bp N] [--max-amplicon-bp N] [--max-assays-per-class N] [--max-mismatches N] [--require-3prime-exact-bases N] [--oligo-dt-5prime-risk-threshold-bp N] [--report-id ID] [--path OUTPUT.json] [--backend auto|internal|primer3] [--primer3-exec PATH] | primers design-transcript-assay-panel OPERATION_JSON_OR_@FILE [--backend auto|internal|primer3] [--primer3-exec PATH]"
+      },
+      {
+         "aliases": [],
+         "engine_operations": [
+            "BuildExperimentalAssayHandoff"
+         ],
+         "interfaces": [
+            "cli-shell",
+            "gui-shell",
+            "gui-menu",
+            "cli-direct"
+         ],
+         "path": "primers experimental-handoff",
+         "summary": "Project a persisted transcript assay panel into deterministic per-pair assay cards and an order/readiness table, running the shared cDNA assay test for every selected pair.",
+         "usage": "primers experimental-handoff PANEL_REPORT_ID [--policy JSON_OR_@FILE] [--variant-evidence PATH ...] [--order-form-id ID] [--path OUTPUT.json] [--order-table OUTPUT.tsv]"
+      },
+      {
+         "aliases": [],
+         "engine_operations": [
+            "SearchPrimerBank"
+         ],
+         "interfaces": [
+            "cli-shell",
+            "gui-shell",
+            "cli-direct"
+         ],
+         "path": "primers primerbank search",
+         "summary": "Search individual PrimerBank primer-pair records by gene, accession, NCBI id, PrimerBank id, or keyword and return a typed provenance report.",
+         "usage": "primers primerbank search QUERY [--by gene-symbol|gene-id|genbank|protein|primerbank-id|keyword] [--species human|mouse|all] [--html SAVED.html] [--path OUTPUT.json]"
+      },
+      {
+         "aliases": [],
+         "engine_operations": [
+            "SearchPrimerBank"
+         ],
+         "interfaces": [
+            "cli-shell",
+            "gui-shell",
+            "cli-direct"
+         ],
+         "path": "primers primerbank show",
+         "summary": "Retrieve one PrimerBank primer-pair record by its PrimerBank id through the typed search adapter.",
+         "usage": "primers primerbank show PRIMERBANK_ID [--species human|mouse|all] [--html SAVED.html] [--path OUTPUT.json]"
+      },
+      {
+         "aliases": [],
+         "engine_operations": [
+            "TestCdnaPcr"
+         ],
+         "interfaces": [
+            "cli-shell",
+            "gui-shell",
+            "cli-direct"
+         ],
+         "path": "primers primerbank test-cdna",
+         "summary": "Retrieve one PrimerBank pair, cross-check its species against the request and annotated target sequence, and test it against GENtle transcript-derived cDNA models without treating catalog presence as validation.",
+         "usage": "primers primerbank test-cdna SEQ_ID FEATURE_ID PRIMERBANK_ID --species human|mouse [--html SAVED.html] [--transcript-id ID] [--min-amplicon-bp N] [--max-amplicon-bp N] [--max-mismatches N] [--require-3prime-exact-bases N] [--transcript-order transcript_id|genomic_first_exon|genomic_last_exon|antisense_first_exon] [--map-coordinate-mode cdna|genomic_aligned] [--path OUTPUT.json] [--svg OUTPUT.svg]"
+      },
+      {
+         "aliases": [],
+         "engine_operations": [
+            "ImportExternalPrimerPairs"
+         ],
+         "interfaces": [
+            "cli-shell",
+            "gui-shell",
+            "cli-direct"
+         ],
+         "path": "primers import-external-pairs",
+         "summary": "Import provenance-bearing external primer pairs from JSON or TSV, assign sequence-derived identities, and evaluate them through GENtle's shared cDNA, oligo-QC, genomic-carryover, optional specificity, transcript-map, and product-gel paths.",
+         "usage": "primers import-external-pairs INPUT.json|tsv SEQ_ID FEATURE_ID [--format auto|json|tsv] [--report-id ID] [--transcript-id ID] [--transcript-order transcript_id|genomic_first_exon|genomic_last_exon|antisense_first_exon] [--map-coordinate-mode cdna|genomic_aligned] [--min-amplicon-bp N] [--max-amplicon-bp N] [--max-mismatches N] [--require-3prime-exact-bases N] [--specificity-target-genome GENOME_ID] [--specificity-catalog PATH] [--specificity-cache-dir DIR] [--artifact-output-dir DIR] [--materialize-products] [--product-gel-ladder NAME]... [--path OUTPUT.json]"
       },
       {
          "aliases": [],

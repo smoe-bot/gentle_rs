@@ -14052,8 +14052,11 @@ impl GentleEngine {
             exon_skip_materialization: None,
             cdna_assay_test_report: None,
             cdna_assay_product_materialization: None,
+            primerbank_search_report: None,
+            external_primer_pair_import_report: None,
             transcript_qpcr_panel: None,
             transcript_assay_panel: None,
+            experimental_assay_handoff: None,
             primer_specificity_handoff: None,
             primer_specificity_report: None,
             construct_reasoning_graph: None,
@@ -14117,6 +14120,8 @@ impl GentleEngine {
             uniprot_projection_audit: None,
             uniprot_projection_audit_parity: None,
             lab_assistant_instructions: None,
+            feature_location_edit_report: None,
+            feature_record_curation_report: None,
         };
         report.op_id = Some(result.op_id.clone());
         report.run_id = Some(run_id.clone());
@@ -14164,8 +14169,11 @@ impl GentleEngine {
             exon_skip_materialization: None,
             cdna_assay_test_report: None,
             cdna_assay_product_materialization: None,
+            primerbank_search_report: None,
+            external_primer_pair_import_report: None,
             transcript_qpcr_panel: None,
             transcript_assay_panel: None,
+            experimental_assay_handoff: None,
             primer_specificity_handoff: None,
             primer_specificity_report: None,
             construct_reasoning_graph: None,
@@ -14229,6 +14237,8 @@ impl GentleEngine {
             uniprot_projection_audit: None,
             uniprot_projection_audit_parity: None,
             lab_assistant_instructions: None,
+            feature_location_edit_report: None,
+            feature_record_curation_report: None,
         };
         report.op_id = Some(result.op_id.clone());
         report.run_id = Some(run_id.clone());

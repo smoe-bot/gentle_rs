@@ -41,14 +41,35 @@ this as a confidence map for the current GUI surface.
   still not a full chromatogram editor.
 - Primer3-backed workflows are available, but the internal backend is still
   the more predictable default while parity hardening continues.
+- PrimerBank records are reachable from the GUI Shell through
+  `primers primerbank search|show|test-cdna`. The same shared route can parse a
+  saved PrimerBank result, export `gentle.primerbank_search.v1`, and test one
+  selected pair against project transcript models. A dedicated catalog browser
+  is not required for parity; GENtle does not mirror the external database or
+  turn catalog presence into a validation claim. Search results expose the
+  requested/observed species cross-check, and cDNA testing requires a confirmed
+  human or mouse PrimerBank match. The same report separately checks any
+  `organism` annotation on the selected project sequence and refuses a known
+  mismatch; missing target-species metadata stays visibly unresolved.
 - Manual GUI walkthroughs in Help/Tutorial are useful for orientation, but the
   generated executable tutorials remain the stronger reproducibility baseline.
+- The command palette and feature/map context menus open **Feature Editor**.
+  Its Location tab edits exact simple annotations and exact segments in flat
+  `Join`/`Order` compounds. Its Create tab appends one exact forward/reverse
+  feature with ordered, duplicate-capable, optionally valueless qualifiers;
+  its Delete tab previews and removes a complete feature of any existing
+  location shape. Every mode requires Preview before Apply, refuses stale
+  previews, and uses shared engine operations. Create/Delete previews list
+  overlap and recognized shared identifiers as review evidence without
+  changing related annotations. Nested/fuzzy boundary editing and compound
+  topology changes remain out of scope.
 
 ### Exploratory / not yet first choice
 
 - Broader routine-family coverage outside the strongest current Gibson and
   restriction-centered paths.
-- Direct GUI feature editing / transcript-boundary curation workflows.
+- Propagated transcript-boundary curation, topology-changing compound edits,
+  and nested/fuzzy feature-location editing.
 - guideRNA workflows, deeper assay families, and richer virtual-PCR /
   off-target analysis paths.
 
@@ -3947,9 +3968,11 @@ Primer pairs form:
   - accepts a prepared reference genome id, max product length, and max BLAST
     hits per primer
   - `Confirm specificity` calls the shared
-    `AssessPrimerPairSpecificity` engine operation and reports pass/fail,
-    intended/unintended product counts, primer-hit counts, and warning count in
-    the status line
+    `AssessPrimerPairSpecificity` engine operation, persists its report, and
+    reports the stable report id, pass/fail state, intended/unintended product
+    counts, primer-hit counts, and warning count in the status line
+  - the confirmation block retains the latest persisted specificity-report id
+    and shows a compact target/status/product/design-provenance summary
   - only annealing segments are BLASTed; saved 5' tails remain provenance in
     the shared report contract
   - the search does not use BLAST `-max_target_seqs`; the configured maximum
@@ -4061,6 +4084,16 @@ qPCR form:
   - the saved-report rationale shows annotation-confirmed common-region status,
     separate PSR/JUC support, routine-versus-fallback classification, the
     concise selection explanation, and bounded rejected alternatives
+  - `Build experimental handoff` runs the shared
+    `BuildExperimentalAssayHandoff` operation with the documented default
+    readiness policy and displays one collapsible card per selected pair,
+    including oligos, gate outcomes, blockers, and predicted cDNA products.
+    Missing specificity remains a visible default blocker, while absent variant
+    evidence is shown without being silently treated as a pass
+  - `Copy advanced command` provides the equivalent
+    `primers experimental-handoff PANEL_REPORT_ID ...` shell route for custom
+    policy, variant evidence, order-form linkage, and JSON/TSV export; that same
+    operation remains available to CLI/MCP/JavaScript/Lua
 
 Buttons:
 
@@ -4142,14 +4175,19 @@ Restriction-site cloning handoff:
   and fall back to unique cutters by cut position when no explicit MCS order is
   available
 
-Persisted primer/qPCR reports now also appear in the project lineage graph/table
-as analysis artifacts linked from the template sequence.
+Persisted primer/qPCR design reports and primer-specificity reports now also
+appear in the project lineage graph/table as analysis artifacts linked from the
+template sequence.
 
 - lineage actions reopen the PCR Designer on the selected report instead of
   only opening the source sequence
 - clicking the underlying PCR-related operation glyph or `Op` cell reopens the
   same PCR Designer on the originating template sequence
 - lineage details expose the stored backend plus pair/assay counts
+- primer-specificity lineage details expose target database kind, result
+  status, candidate-product count, and failing off-target count; reopening
+  restores its compact evidence summary and cited primer-design report when
+  available
 - restriction-cloning handoffs also appear as lineage analysis artifacts linked
   from the template sequence and reopen the same PCR Designer with the saved
   handoff highlighted

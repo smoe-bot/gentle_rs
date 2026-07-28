@@ -118,6 +118,24 @@ const GUI_PROMINENT_GLOSSARY_ENTRIES: &[GuiProminentGlossaryEntry] = &[
         ui_intent_target: Some(UiIntentTarget::ImportGenomeTrack),
     },
     GuiProminentGlossaryEntry {
+        glossary_path: "features edit-location",
+        menu_path: "Edit > Feature Location Editor...",
+        palette_title: "Feature Location Editor",
+        ui_intent_target: Some(UiIntentTarget::FeatureLocationEditor),
+    },
+    GuiProminentGlossaryEntry {
+        glossary_path: "features create",
+        menu_path: "Edit > Feature Location Editor...",
+        palette_title: "Feature Location Editor",
+        ui_intent_target: Some(UiIntentTarget::FeatureLocationEditor),
+    },
+    GuiProminentGlossaryEntry {
+        glossary_path: "features delete",
+        menu_path: "Edit > Feature Location Editor...",
+        palette_title: "Feature Location Editor",
+        ui_intent_target: Some(UiIntentTarget::FeatureLocationEditor),
+    },
+    GuiProminentGlossaryEntry {
         glossary_path: "primers design",
         menu_path: "Patterns > PCR Designer...",
         palette_title: "PCR Designer",
@@ -131,6 +149,12 @@ const GUI_PROMINENT_GLOSSARY_ENTRIES: &[GuiProminentGlossaryEntry] = &[
     },
     GuiProminentGlossaryEntry {
         glossary_path: "primers design-transcript-assay-panel",
+        menu_path: "Patterns > PCR Designer...",
+        palette_title: "PCR Designer",
+        ui_intent_target: Some(UiIntentTarget::PcrDesign),
+    },
+    GuiProminentGlossaryEntry {
+        glossary_path: "primers experimental-handoff",
         menu_path: "Patterns > PCR Designer...",
         palette_title: "PCR Designer",
         ui_intent_target: Some(UiIntentTarget::PcrDesign),

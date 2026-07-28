@@ -16,13 +16,12 @@ use crate::engine::{
     CdnaAssayTranscriptMapCoordinateMode, CdnaAssayTranscriptOrder, CutRunAlignConfig,
     CutRunCoverageKind, CutRunInputFormat, CutRunReadLayout, CutRunSeedFilterConfig,
     PrimerSpecificityCheckMode, PrimerSpecificityPolicy, QpcrTranscriptSpecificityEvidence,
-    QpcrTranscriptTargeting, QpcrTranscriptTargetingMode,
-    ReadAcquisitionAnalysisFormat, ReadAcquisitionReadLayout, RepeatEnvironmentGeometryMode,
-    TfbsScoreTrackCorrelationMetric, TfbsScoreTrackCorrelationSignalSource,
-    TfbsScoreTrackValueKind, TfbsTrackSimilarityRankingMetric, TranscriptAssayCdnaSynthesis,
-    TranscriptAssayCoveragePolicy, TranscriptAssayJunctionPriority, TranscriptAssayKind,
-    TranscriptAssayPanelObjective, TranscriptAssayPracticalityPolicy,
-    TranscriptAssaySpecificityRequest, TranscriptAssayUseTier,
+    QpcrTranscriptTargeting, QpcrTranscriptTargetingMode, ReadAcquisitionAnalysisFormat,
+    ReadAcquisitionReadLayout, RepeatEnvironmentGeometryMode, TfbsScoreTrackCorrelationMetric,
+    TfbsScoreTrackCorrelationSignalSource, TfbsScoreTrackValueKind,
+    TfbsTrackSimilarityRankingMetric, TranscriptAssayCdnaSynthesis, TranscriptAssayCoveragePolicy,
+    TranscriptAssayJunctionPriority, TranscriptAssayKind, TranscriptAssayPanelObjective,
+    TranscriptAssayPracticalityPolicy, TranscriptAssaySpecificityRequest, TranscriptAssayUseTier,
 };
 
 fn parse_read_acquisition_analysis_format(
@@ -2214,7 +2213,7 @@ fn parse_promoter_artifact_manifest_entry_json(
 pub(super) fn parse_features_command(tokens: &[String]) -> Result<ShellCommand, String> {
     if tokens.len() < 2 {
         return Err(
-            "features requires a subcommand: formula, query, export-bed, repeat-query, repeat-overlaps, materialize-repeats, repeat-cohort, window-cohort-tfbs, promoter-evidence-matrix, promoter-isoform-comparison, promoter-expression-evidence, promoter-artifact-manifest, tfbs-summary, tfbs-score-tracks-svg, tfbs-track-similarity, tfbs-score-track-correlation-svg, tfbs-scan, restriction-scan"
+            "features requires a subcommand: formula, edit-location, create, delete, query, export-bed, repeat-query, repeat-overlaps, materialize-repeats, repeat-cohort, window-cohort-tfbs, promoter-evidence-matrix, promoter-isoform-comparison, promoter-expression-evidence, promoter-artifact-manifest, tfbs-summary, tfbs-score-tracks-svg, tfbs-track-similarity, tfbs-score-track-correlation-svg, tfbs-scan, restriction-scan"
                 .to_string(),
         );
     }
@@ -2243,6 +2242,286 @@ pub(super) fn parse_features_command(tokens: &[String]) -> Result<ShellCommand, 
                 return Err("features formula expression must not be empty".to_string());
             }
             Ok(ShellCommand::FeaturesResolveFormula { seq_id, expression })
+        }
+        "edit-location" | "edit_location" => {
+            if tokens.len() < 4 {
+                return Err(
+                    "features edit-location requires SEQ_ID FEATURE_INDEX --start-1based N --end-1based-inclusive M [--dry-run] [--expected-feature-fingerprint-sha256 SHA] [--path OUT.json]"
+                        .to_string(),
+                );
+            }
+            let seq_id = tokens[2].trim().to_string();
+            if seq_id.is_empty() {
+                return Err("features edit-location SEQ_ID must not be empty".to_string());
+            }
+            let feature_index = tokens[3].parse::<usize>().map_err(|_| {
+                "features edit-location FEATURE_INDEX must be an integer".to_string()
+            })?;
+            let mut start_1based = None;
+            let mut end_1based_inclusive = None;
+            let mut segment_index = None;
+            let mut dry_run = false;
+            let mut expected_feature_fingerprint_sha256 = None;
+            let mut path = None;
+            let mut idx = 4usize;
+            while idx < tokens.len() {
+                match tokens[idx].as_str() {
+                    "--start-1based" => {
+                        idx += 1;
+                        let raw = parse_required_value(tokens, &mut idx, "--start-1based")?;
+                        start_1based = Some(parse_usize_option_value(&raw, "--start-1based")?);
+                    }
+                    "--end-1based-inclusive" => {
+                        idx += 1;
+                        let raw = parse_required_value(tokens, &mut idx, "--end-1based-inclusive")?;
+                        end_1based_inclusive =
+                            Some(parse_usize_option_value(&raw, "--end-1based-inclusive")?);
+                    }
+                    "--segment-index" => {
+                        idx += 1;
+                        let raw = parse_required_value(tokens, &mut idx, "--segment-index")?;
+                        segment_index = Some(parse_usize_option_value(&raw, "--segment-index")?);
+                    }
+                    "--dry-run" => {
+                        dry_run = true;
+                        idx += 1;
+                    }
+                    "--expected-feature-fingerprint-sha256" | "--expected-fingerprint" => {
+                        idx += 1;
+                        expected_feature_fingerprint_sha256 = Some(parse_required_value(
+                            tokens,
+                            &mut idx,
+                            "--expected-feature-fingerprint-sha256",
+                        )?);
+                    }
+                    "--path" | "--output" => {
+                        idx += 1;
+                        path = Some(parse_required_value(tokens, &mut idx, "--path")?);
+                    }
+                    other => {
+                        return Err(format!("Unknown features edit-location option '{other}'"));
+                    }
+                }
+            }
+            let start_1based = start_1based
+                .ok_or_else(|| "features edit-location requires --start-1based N".to_string())?;
+            let end_1based_inclusive = end_1based_inclusive.ok_or_else(|| {
+                "features edit-location requires --end-1based-inclusive M".to_string()
+            })?;
+            if start_1based == 0 {
+                return Err("features edit-location --start-1based must be at least 1".to_string());
+            }
+            if end_1based_inclusive < start_1based {
+                return Err(
+                    "features edit-location end must be greater than or equal to start".to_string(),
+                );
+            }
+            if !dry_run && expected_feature_fingerprint_sha256.is_none() {
+                return Err(
+                    "features edit-location apply requires --expected-feature-fingerprint-sha256 from a dry-run preview"
+                        .to_string(),
+                );
+            }
+            Ok(ShellCommand::FeaturesEditLocation {
+                seq_id,
+                feature_index,
+                segment_index,
+                start_1based,
+                end_1based_inclusive,
+                dry_run,
+                expected_feature_fingerprint_sha256,
+                path,
+            })
+        }
+        "create" => {
+            if tokens.len() < 3 {
+                return Err(
+                    "features create requires SEQ_ID --kind KIND --start-1based N --end-1based-inclusive M [--strand forward|reverse] [--qualifier KEY[=VALUE] ...] [--dry-run] [--expected-annotation-state-fingerprint-sha256 SHA] [--path OUT.json]"
+                        .to_string(),
+                );
+            }
+            let seq_id = tokens[2].trim().to_string();
+            if seq_id.is_empty() {
+                return Err("features create SEQ_ID must not be empty".to_string());
+            }
+            let mut feature_kind = None;
+            let mut start_1based = None;
+            let mut end_1based_inclusive = None;
+            let mut strand = FeatureLocationEditStrand::Forward;
+            let mut qualifiers = Vec::new();
+            let mut dry_run = false;
+            let mut expected_annotation_state_fingerprint_sha256 = None;
+            let mut path = None;
+            let mut idx = 3usize;
+            while idx < tokens.len() {
+                match tokens[idx].as_str() {
+                    "--kind" | "--feature-kind" => {
+                        idx += 1;
+                        feature_kind = Some(parse_required_value(tokens, &mut idx, "--kind")?);
+                    }
+                    "--start-1based" => {
+                        idx += 1;
+                        let raw = parse_required_value(tokens, &mut idx, "--start-1based")?;
+                        start_1based = Some(parse_usize_option_value(&raw, "--start-1based")?);
+                    }
+                    "--end-1based-inclusive" => {
+                        idx += 1;
+                        let raw = parse_required_value(tokens, &mut idx, "--end-1based-inclusive")?;
+                        end_1based_inclusive =
+                            Some(parse_usize_option_value(&raw, "--end-1based-inclusive")?);
+                    }
+                    "--strand" => {
+                        idx += 1;
+                        let raw = parse_required_value(tokens, &mut idx, "--strand")?;
+                        strand = match raw.trim().to_ascii_lowercase().as_str() {
+                            "forward" | "plus" | "+" => FeatureLocationEditStrand::Forward,
+                            "reverse" | "minus" | "-" => FeatureLocationEditStrand::Reverse,
+                            _ => {
+                                return Err(format!(
+                                    "Unknown feature strand '{raw}' (expected forward|reverse)"
+                                ));
+                            }
+                        };
+                    }
+                    "--qualifier" => {
+                        idx += 1;
+                        let raw = parse_required_value(tokens, &mut idx, "--qualifier")?;
+                        let (key, value) = raw
+                            .split_once('=')
+                            .map_or((raw.as_str(), None), |(key, value)| {
+                                (key, Some(value.to_string()))
+                            });
+                        if key.trim().is_empty() {
+                            return Err(
+                                "features create --qualifier key must not be empty".to_string()
+                            );
+                        }
+                        qualifiers.push(FeatureRecordQualifier {
+                            key: key.to_string(),
+                            value,
+                        });
+                    }
+                    "--dry-run" => {
+                        dry_run = true;
+                        idx += 1;
+                    }
+                    "--expected-annotation-state-fingerprint-sha256"
+                    | "--expected-annotation-fingerprint" => {
+                        idx += 1;
+                        expected_annotation_state_fingerprint_sha256 =
+                            Some(parse_required_value(
+                                tokens,
+                                &mut idx,
+                                "--expected-annotation-state-fingerprint-sha256",
+                            )?);
+                    }
+                    "--path" | "--output" => {
+                        idx += 1;
+                        path = Some(parse_required_value(tokens, &mut idx, "--path")?);
+                    }
+                    other => return Err(format!("Unknown features create option '{other}'")),
+                }
+            }
+            let feature_kind =
+                feature_kind.ok_or_else(|| "features create requires --kind KIND".to_string())?;
+            let start_1based = start_1based
+                .ok_or_else(|| "features create requires --start-1based N".to_string())?;
+            let end_1based_inclusive = end_1based_inclusive.ok_or_else(|| {
+                "features create requires --end-1based-inclusive M".to_string()
+            })?;
+            if start_1based == 0 {
+                return Err("features create --start-1based must be at least 1".to_string());
+            }
+            if end_1based_inclusive < start_1based {
+                return Err(
+                    "features create end must be greater than or equal to start".to_string(),
+                );
+            }
+            if !dry_run && expected_annotation_state_fingerprint_sha256.is_none() {
+                return Err(
+                    "features create apply requires --expected-annotation-state-fingerprint-sha256 from a dry-run preview"
+                        .to_string(),
+                );
+            }
+            Ok(ShellCommand::FeaturesCreate {
+                seq_id,
+                feature_kind,
+                start_1based,
+                end_1based_inclusive,
+                strand,
+                qualifiers,
+                dry_run,
+                expected_annotation_state_fingerprint_sha256,
+                path,
+            })
+        }
+        "delete" => {
+            if tokens.len() < 4 {
+                return Err(
+                    "features delete requires SEQ_ID FEATURE_INDEX [--dry-run] [--expected-feature-fingerprint-sha256 SHA] [--expected-annotation-state-fingerprint-sha256 SHA] [--path OUT.json]"
+                        .to_string(),
+                );
+            }
+            let seq_id = tokens[2].trim().to_string();
+            if seq_id.is_empty() {
+                return Err("features delete SEQ_ID must not be empty".to_string());
+            }
+            let feature_index = tokens[3]
+                .parse::<usize>()
+                .map_err(|_| "features delete FEATURE_INDEX must be an integer".to_string())?;
+            let mut dry_run = false;
+            let mut expected_feature_fingerprint_sha256 = None;
+            let mut expected_annotation_state_fingerprint_sha256 = None;
+            let mut path = None;
+            let mut idx = 4usize;
+            while idx < tokens.len() {
+                match tokens[idx].as_str() {
+                    "--dry-run" => {
+                        dry_run = true;
+                        idx += 1;
+                    }
+                    "--expected-feature-fingerprint-sha256" | "--expected-fingerprint" => {
+                        idx += 1;
+                        expected_feature_fingerprint_sha256 = Some(parse_required_value(
+                            tokens,
+                            &mut idx,
+                            "--expected-feature-fingerprint-sha256",
+                        )?);
+                    }
+                    "--expected-annotation-state-fingerprint-sha256"
+                    | "--expected-annotation-fingerprint" => {
+                        idx += 1;
+                        expected_annotation_state_fingerprint_sha256 =
+                            Some(parse_required_value(
+                                tokens,
+                                &mut idx,
+                                "--expected-annotation-state-fingerprint-sha256",
+                            )?);
+                    }
+                    "--path" | "--output" => {
+                        idx += 1;
+                        path = Some(parse_required_value(tokens, &mut idx, "--path")?);
+                    }
+                    other => return Err(format!("Unknown features delete option '{other}'")),
+                }
+            }
+            if !dry_run
+                && (expected_feature_fingerprint_sha256.is_none()
+                    || expected_annotation_state_fingerprint_sha256.is_none())
+            {
+                return Err(
+                    "features delete apply requires both --expected-feature-fingerprint-sha256 and --expected-annotation-state-fingerprint-sha256 from a dry-run preview"
+                        .to_string(),
+                );
+            }
+            Ok(ShellCommand::FeaturesDelete {
+                seq_id,
+                feature_index,
+                dry_run,
+                expected_feature_fingerprint_sha256,
+                expected_annotation_state_fingerprint_sha256,
+                path,
+            })
         }
         "repeat-query" | "repeats-query" => {
             if tokens.len() < 5 {
@@ -4764,14 +5043,274 @@ fn parse_primers_oligo_order_command(tokens: &[String]) -> Result<ShellCommand, 
     }
 }
 
+fn parse_primerbank_lookup_options(
+    tokens: &[String],
+    idx: &mut usize,
+    context: &str,
+    request: &mut PrimerBankSearchRequest,
+    source_html_path: &mut Option<String>,
+    path: &mut Option<String>,
+) -> Result<(), String> {
+    while *idx < tokens.len() {
+        match tokens[*idx].as_str() {
+            "--by" | "--query-kind" => {
+                let flag = tokens[*idx].clone();
+                let raw = parse_option_path(tokens, idx, &flag, context)?;
+                request.query_kind = PrimerBankQueryKind::parse(&raw).ok_or_else(|| {
+                    format!(
+                        "Unsupported PrimerBank query kind '{raw}', expected gene-symbol|gene-id|genbank|protein|primerbank-id|keyword"
+                    )
+                })?;
+            }
+            "--species" => {
+                let raw = parse_option_path(tokens, idx, "--species", context)?;
+                request.species = PrimerBankSpecies::parse(&raw).ok_or_else(|| {
+                    format!("Unsupported PrimerBank species '{raw}', expected human|mouse|all")
+                })?;
+            }
+            "--html" | "--source-html" => {
+                let flag = tokens[*idx].clone();
+                *source_html_path = Some(parse_option_path(tokens, idx, &flag, context)?);
+            }
+            "--path" | "--output" => {
+                let flag = tokens[*idx].clone();
+                *path = Some(parse_option_path(tokens, idx, &flag, context)?);
+            }
+            other => return Err(format!("Unknown option '{other}' for {context}")),
+        }
+    }
+    Ok(())
+}
+
+fn parse_primers_primerbank_command(tokens: &[String]) -> Result<ShellCommand, String> {
+    if tokens.len() < 3 {
+        return Err("primers primerbank requires search|show|test-cdna".to_string());
+    }
+    match tokens[2].as_str() {
+        "search" => {
+            if tokens.len() < 4 {
+                return Err(
+                    "primers primerbank search requires QUERY [--by gene-symbol|gene-id|genbank|protein|primerbank-id|keyword] [--species human|mouse|all] [--html SAVED.html] [--path OUTPUT.json]"
+                        .to_string(),
+                );
+            }
+            let mut request = PrimerBankSearchRequest {
+                query: tokens[3].clone(),
+                ..PrimerBankSearchRequest::default()
+            };
+            let mut source_html_path = None;
+            let mut path = None;
+            let mut idx = 4usize;
+            parse_primerbank_lookup_options(
+                tokens,
+                &mut idx,
+                "primers primerbank search",
+                &mut request,
+                &mut source_html_path,
+                &mut path,
+            )?;
+            Ok(ShellCommand::PrimersPrimerBankSearch {
+                request,
+                source_html_path,
+                path,
+            })
+        }
+        "show" => {
+            if tokens.len() < 4 {
+                return Err(
+                    "primers primerbank show requires PRIMERBANK_ID [--species human|mouse|all] [--html SAVED.html] [--path OUTPUT.json]"
+                        .to_string(),
+                );
+            }
+            let mut request = PrimerBankSearchRequest {
+                query: tokens[3].clone(),
+                query_kind: PrimerBankQueryKind::PrimerbankId,
+                species: PrimerBankSpecies::All,
+            };
+            let mut source_html_path = None;
+            let mut path = None;
+            let mut idx = 4usize;
+            parse_primerbank_lookup_options(
+                tokens,
+                &mut idx,
+                "primers primerbank show",
+                &mut request,
+                &mut source_html_path,
+                &mut path,
+            )?;
+            request.query_kind = PrimerBankQueryKind::PrimerbankId;
+            Ok(ShellCommand::PrimersPrimerBankSearch {
+                request,
+                source_html_path,
+                path,
+            })
+        }
+        "test-cdna" => {
+            if tokens.len() < 6 {
+                return Err(
+                    "primers primerbank test-cdna requires SEQ_ID FEATURE_ID PRIMERBANK_ID --species human|mouse [--html SAVED.html] [--transcript-id ID] [--min-amplicon-bp N] [--max-amplicon-bp N] [--max-mismatches N] [--require-3prime-exact-bases N] [--transcript-order MODE] [--map-coordinate-mode MODE] [--path OUTPUT.json] [--svg OUTPUT.svg]"
+                        .to_string(),
+                );
+            }
+            let seq_id = tokens[3].clone();
+            let feature_id = tokens[4].parse::<usize>().map_err(|error| {
+                format!(
+                    "Invalid feature id '{}' for primers primerbank test-cdna: {error}",
+                    tokens[4]
+                )
+            })?;
+            let primerbank_id = tokens[5].clone();
+            let mut expected_species = None;
+            let mut source_html_path = None;
+            let mut transcript_id = None;
+            let mut min_amplicon_bp = None;
+            let mut max_amplicon_bp = None;
+            let mut max_mismatches = None;
+            let mut require_3prime_exact_bases = None;
+            let mut transcript_order = None;
+            let mut transcript_map_coordinate_mode = None;
+            let mut path = None;
+            let mut svg_path = None;
+            let mut idx = 6usize;
+            while idx < tokens.len() {
+                match tokens[idx].as_str() {
+                    "--species" => {
+                        let raw = parse_option_path(
+                            tokens,
+                            &mut idx,
+                            "--species",
+                            "primers primerbank test-cdna",
+                        )?;
+                        let species = PrimerBankSpecies::parse(&raw).ok_or_else(|| {
+                            format!("Unknown PrimerBank species '{raw}' (expected human or mouse)")
+                        })?;
+                        if species == PrimerBankSpecies::All {
+                            return Err(
+                                "primers primerbank test-cdna requires a concrete species: human or mouse"
+                                    .to_string(),
+                            );
+                        }
+                        expected_species = Some(species);
+                    }
+                    "--html" | "--source-html" => {
+                        let flag = tokens[idx].clone();
+                        source_html_path = Some(parse_option_path(
+                            tokens,
+                            &mut idx,
+                            &flag,
+                            "primers primerbank test-cdna",
+                        )?);
+                    }
+                    "--transcript-id" => {
+                        transcript_id = Some(parse_option_path(
+                            tokens,
+                            &mut idx,
+                            "--transcript-id",
+                            "primers primerbank test-cdna",
+                        )?);
+                    }
+                    "--min-amplicon-bp"
+                    | "--max-amplicon-bp"
+                    | "--max-mismatches"
+                    | "--require-3prime-exact-bases"
+                    | "--require-3-prime-exact-bases" => {
+                        let flag = tokens[idx].clone();
+                        let raw = parse_option_path(
+                            tokens,
+                            &mut idx,
+                            &flag,
+                            "primers primerbank test-cdna",
+                        )?;
+                        let value = parse_usize_option_value(&raw, &flag)?;
+                        match flag.as_str() {
+                            "--min-amplicon-bp" => min_amplicon_bp = Some(value),
+                            "--max-amplicon-bp" => max_amplicon_bp = Some(value),
+                            "--max-mismatches" => max_mismatches = Some(value),
+                            _ => require_3prime_exact_bases = Some(value),
+                        }
+                    }
+                    "--transcript-order" | "--row-order" => {
+                        let flag = tokens[idx].clone();
+                        let raw = parse_option_path(
+                            tokens,
+                            &mut idx,
+                            &flag,
+                            "primers primerbank test-cdna",
+                        )?;
+                        transcript_order = Some(parse_cdna_assay_transcript_order(&raw)?);
+                    }
+                    "--map-coordinate-mode" | "--coordinate-mode" | "--map-mode" => {
+                        let flag = tokens[idx].clone();
+                        let raw = parse_option_path(
+                            tokens,
+                            &mut idx,
+                            &flag,
+                            "primers primerbank test-cdna",
+                        )?;
+                        transcript_map_coordinate_mode =
+                            Some(parse_cdna_assay_transcript_map_coordinate_mode(&raw)?);
+                    }
+                    "--path" | "--output" => {
+                        let flag = tokens[idx].clone();
+                        path = Some(parse_option_path(
+                            tokens,
+                            &mut idx,
+                            &flag,
+                            "primers primerbank test-cdna",
+                        )?);
+                    }
+                    "--svg" | "--svg-path" | "--transcript-map-svg" => {
+                        let flag = tokens[idx].clone();
+                        svg_path = Some(parse_option_path(
+                            tokens,
+                            &mut idx,
+                            &flag,
+                            "primers primerbank test-cdna",
+                        )?);
+                    }
+                    other => {
+                        return Err(format!(
+                            "Unknown option '{other}' for primers primerbank test-cdna"
+                        ));
+                    }
+                }
+            }
+            let expected_species = expected_species.ok_or_else(|| {
+                "primers primerbank test-cdna requires --species human|mouse so the catalog record is cross-checked before testing"
+                    .to_string()
+            })?;
+            Ok(ShellCommand::PrimersPrimerBankTestCdna {
+                seq_id,
+                feature_id,
+                primerbank_id,
+                expected_species,
+                source_html_path,
+                transcript_id,
+                min_amplicon_bp,
+                max_amplicon_bp,
+                max_mismatches,
+                require_3prime_exact_bases,
+                transcript_order,
+                transcript_map_coordinate_mode,
+                path,
+                svg_path,
+            })
+        }
+        other => Err(format!(
+            "Unknown primers primerbank subcommand '{other}' (expected search|show|test-cdna)"
+        )),
+    }
+}
+
 pub(super) fn parse_primers_command(tokens: &[String]) -> Result<ShellCommand, String> {
     if tokens.len() < 2 {
         return Err(
-            "primers requires a subcommand: design, design-qpcr, design-transcript-assay-panel, specificity, specificity-plan, specificity-import, transcript-assay-specificity-plan, transcript-assay-specificity-finalize, test-cdna-pcr, test-cdna-qpcr, test-cdna-qpcr-fasta, screen-cdna-qpcr, prepare-restriction-cloning, seed-restriction-cloning-handoff, restriction-cloning-vector-suggestions, list-restriction-cloning-handoffs, show-restriction-cloning-handoff, export-restriction-cloning-handoff, preflight, seed-from-feature, seed-from-splicing, seed-qpcr-from-feature, seed-qpcr-from-splicing, list-reports, show-report, export-report, list-qpcr-reports, show-qpcr-report, export-qpcr-report, list-transcript-assay-panels, show-transcript-assay-panel, export-transcript-assay-panel, oligo-order"
+            "primers requires a subcommand: primerbank, design, design-qpcr, design-transcript-assay-panel, experimental-handoff, import-external-pairs, specificity, specificity-plan, specificity-import, transcript-assay-specificity-plan, transcript-assay-specificity-finalize, test-cdna-pcr, test-cdna-qpcr, test-cdna-qpcr-fasta, screen-cdna-qpcr, prepare-restriction-cloning, seed-restriction-cloning-handoff, restriction-cloning-vector-suggestions, list-restriction-cloning-handoffs, show-restriction-cloning-handoff, export-restriction-cloning-handoff, preflight, seed-from-feature, seed-from-splicing, seed-qpcr-from-feature, seed-qpcr-from-splicing, list-reports, show-report, export-report, list-qpcr-reports, show-qpcr-report, export-qpcr-report, list-transcript-assay-panels, show-transcript-assay-panel, export-transcript-assay-panel, oligo-order"
                 .to_string(),
         );
     }
     match tokens[1].as_str() {
+        "primerbank" => parse_primers_primerbank_command(tokens),
         "oligo-order" => parse_primers_oligo_order_command(tokens),
         "design" => {
             if tokens.len() < 3 {
@@ -5283,6 +5822,221 @@ pub(super) fn parse_primers_command(tokens: &[String]) -> Result<ShellCommand, S
                 path,
             })
         }
+        "import-external-pairs" => {
+            const USAGE: &str = "primers import-external-pairs INPUT.json|tsv SEQ_ID FEATURE_ID [--format auto|json|tsv] [--report-id ID] [--transcript-id ID] [--transcript-order transcript_id|genomic_first_exon|genomic_last_exon|antisense_first_exon] [--map-coordinate-mode cdna|genomic_aligned] [--min-amplicon-bp N] [--max-amplicon-bp N] [--max-mismatches N] [--require-3prime-exact-bases N] [--specificity-target-genome GENOME_ID] [--specificity-catalog PATH] [--specificity-cache-dir DIR] [--artifact-output-dir DIR] [--materialize-products] [--product-gel-ladder NAME] [--path OUTPUT.json]";
+            if tokens.len() < 5 {
+                return Err(USAGE.to_string());
+            }
+            let input_path = tokens[2].clone();
+            let seq_id = tokens[3].clone();
+            let feature_id = tokens[4].parse::<usize>().map_err(|error| {
+                format!(
+                    "Invalid feature id '{}' for primers import-external-pairs: {error}",
+                    tokens[4]
+                )
+            })?;
+            let mut input_format = None;
+            let mut report_id = None;
+            let mut transcript_id = None;
+            let mut min_amplicon_bp = None;
+            let mut max_amplicon_bp = None;
+            let mut max_mismatches = None;
+            let mut require_3prime_exact_bases = None;
+            let mut transcript_order = None;
+            let mut transcript_map_coordinate_mode = None;
+            let mut specificity_target_genome_id = None;
+            let mut specificity_catalog_path = None;
+            let mut specificity_cache_dir = None;
+            let mut artifact_output_dir = None;
+            let mut materialize_products = false;
+            let mut product_gel_ladders = vec![];
+            let mut path = None;
+            let mut idx = 5usize;
+            while idx < tokens.len() {
+                match tokens[idx].as_str() {
+                    "--format" => {
+                        let value = parse_option_path(
+                            tokens,
+                            &mut idx,
+                            "--format",
+                            "primers import-external-pairs",
+                        )?
+                        .to_ascii_lowercase();
+                        if !matches!(value.as_str(), "auto" | "json" | "tsv") {
+                            return Err(format!(
+                                "Invalid --format '{value}' for primers import-external-pairs; expected auto, json, or tsv"
+                            ));
+                        }
+                        input_format = Some(value);
+                    }
+                    "--report-id" => {
+                        report_id = Some(parse_option_path(
+                            tokens,
+                            &mut idx,
+                            "--report-id",
+                            "primers import-external-pairs",
+                        )?);
+                    }
+                    "--transcript-id" => {
+                        transcript_id = Some(parse_option_path(
+                            tokens,
+                            &mut idx,
+                            "--transcript-id",
+                            "primers import-external-pairs",
+                        )?);
+                    }
+                    "--min-amplicon-bp" => {
+                        let value = parse_option_path(
+                            tokens,
+                            &mut idx,
+                            "--min-amplicon-bp",
+                            "primers import-external-pairs",
+                        )?;
+                        min_amplicon_bp =
+                            Some(parse_usize_option_value(&value, "--min-amplicon-bp")?);
+                    }
+                    "--max-amplicon-bp" => {
+                        let value = parse_option_path(
+                            tokens,
+                            &mut idx,
+                            "--max-amplicon-bp",
+                            "primers import-external-pairs",
+                        )?;
+                        max_amplicon_bp =
+                            Some(parse_usize_option_value(&value, "--max-amplicon-bp")?);
+                    }
+                    "--max-mismatches" => {
+                        let value = parse_option_path(
+                            tokens,
+                            &mut idx,
+                            "--max-mismatches",
+                            "primers import-external-pairs",
+                        )?;
+                        max_mismatches =
+                            Some(parse_usize_option_value(&value, "--max-mismatches")?);
+                    }
+                    "--require-3prime-exact-bases" => {
+                        let value = parse_option_path(
+                            tokens,
+                            &mut idx,
+                            "--require-3prime-exact-bases",
+                            "primers import-external-pairs",
+                        )?;
+                        require_3prime_exact_bases = Some(parse_usize_option_value(
+                            &value,
+                            "--require-3prime-exact-bases",
+                        )?);
+                    }
+                    "--transcript-order" => {
+                        let value = parse_option_path(
+                            tokens,
+                            &mut idx,
+                            "--transcript-order",
+                            "primers import-external-pairs",
+                        )?;
+                        transcript_order = Some(parse_cdna_assay_transcript_order(&value)?);
+                    }
+                    "--map-coordinate-mode" => {
+                        let value = parse_option_path(
+                            tokens,
+                            &mut idx,
+                            "--map-coordinate-mode",
+                            "primers import-external-pairs",
+                        )?;
+                        transcript_map_coordinate_mode =
+                            Some(parse_cdna_assay_transcript_map_coordinate_mode(&value)?);
+                    }
+                    "--specificity-target-genome" | "--target-genome" => {
+                        let flag = tokens[idx].clone();
+                        specificity_target_genome_id = Some(parse_option_path(
+                            tokens,
+                            &mut idx,
+                            &flag,
+                            "primers import-external-pairs",
+                        )?);
+                    }
+                    "--specificity-catalog" => {
+                        specificity_catalog_path = Some(parse_option_path(
+                            tokens,
+                            &mut idx,
+                            "--specificity-catalog",
+                            "primers import-external-pairs",
+                        )?);
+                    }
+                    "--specificity-cache-dir" => {
+                        specificity_cache_dir = Some(parse_option_path(
+                            tokens,
+                            &mut idx,
+                            "--specificity-cache-dir",
+                            "primers import-external-pairs",
+                        )?);
+                    }
+                    "--artifact-output-dir" => {
+                        artifact_output_dir = Some(parse_option_path(
+                            tokens,
+                            &mut idx,
+                            "--artifact-output-dir",
+                            "primers import-external-pairs",
+                        )?);
+                    }
+                    "--materialize-products" => {
+                        materialize_products = true;
+                        idx += 1;
+                    }
+                    "--product-gel-ladder" => {
+                        product_gel_ladders.push(parse_option_path(
+                            tokens,
+                            &mut idx,
+                            "--product-gel-ladder",
+                            "primers import-external-pairs",
+                        )?);
+                    }
+                    "--path" | "--output" => {
+                        let flag = tokens[idx].clone();
+                        path = Some(parse_option_path(
+                            tokens,
+                            &mut idx,
+                            &flag,
+                            "primers import-external-pairs",
+                        )?);
+                    }
+                    other => {
+                        return Err(format!(
+                            "Unknown option '{other}' for primers import-external-pairs"
+                        ));
+                    }
+                }
+            }
+            if (specificity_catalog_path.is_some() || specificity_cache_dir.is_some())
+                && specificity_target_genome_id.is_none()
+            {
+                return Err(
+                    "primers import-external-pairs requires --specificity-target-genome when specificity catalog/cache options are supplied"
+                        .to_string(),
+                );
+            }
+            Ok(ShellCommand::PrimersImportExternalPairs {
+                input_path,
+                input_format,
+                seq_id,
+                feature_id,
+                report_id,
+                transcript_id,
+                min_amplicon_bp,
+                max_amplicon_bp,
+                max_mismatches,
+                require_3prime_exact_bases,
+                transcript_order,
+                transcript_map_coordinate_mode,
+                specificity_target_genome_id,
+                specificity_catalog_path,
+                specificity_cache_dir,
+                artifact_output_dir,
+                materialize_products,
+                product_gel_ladders,
+                path,
+            })
+        }
         "test-cdna-pcr" => {
             if tokens.len() < 4 {
                 return Err(
@@ -5532,38 +6286,24 @@ pub(super) fn parse_primers_command(tokens: &[String]) -> Result<ShellCommand, S
                     "--min-amplicon-bp" => {
                         let raw =
                             parse_option_path(tokens, &mut idx, "--min-amplicon-bp", context)?;
-                        min_amplicon_bp = Some(parse_usize_option_value(
-                            &raw,
-                            "--min-amplicon-bp",
-                        )?);
+                        min_amplicon_bp =
+                            Some(parse_usize_option_value(&raw, "--min-amplicon-bp")?);
                     }
                     "--max-amplicon-bp" => {
                         let raw =
                             parse_option_path(tokens, &mut idx, "--max-amplicon-bp", context)?;
-                        max_amplicon_bp = Some(parse_usize_option_value(
-                            &raw,
-                            "--max-amplicon-bp",
-                        )?);
+                        max_amplicon_bp =
+                            Some(parse_usize_option_value(&raw, "--max-amplicon-bp")?);
                     }
                     "--max-assays-per-class" => {
-                        let raw = parse_option_path(
-                            tokens,
-                            &mut idx,
-                            "--max-assays-per-class",
-                            context,
-                        )?;
-                        max_assays_per_class = Some(parse_usize_option_value(
-                            &raw,
-                            "--max-assays-per-class",
-                        )?);
+                        let raw =
+                            parse_option_path(tokens, &mut idx, "--max-assays-per-class", context)?;
+                        max_assays_per_class =
+                            Some(parse_usize_option_value(&raw, "--max-assays-per-class")?);
                     }
                     "--max-mismatches" => {
-                        let raw =
-                            parse_option_path(tokens, &mut idx, "--max-mismatches", context)?;
-                        max_mismatches = Some(parse_usize_option_value(
-                            &raw,
-                            "--max-mismatches",
-                        )?);
+                        let raw = parse_option_path(tokens, &mut idx, "--max-mismatches", context)?;
+                        max_mismatches = Some(parse_usize_option_value(&raw, "--max-mismatches")?);
                     }
                     "--require-3prime-exact-bases" => {
                         let raw = parse_option_path(
@@ -5644,12 +6384,8 @@ pub(super) fn parse_primers_command(tokens: &[String]) -> Result<ShellCommand, S
                         )?);
                     }
                     "--specificity-check" => {
-                        let raw = parse_option_path(
-                            tokens,
-                            &mut idx,
-                            "--specificity-check",
-                            context,
-                        )?;
+                        let raw =
+                            parse_option_path(tokens, &mut idx, "--specificity-check", context)?;
                         specificity_check = Some(parse_primer_specificity_check_mode(&raw)?);
                     }
                     "--specificity-target-genome" => {
@@ -5689,12 +6425,8 @@ pub(super) fn parse_primers_command(tokens: &[String]) -> Result<ShellCommand, S
                     }
                     "--primer3-exec" | "--primer3-executable" => {
                         let flag = tokens[idx].clone();
-                        primer3_executable = Some(parse_option_path(
-                            tokens,
-                            &mut idx,
-                            &flag,
-                            context,
-                        )?);
+                        primer3_executable =
+                            Some(parse_option_path(tokens, &mut idx, &flag, context)?);
                     }
                     other => {
                         return Err(format!("Unknown option '{other}' for {context}"));
@@ -5730,15 +6462,9 @@ pub(super) fn parse_primers_command(tokens: &[String]) -> Result<ShellCommand, S
             } else {
                 None
             };
-            let practicality = match (
-                preferred_min_amplicon_bp,
-                preferred_max_amplicon_bp,
-            ) {
+            let practicality = match (preferred_min_amplicon_bp, preferred_max_amplicon_bp) {
                 (Some(min_bp), Some(max_bp)) => Some(TranscriptAssayPracticalityPolicy {
-                    preferred_amplicon_bp: Some(TranscriptAssayAmpliconRange {
-                        min_bp,
-                        max_bp,
-                    }),
+                    preferred_amplicon_bp: Some(TranscriptAssayAmpliconRange { min_bp, max_bp }),
                     allowed_amplicon_bp: None,
                 }),
                 (None, None) => None,
@@ -6184,9 +6910,7 @@ pub(super) fn parse_primers_command(tokens: &[String]) -> Result<ShellCommand, S
         }
         "show-transcript-assay-panel" => {
             if tokens.len() != 3 {
-                return Err(
-                    "primers show-transcript-assay-panel requires REPORT_ID".to_string(),
-                );
+                return Err("primers show-transcript-assay-panel requires REPORT_ID".to_string());
             }
             Ok(ShellCommand::PrimersShowTranscriptAssayPanel {
                 report_id: tokens[2].clone(),
@@ -6204,8 +6928,72 @@ pub(super) fn parse_primers_command(tokens: &[String]) -> Result<ShellCommand, S
                 path: tokens[3].clone(),
             })
         }
+        "experimental-handoff" => {
+            const USAGE: &str = "primers experimental-handoff PANEL_REPORT_ID [--policy JSON_OR_@FILE] [--variant-evidence PATH ...] [--order-form-id ID] [--path OUTPUT.json] [--order-table OUTPUT.tsv]";
+            if tokens.len() < 3 {
+                return Err(format!(
+                    "primers experimental-handoff requires PANEL_REPORT_ID\n       {USAGE}"
+                ));
+            }
+            let panel_report_id = tokens[2].clone();
+            let context = "primers experimental-handoff";
+            let mut policy_json = None;
+            let mut variant_evidence_paths = vec![];
+            let mut order_form_id = None;
+            let mut path = None;
+            let mut order_table_path = None;
+            let mut idx = 3usize;
+            while idx < tokens.len() {
+                match tokens[idx].as_str() {
+                    "--policy" => {
+                        policy_json =
+                            Some(parse_option_path(tokens, &mut idx, "--policy", context)?);
+                    }
+                    "--variant-evidence" => {
+                        variant_evidence_paths.push(parse_option_path(
+                            tokens,
+                            &mut idx,
+                            "--variant-evidence",
+                            context,
+                        )?);
+                    }
+                    "--order-form-id" => {
+                        order_form_id = Some(parse_option_path(
+                            tokens,
+                            &mut idx,
+                            "--order-form-id",
+                            context,
+                        )?);
+                    }
+                    "--path" => {
+                        path = Some(parse_option_path(tokens, &mut idx, "--path", context)?);
+                    }
+                    "--order-table" => {
+                        order_table_path = Some(parse_option_path(
+                            tokens,
+                            &mut idx,
+                            "--order-table",
+                            context,
+                        )?);
+                    }
+                    other => {
+                        return Err(format!(
+                            "Unknown option '{other}' for {context}\n       {USAGE}"
+                        ));
+                    }
+                }
+            }
+            Ok(ShellCommand::PrimersExperimentalHandoff {
+                panel_report_id,
+                policy_json,
+                variant_evidence_paths,
+                order_form_id,
+                path,
+                order_table_path,
+            })
+        }
         other => Err(format!(
-            "Unknown primers subcommand '{other}' (expected design, design-qpcr, design-transcript-assay-panel, specificity, specificity-plan, specificity-import, transcript-assay-specificity-plan, transcript-assay-specificity-finalize, test-cdna-pcr, test-cdna-qpcr, transcript-qpcr-panel, test-cdna-qpcr-fasta, screen-cdna-qpcr, prepare-restriction-cloning, seed-restriction-cloning-handoff, restriction-cloning-vector-suggestions, list-restriction-cloning-handoffs, show-restriction-cloning-handoff, export-restriction-cloning-handoff, preflight, seed-from-feature, seed-from-splicing, seed-qpcr-from-feature, seed-qpcr-from-splicing, list-reports, show-report, export-report, list-qpcr-reports, show-qpcr-report, export-qpcr-report, list-transcript-assay-panels, show-transcript-assay-panel, export-transcript-assay-panel, oligo-order)"
+            "Unknown primers subcommand '{other}' (expected design, design-qpcr, design-transcript-assay-panel, experimental-handoff, specificity, specificity-plan, specificity-import, transcript-assay-specificity-plan, transcript-assay-specificity-finalize, test-cdna-pcr, test-cdna-qpcr, transcript-qpcr-panel, test-cdna-qpcr-fasta, screen-cdna-qpcr, prepare-restriction-cloning, seed-restriction-cloning-handoff, restriction-cloning-vector-suggestions, list-restriction-cloning-handoffs, show-restriction-cloning-handoff, export-restriction-cloning-handoff, preflight, seed-from-feature, seed-from-splicing, seed-qpcr-from-feature, seed-qpcr-from-splicing, list-reports, show-report, export-report, list-qpcr-reports, show-qpcr-report, export-qpcr-report, list-transcript-assay-panels, show-transcript-assay-panel, export-transcript-assay-panel, oligo-order)"
         )),
     }
 }

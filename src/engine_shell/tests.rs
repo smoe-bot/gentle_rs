@@ -11,6 +11,7 @@
 
 use super::*;
 use crate::dna_sequence::DNAsequence;
+use crate::engine::FEATURE_LOCATION_EDIT_SCHEMA_V2;
 use crate::engine::{
     AdapterCaptureProtectionMode, AdapterCaptureStyle, AdapterRestrictionCapturePlan, Arrangement,
     ArrangementMode, AttractPwmMappingPolicy, AttractSplicingEvidenceSettings,
@@ -38,6 +39,9 @@ use crate::ensembl_gene::{
 };
 use crate::ensembl_protein::{
     EnsemblProteinEntry, EnsemblProteinFeature, EnsemblTranscriptExon, EnsemblTranscriptTranslation,
+};
+use crate::primerbank::{
+    PRIMERBANK_SEARCH_REPORT_SCHEMA, PrimerBankCdnaTestReport, PrimerBankSearchReport,
 };
 use crate::runtime_status::{RuntimeStatusFrameKind, runtime_status_registry};
 use crate::test_support::{
@@ -419,9 +423,19 @@ fn smoke_command_override(path: &str) -> Option<&'static str> {
         "cache clear" => Some("cache clear all-prepared-in-cache"),
         "transcripts derive" => Some("transcripts derive seq --feature-id 1"),
         "guides put" => Some("guides put guide_set --json {}"),
+        "features edit-location" => Some(
+            "features edit-location demo 0 --start-1based 1 --end-1based-inclusive 1 --dry-run",
+        ),
+        "features create" => Some(
+            "features create demo --kind misc_feature --start-1based 1 --end-1based-inclusive 1 --dry-run",
+        ),
+        "features delete" => Some("features delete demo 0 --dry-run"),
         "features tfbs-score-tracks-svg" => {
             Some("features tfbs-score-tracks-svg seq out.svg --motif SP1")
         }
+        "primers import-external-pairs" => Some(
+            "primers import-external-pairs out.json demo 1 --specificity-target-genome demo",
+        ),
         "arrays probe-regions" => Some("arrays probe-regions --cel demo --gene demo"),
         "cutrun inspect-regulatory-support" => {
             Some("cutrun inspect-regulatory-support seq --dataset dataset")
@@ -6369,6 +6383,67 @@ fn parse_primers_oligo_order_commands() {
 }
 
 #[test]
+fn parse_primers_primerbank_commands() {
+    let search = parse_shell_line(
+        "primers primerbank search TP73 --by gene-symbol --species human --html saved.html --path primerbank.json",
+    )
+    .expect("parse PrimerBank search");
+    assert!(matches!(
+        search,
+        ShellCommand::PrimersPrimerBankSearch {
+            request,
+            source_html_path,
+            path,
+        } if request.query == "TP73"
+            && request.query_kind == PrimerBankQueryKind::NcbiGeneSymbol
+            && request.species == PrimerBankSpecies::Human
+            && source_html_path.as_deref() == Some("saved.html")
+            && path.as_deref() == Some("primerbank.json")
+    ));
+
+    let show =
+        parse_shell_line("primers primerbank show 100000001a1 --species mouse --html saved.html")
+            .expect("parse PrimerBank show");
+    assert!(matches!(
+        show,
+        ShellCommand::PrimersPrimerBankSearch { request, .. }
+            if request.query == "100000001a1"
+                && request.query_kind == PrimerBankQueryKind::PrimerbankId
+                && request.species == PrimerBankSpecies::Mouse
+    ));
+
+    let test = parse_shell_line(
+        "primers primerbank test-cdna toy_seq 0 100000001a1 --species human --html saved.html --transcript-id TOY1 --min-amplicon-bp 40 --max-amplicon-bp 200 --require-3prime-exact-bases 8 --svg map.svg",
+    )
+    .expect("parse PrimerBank cDNA test");
+    assert!(matches!(
+        test,
+        ShellCommand::PrimersPrimerBankTestCdna {
+            seq_id,
+            feature_id: 0,
+            primerbank_id,
+            expected_species: PrimerBankSpecies::Human,
+            source_html_path,
+            transcript_id,
+            min_amplicon_bp: Some(40),
+            max_amplicon_bp: Some(200),
+            require_3prime_exact_bases: Some(8),
+            svg_path,
+            ..
+        } if seq_id == "toy_seq"
+            && primerbank_id == "100000001a1"
+            && source_html_path.as_deref() == Some("saved.html")
+            && transcript_id.as_deref() == Some("TOY1")
+            && svg_path.as_deref() == Some("map.svg")
+    ));
+
+    let missing_species =
+        parse_shell_line("primers primerbank test-cdna toy_seq 0 100000001a1 --html saved.html")
+            .expect_err("PrimerBank cDNA testing requires an explicit species");
+    assert!(missing_species.contains("requires --species human|mouse"));
+}
+
+#[test]
 fn parse_primers_specificity_saved_report_and_explicit_pair() {
     let saved = parse_shell_line(
         "primers specificity primer_report_1 --pair-rank 2 --target-genome GRCh38.p14 --max-target-amplicon-bp 800 --max-hits-per-primer 250 --path specificity.json",
@@ -6601,6 +6676,88 @@ fn parse_primers_preflight_with_backend_overrides() {
 }
 
 #[test]
+fn parse_primers_experimental_handoff_with_optional_evidence_and_exports() {
+    let command = parse_shell_line(
+        "primers experimental-handoff panel_1 --policy @policy.json --variant-evidence variants_a.json --variant-evidence variants_b.json --order-form-id order_1 --path handoff.json --order-table handoff.tsv",
+    )
+    .expect("parse experimental handoff command");
+    assert!(matches!(
+        command,
+        ShellCommand::PrimersExperimentalHandoff {
+            panel_report_id,
+            policy_json,
+            variant_evidence_paths,
+            order_form_id,
+            path,
+            order_table_path,
+        } if panel_report_id == "panel_1"
+            && policy_json.as_deref() == Some("@policy.json")
+            && variant_evidence_paths
+                == vec!["variants_a.json".to_string(), "variants_b.json".to_string()]
+            && order_form_id.as_deref() == Some("order_1")
+            && path.as_deref() == Some("handoff.json")
+            && order_table_path.as_deref() == Some("handoff.tsv")
+    ));
+}
+
+#[test]
+fn parse_primers_import_external_pairs_with_evaluation_options() {
+    let command = parse_shell_line(
+        "primers import-external-pairs vendor.tsv cdna_src 7 --format tsv --report-id vendor_panel --transcript-id TX1 --transcript-order genomic_first_exon --map-coordinate-mode genomic_aligned --min-amplicon-bp 80 --max-amplicon-bp 320 --max-mismatches 1 --require-3prime-exact-bases 5 --specificity-target-genome human_grch38 --specificity-catalog genomes.json --specificity-cache-dir genomes --artifact-output-dir artifacts --materialize-products --product-gel-ladder ladder_a --product-gel-ladder ladder_b --path vendor_panel.json",
+    )
+    .expect("parse external primer-pair import");
+    assert!(matches!(
+        command,
+        ShellCommand::PrimersImportExternalPairs {
+            input_path,
+            input_format,
+            seq_id,
+            feature_id,
+            report_id,
+            transcript_id,
+            min_amplicon_bp,
+            max_amplicon_bp,
+            max_mismatches,
+            require_3prime_exact_bases,
+            transcript_order,
+            transcript_map_coordinate_mode,
+            specificity_target_genome_id,
+            specificity_catalog_path,
+            specificity_cache_dir,
+            artifact_output_dir,
+            materialize_products,
+            product_gel_ladders,
+            path,
+        } if input_path == "vendor.tsv"
+            && input_format.as_deref() == Some("tsv")
+            && seq_id == "cdna_src"
+            && feature_id == 7
+            && report_id.as_deref() == Some("vendor_panel")
+            && transcript_id.as_deref() == Some("TX1")
+            && min_amplicon_bp == Some(80)
+            && max_amplicon_bp == Some(320)
+            && max_mismatches == Some(1)
+            && require_3prime_exact_bases == Some(5)
+            && transcript_order == Some(CdnaAssayTranscriptOrder::GenomicFirstExon)
+            && transcript_map_coordinate_mode
+                == Some(CdnaAssayTranscriptMapCoordinateMode::GenomicAligned)
+            && specificity_target_genome_id.as_deref() == Some("human_grch38")
+            && specificity_catalog_path.as_deref() == Some("genomes.json")
+            && specificity_cache_dir.as_deref() == Some("genomes")
+            && artifact_output_dir.as_deref() == Some("artifacts")
+            && materialize_products
+            && product_gel_ladders == vec!["ladder_a", "ladder_b"]
+            && path.as_deref() == Some("vendor_panel.json")
+    ));
+
+    let error = parse_shell_line(
+        "primers import-external-pairs vendor.tsv cdna_src 7 --specificity-cache-dir genomes",
+    )
+    .expect_err("specificity cache requires target genome");
+    assert!(error.contains("--specificity-target-genome"));
+}
+
+#[test]
 fn parse_primers_seed_from_feature_and_splicing() {
     let feature =
         parse_shell_line("primers seed-from-feature seq_a 7").expect("parse seed-from-feature");
@@ -6737,9 +6894,11 @@ fn parse_primers_seed_from_feature_and_splicing() {
         "primers design-transcript-assay-panel seq_a 17 --preferred-min-amplicon-bp 80",
     )
     .expect_err("preferred transcript-assay range requires both bounds");
-    assert!(incomplete_preferred_range.contains(
-        "requires --preferred-min-amplicon-bp and --preferred-max-amplicon-bp together"
-    ));
+    assert!(
+        incomplete_preferred_range.contains(
+            "requires --preferred-min-amplicon-bp and --preferred-max-amplicon-bp together"
+        )
+    );
     let endpoint_panel = parse_shell_line(
         "primers design-transcript-assay-panel seq_a 17 --assay-kind endpoint-rt-pcr --cdna-synthesis oligo-dt --objective isoform-end-matrix --junctions @junctions.json --junction-evidence clariom_juc.json --junction-evidence-priority required --min-3prime-junction-overlap-bp 5 --min-5prime-junction-overlap-bp 8 --annotation-release Ensembl116 --max-amplicon-bp 10000 --oligo-dt-5prime-risk-threshold-bp 5000",
     )
@@ -11186,10 +11345,7 @@ fn execute_planning_protein_expression_handoff_applies_reviewed_requirements() {
     let report: crate::engine::ProteinExpressionHandoffReport =
         serde_json::from_value(out.output).expect("protein-expression handoff report");
     let echoed = report.requirements.as_ref().expect("requirements echoed");
-    assert_eq!(
-        echoed.schema,
-        "gentle.protein_expression_requirements.v1"
-    );
+    assert_eq!(echoed.schema, "gentle.protein_expression_requirements.v1");
     assert_eq!(
         echoed
             .yield_goal
@@ -11212,17 +11368,17 @@ fn execute_planning_protein_expression_handoff_applies_reviewed_requirements() {
             .iter()
             .any(|action| action.action_id == "consult_cloning_strategy")
     );
-    assert!(report.warnings.iter().any(|warning| {
-        warning.contains("Outsourcing is explicitly disallowed")
-    }));
+    assert!(
+        report
+            .warnings
+            .iter()
+            .any(|warning| { warning.contains("Outsourcing is explicitly disallowed") })
+    );
     let service = report
         .service_handoff_candidates
         .first()
         .expect("withheld provider provenance row");
-    assert_eq!(
-        service.status,
-        "withheld_by_outsourcing_requirement"
-    );
+    assert_eq!(service.status, "withheld_by_outsourcing_requirement");
     assert!(service.shell_line.is_empty());
     let text_report = report.text_report.as_deref().unwrap_or_default();
     assert!(text_report.contains("Reviewed expression requirements: yield_goal, chassis"));
@@ -11232,7 +11388,7 @@ fn execute_planning_protein_expression_handoff_applies_reviewed_requirements() {
 
 #[test]
 fn execute_planning_protein_expression_handoff_partial_requirements_only_resolve_matching_questions()
-{
+ {
     let mut state = ProjectState::default();
     state.sequences.insert(
         "partial_requirements_cds".to_string(),
@@ -11259,22 +11415,30 @@ fn execute_planning_protein_expression_handoff_partial_requirements_only_resolve
     .expect("protein-expression handoff with partial requirements");
     let report: crate::engine::ProteinExpressionHandoffReport =
         serde_json::from_value(out.output).expect("protein-expression handoff report");
-    assert!(!report
-        .missing_questions
-        .iter()
-        .any(|question| question.question_id == "protein_yield_metric"));
-    assert!(!report
-        .missing_questions
-        .iter()
-        .any(|question| question.question_id == "protein_folding_requirements"));
-    assert!(report
-        .missing_questions
-        .iter()
-        .any(|question| question.question_id == "expression_chassis"));
-    assert!(report
-        .missing_questions
-        .iter()
-        .any(|question| question.question_id == "outsourcing_permission"));
+    assert!(
+        !report
+            .missing_questions
+            .iter()
+            .any(|question| question.question_id == "protein_yield_metric")
+    );
+    assert!(
+        !report
+            .missing_questions
+            .iter()
+            .any(|question| question.question_id == "protein_folding_requirements")
+    );
+    assert!(
+        report
+            .missing_questions
+            .iter()
+            .any(|question| question.question_id == "expression_chassis")
+    );
+    assert!(
+        report
+            .missing_questions
+            .iter()
+            .any(|question| question.question_id == "outsourcing_permission")
+    );
 }
 
 #[test]
@@ -17726,6 +17890,209 @@ fn execute_primers_seed_qpcr_from_splicing_round_trips_into_design_qpcr() {
 }
 
 #[test]
+fn execute_primers_primerbank_fixture_lookup_and_cdna_test() {
+    let fixture_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("test_files/fixtures/primerbank/synthetic_primerbank_search_result.html");
+    let td = tempdir().expect("tempdir");
+    let report_path = td.path().join("primerbank_search.json");
+    let mut engine = GentleEngine::new();
+
+    let direct = engine
+        .apply(Operation::SearchPrimerBank {
+            request: PrimerBankSearchRequest {
+                query: "TOY1".to_string(),
+                query_kind: PrimerBankQueryKind::NcbiGeneSymbol,
+                species: PrimerBankSpecies::Human,
+            },
+            source_html_path: Some(fixture_path.to_string_lossy().to_string()),
+            path: None,
+        })
+        .expect("search saved PrimerBank fixture through engine operation");
+    assert!(direct.created_seq_ids.is_empty());
+    assert!(direct.changed_seq_ids.is_empty());
+    assert_eq!(
+        direct
+            .primerbank_search_report
+            .as_ref()
+            .map(|report| report.primer_pair_count),
+        Some(2)
+    );
+
+    let lookup = execute_shell_command(
+        &mut engine,
+        &ShellCommand::PrimersPrimerBankSearch {
+            request: PrimerBankSearchRequest {
+                query: "TOY1".to_string(),
+                query_kind: PrimerBankQueryKind::NcbiGeneSymbol,
+                species: PrimerBankSpecies::Human,
+            },
+            source_html_path: Some(fixture_path.to_string_lossy().to_string()),
+            path: Some(report_path.to_string_lossy().to_string()),
+        },
+    )
+    .expect("search saved PrimerBank fixture");
+    assert!(!lookup.state_changed);
+    assert_eq!(
+        lookup.output["schema"].as_str(),
+        Some(PRIMERBANK_SEARCH_REPORT_SCHEMA)
+    );
+    assert_eq!(lookup.output["primer_pair_count"].as_u64(), Some(2));
+    assert_eq!(
+        lookup.output["species_check"]["status"].as_str(),
+        Some("matched")
+    );
+    assert_eq!(
+        lookup.output["usage_policy_url"].as_str(),
+        Some(PRIMERBANK_USAGE_POLICY_URL)
+    );
+    let exported: PrimerBankSearchReport =
+        serde_json::from_slice(&fs::read(report_path).expect("PrimerBank report export"))
+            .expect("parse exported PrimerBank report");
+    assert_eq!(exported.primer_pair_count, 2);
+    assert_eq!(
+        exported.genes[0].primer_pairs[0].validation_status,
+        "not_assessed_by_gentle"
+    );
+
+    let forward = "ACGTACGTACGTACGTACGTA";
+    let reverse = "TGCATGCATGCATGCATGCAT";
+    let reverse_binding = GentleEngine::reverse_complement(reverse);
+    let transcript_sequence = format!("{forward}{}{reverse_binding}", "A".repeat(70));
+    let transcript_len = transcript_sequence.len();
+    let mut dna = DNAsequence::from_sequence(&transcript_sequence).expect("synthetic transcript");
+    dna.features_mut().push(Feature {
+        kind: "mRNA".into(),
+        location: Location::simple_range(0, transcript_len as i64),
+        qualifiers: vec![
+            ("gene".into(), Some("TOY1".to_string())),
+            ("transcript_id".into(), Some("TOY1_TX1".to_string())),
+            ("organism".into(), Some("Homo sapiens".to_string())),
+        ],
+    });
+    let mut mouse_dna = dna.clone();
+    mouse_dna.features_mut()[0]
+        .qualifiers
+        .retain(|(key, _)| key != "organism");
+    mouse_dna.features_mut()[0]
+        .qualifiers
+        .push(("organism".into(), Some("Mus musculus".to_string())));
+    let mut state = ProjectState::default();
+    state.sequences.insert("toy_primerbank".to_string(), dna);
+    state
+        .sequences
+        .insert("toy_primerbank_mouse".to_string(), mouse_dna);
+    let mut engine = GentleEngine::from_state(state);
+    let cdna_report_path = td.path().join("primerbank_cdna_test.json");
+    let tested = execute_shell_command(
+        &mut engine,
+        &ShellCommand::PrimersPrimerBankTestCdna {
+            seq_id: "toy_primerbank".to_string(),
+            feature_id: 0,
+            primerbank_id: "100000001a1".to_string(),
+            expected_species: PrimerBankSpecies::Human,
+            source_html_path: Some(fixture_path.to_string_lossy().to_string()),
+            transcript_id: Some("TOY1_TX1".to_string()),
+            min_amplicon_bp: Some(40),
+            max_amplicon_bp: Some(200),
+            max_mismatches: Some(0),
+            require_3prime_exact_bases: Some(8),
+            transcript_order: None,
+            transcript_map_coordinate_mode: None,
+            path: Some(cdna_report_path.to_string_lossy().to_string()),
+            svg_path: None,
+        },
+    )
+    .expect("test PrimerBank pair on transcript cDNA");
+    assert!(!tested.state_changed);
+    assert_eq!(
+        tested.output["schema"].as_str(),
+        Some(PRIMERBANK_CDNA_TEST_REPORT_SCHEMA)
+    );
+    assert_eq!(
+        tested.output["primerbank_pair"]["primerbank_id"].as_str(),
+        Some("100000001a1")
+    );
+    assert_eq!(tested.output["expected_species"].as_str(), Some("human"));
+    assert_eq!(tested.output["primerbank_species"].as_str(), Some("Human"));
+    assert_eq!(
+        tested.output["species_match_status"].as_str(),
+        Some("matched")
+    );
+    assert_eq!(
+        tested.output["target_sequence_species"].as_str(),
+        Some("Homo sapiens")
+    );
+    assert_eq!(
+        tested.output["target_sequence_species_match_status"].as_str(),
+        Some("matched")
+    );
+    assert_eq!(
+        tested.output["cdna_test"]["report"]["overall_status"].as_str(),
+        Some("single_product")
+    );
+    assert!(
+        tested.output["interpretation"]
+            .as_str()
+            .is_some_and(|value| value.contains("does not establish whole-genome specificity"))
+    );
+    let exported_cdna: PrimerBankCdnaTestReport =
+        serde_json::from_slice(&fs::read(cdna_report_path).expect("PrimerBank cDNA export"))
+            .expect("parse PrimerBank cDNA export");
+    assert_eq!(exported_cdna.schema, PRIMERBANK_CDNA_TEST_REPORT_SCHEMA);
+    assert_eq!(exported_cdna.primerbank_pair.primerbank_id, "100000001a1");
+    assert_eq!(
+        exported_cdna.species_match_status,
+        crate::primerbank::PrimerBankSpeciesMatchStatus::Matched
+    );
+
+    let mismatch = execute_shell_command(
+        &mut engine,
+        &ShellCommand::PrimersPrimerBankTestCdna {
+            seq_id: "toy_primerbank".to_string(),
+            feature_id: 0,
+            primerbank_id: "100000001a1".to_string(),
+            expected_species: PrimerBankSpecies::Mouse,
+            source_html_path: Some(fixture_path.to_string_lossy().to_string()),
+            transcript_id: Some("TOY1_TX1".to_string()),
+            min_amplicon_bp: Some(40),
+            max_amplicon_bp: Some(200),
+            max_mismatches: Some(0),
+            require_3prime_exact_bases: Some(8),
+            transcript_order: None,
+            transcript_map_coordinate_mode: None,
+            path: None,
+            svg_path: None,
+        },
+    )
+    .expect_err("reject target-sequence species mismatch before catalog lookup");
+    assert!(mismatch.contains("target-sequence species cross-check failed"));
+    assert!(mismatch.contains("expected 'mouse'"));
+
+    let catalog_mismatch = execute_shell_command(
+        &mut engine,
+        &ShellCommand::PrimersPrimerBankTestCdna {
+            seq_id: "toy_primerbank_mouse".to_string(),
+            feature_id: 0,
+            primerbank_id: "100000001a1".to_string(),
+            expected_species: PrimerBankSpecies::Mouse,
+            source_html_path: Some(fixture_path.to_string_lossy().to_string()),
+            transcript_id: Some("TOY1_TX1".to_string()),
+            min_amplicon_bp: Some(40),
+            max_amplicon_bp: Some(200),
+            max_mismatches: Some(0),
+            require_3prime_exact_bases: Some(8),
+            transcript_order: None,
+            transcript_map_coordinate_mode: None,
+            path: None,
+            svg_path: None,
+        },
+    )
+    .expect_err("reject catalog species mismatch after target-sequence confirmation");
+    assert!(catalog_mismatch.contains("pair '100000001a1' species cross-check failed"));
+    assert!(catalog_mismatch.contains("expected 'mouse'"));
+}
+
+#[test]
 fn execute_primers_test_cdna_pcr_and_qpcr_reports_products() {
     let mut dna = DNAsequence::from_sequence("ATGAAACCCGGGTTTTTTTTCCCAAATTTGGG")
         .expect("synthetic genomic sequence");
@@ -17847,6 +18214,96 @@ fn execute_primers_test_cdna_pcr_and_qpcr_reports_products() {
             .as_str()
             .is_some_and(|svg| svg.contains("TX1") && svg.contains("probe"))
     );
+}
+
+#[test]
+fn execute_primers_import_external_pairs_returns_provenance_and_metrics() {
+    let mut dna = DNAsequence::from_sequence("ATGAAACCCGGGTTTTTTTTCCCAAATTTGGG")
+        .expect("synthetic genomic sequence");
+    dna.features_mut().push(Feature {
+        kind: "mRNA".into(),
+        location: Location::Join(vec![
+            Location::simple_range(0, 12),
+            Location::simple_range(20, 32),
+        ]),
+        qualifiers: vec![
+            ("gene".into(), Some("TEST1".to_string())),
+            ("transcript_id".into(), Some("TX1".to_string())),
+            ("label".into(), Some("TEST1 transcript".to_string())),
+        ],
+    });
+    let mut state = ProjectState::default();
+    state.sequences.insert("cdna_src".to_string(), dna);
+    let mut engine = GentleEngine::from_state(state);
+    let td = tempfile::tempdir().expect("tempdir");
+    let input_path = td.path().join("external_pairs.tsv");
+    let output_path = td.path().join("external_pairs.result.json");
+    std::fs::write(
+        &input_path,
+        concat!(
+            "source_kind\tprovider\tcatalogue_id\tsource_url\tclaimed_accession\taliases\tforward_sequence_5_to_3\treverse_sequence_5_to_3\tclaimed_target\tvalidation_claims\tannotations_json\n",
+            "commercial_catalogue\tExample Oligos\tEO-003\thttps://example.invalid/EO-003\tNM_VENDOR\tTEST1_F|TEST1_R\tAAACCC\tCCCAAA\tTEST1\tvalidated by provider\t{}\n"
+        ),
+    )
+    .expect("write external primer TSV");
+
+    let result = execute_shell_command(
+        &mut engine,
+        &ShellCommand::PrimersImportExternalPairs {
+            input_path: input_path.to_string_lossy().to_string(),
+            input_format: Some("tsv".to_string()),
+            seq_id: "cdna_src".to_string(),
+            feature_id: 0,
+            report_id: Some("external_shell".to_string()),
+            transcript_id: None,
+            min_amplicon_bp: Some(10),
+            max_amplicon_bp: Some(50),
+            max_mismatches: None,
+            require_3prime_exact_bases: Some(4),
+            transcript_order: None,
+            transcript_map_coordinate_mode: None,
+            specificity_target_genome_id: None,
+            specificity_catalog_path: None,
+            specificity_cache_dir: None,
+            artifact_output_dir: None,
+            materialize_products: false,
+            product_gel_ladders: vec![],
+            path: Some(output_path.to_string_lossy().to_string()),
+        },
+    )
+    .expect("execute external primer import");
+    assert!(result.state_changed);
+    assert_eq!(
+        result.output["schema"].as_str(),
+        Some("gentle.external_primer_pair_import_command.v1")
+    );
+    assert_eq!(
+        result.output["report"]["schema"].as_str(),
+        Some("gentle.external_primer_pair_import_report.v1")
+    );
+    assert_eq!(
+        result.output["report"]["pairs"][0]["sources"][0]["provider"].as_str(),
+        Some("Example Oligos")
+    );
+    assert_eq!(
+        result.output["report"]["pairs"][0]["specificity"]["status"].as_str(),
+        Some("not_run")
+    );
+    assert_eq!(
+        result.output["report"]["pairs"][0]["vendor_claims_used_as_biological_evidence"]
+            .as_bool(),
+        Some(false)
+    );
+    assert!(
+        result.output["report"]["pairs"][0]["forward"]["tm_c"]
+            .as_f64()
+            .is_some()
+    );
+    assert_eq!(
+        result.output["report"]["pairs"][0]["cdna_assay"]["product_count"].as_u64(),
+        Some(1)
+    );
+    assert!(output_path.is_file());
 }
 
 #[test]
@@ -21534,9 +21991,8 @@ fn execute_introspect_readiness_and_effects_cover_macro_templates() {
         "introspect verify-effects candidates template-delete --arg TEMPLATE_NAME=scan",
     )
     .expect("parse candidate template delete verify before");
-    let candidate_delete_before =
-        execute_shell_command(&mut engine, &candidate_delete_before)
-            .expect("execute candidate template delete verify before");
+    let candidate_delete_before = execute_shell_command(&mut engine, &candidate_delete_before)
+        .expect("execute candidate template delete verify before");
     assert_eq!(
         candidate_delete_before.output["verified"].as_bool(),
         Some(false)
@@ -21557,9 +22013,8 @@ fn execute_introspect_readiness_and_effects_cover_macro_templates() {
         "introspect verify-effects candidates template-delete --arg TEMPLATE_NAME=scan",
     )
     .expect("parse candidate template delete verify after");
-    let candidate_delete_after =
-        execute_shell_command(&mut engine, &candidate_delete_after)
-            .expect("execute candidate template delete verify after");
+    let candidate_delete_after = execute_shell_command(&mut engine, &candidate_delete_after)
+        .expect("execute candidate template delete verify after");
     assert_eq!(
         candidate_delete_after.output["verified"].as_bool(),
         Some(true)
@@ -21569,12 +22024,12 @@ fn execute_introspect_readiness_and_effects_cover_macro_templates() {
         Some("verified")
     );
 
-    let workflow_delete_before =
-        parse_shell_line("introspect verify-effects macros template-delete --arg TEMPLATE_NAME=clone")
-            .expect("parse workflow template delete verify before");
-    let workflow_delete_before =
-        execute_shell_command(&mut engine, &workflow_delete_before)
-            .expect("execute workflow template delete verify before");
+    let workflow_delete_before = parse_shell_line(
+        "introspect verify-effects macros template-delete --arg TEMPLATE_NAME=clone",
+    )
+    .expect("parse workflow template delete verify before");
+    let workflow_delete_before = execute_shell_command(&mut engine, &workflow_delete_before)
+        .expect("execute workflow template delete verify before");
     assert_eq!(
         workflow_delete_before.output["verified"].as_bool(),
         Some(false)
@@ -21591,12 +22046,12 @@ fn execute_introspect_readiness_and_effects_cover_macro_templates() {
     )
     .expect("delete workflow template");
     assert!(workflow_deleted.state_changed);
-    let workflow_delete_after =
-        parse_shell_line("introspect verify-effects macros template-delete --arg TEMPLATE_NAME=clone")
-            .expect("parse workflow template delete verify after");
-    let workflow_delete_after =
-        execute_shell_command(&mut engine, &workflow_delete_after)
-            .expect("execute workflow template delete verify after");
+    let workflow_delete_after = parse_shell_line(
+        "introspect verify-effects macros template-delete --arg TEMPLATE_NAME=clone",
+    )
+    .expect("parse workflow template delete verify after");
+    let workflow_delete_after = execute_shell_command(&mut engine, &workflow_delete_after)
+        .expect("execute workflow template delete verify after");
     assert_eq!(
         workflow_delete_after.output["verified"].as_bool(),
         Some(true)
@@ -21609,9 +22064,8 @@ fn execute_introspect_readiness_and_effects_cover_macro_templates() {
     let workflow_missing =
         parse_shell_line("introspect readiness macros template-run --arg TEMPLATE_NAME=clone")
             .expect("parse deleted workflow template-run readiness");
-    let workflow_missing =
-        execute_shell_command(&mut engine, &workflow_missing)
-            .expect("execute deleted workflow readiness");
+    let workflow_missing = execute_shell_command(&mut engine, &workflow_missing)
+        .expect("execute deleted workflow readiness");
     assert_eq!(
         workflow_missing.output["readiness"][0]["readiness"].as_str(),
         Some("blocked")
@@ -25611,8 +26065,7 @@ fn execute_introspect_capabilities_projects_full_registry_with_fact_annotations(
                         == Some("candidate_set.exists")
                     && descriptor["effects"][0]["not"]["subject"]["arg"].as_str()
                         == Some("SET_NAME")
-                    && descriptor["effects"][0]["effect_kind"].as_str()
-                        == Some("must_on_success")
+                    && descriptor["effects"][0]["effect_kind"].as_str() == Some("must_on_success")
             }),
             "{id} should declare candidate-set absence after delete"
         );
@@ -25683,12 +26136,10 @@ fn execute_introspect_capabilities_projects_full_registry_with_fact_annotations(
         assert!(
             capabilities.iter().any(|descriptor| {
                 descriptor["id"].as_str() == Some(id)
-                    && descriptor["effects"][0]["not"]["fact"].as_str()
-                        == Some("guide_set.exists")
+                    && descriptor["effects"][0]["not"]["fact"].as_str() == Some("guide_set.exists")
                     && descriptor["effects"][0]["not"]["subject"]["arg"].as_str()
                         == Some("GUIDE_SET_ID")
-                    && descriptor["effects"][0]["effect_kind"].as_str()
-                        == Some("must_on_success")
+                    && descriptor["effects"][0]["effect_kind"].as_str() == Some("must_on_success")
             }),
             "{id} should declare guide-set absence after delete"
         );
@@ -29821,7 +30272,11 @@ fn execute_resources_status_reports_builtin_or_runtime_sources() {
         out.output["legacy_sha1"]["disable_env_var"].as_str(),
         Some("GENTLE_DISABLE_LEGACY_SHA1")
     );
-    assert!(out.output["legacy_sha1"]["support_status"].as_str().is_some());
+    assert!(
+        out.output["legacy_sha1"]["support_status"]
+            .as_str()
+            .is_some()
+    );
     assert!(out.output["legacy_sha1"]["available"].as_bool().is_some());
 }
 
@@ -35035,10 +35490,7 @@ fn parse_feature_expert_commands() {
                 request.probe_effect_coordinate_system.as_deref(),
                 Some("GRCh38.p14")
             );
-            assert_eq!(
-                request.motifs,
-                vec!["TP73".to_string(), "SP1".to_string()]
-            );
+            assert_eq!(request.motifs, vec!["TP73".to_string(), "SP1".to_string()]);
             assert_eq!(request.motif_score_kind, "llr_bits");
             assert_eq!(request.motif_display_threshold, Some(2.5));
             assert_eq!(request.motif_top_hit_count, 4);
@@ -39457,10 +39909,7 @@ fn execute_rna_reads_commands_store_and_export_reports() {
         export_dexseq_gff_result.output["row_count"].as_u64(),
         export_dexseq_gff_result.output["aggregate_gene_count"]
             .as_u64()
-            .zip(
-                export_dexseq_gff_result.output["exonic_part_count"]
-                    .as_u64()
-            )
+            .zip(export_dexseq_gff_result.output["exonic_part_count"].as_u64())
             .map(|(genes, parts)| genes + parts)
     );
     let dexseq_gff_text =
@@ -40608,4 +41057,230 @@ fn execute_op_set_display_visibility_marks_state_changed() {
     .expect("execute op");
     assert!(out.state_changed);
     assert!(engine.state().display.show_tfbs);
+}
+
+#[test]
+fn parse_features_edit_location_requires_preview_token_for_apply() {
+    let preview = parse_shell_line(
+        "features edit-location seq 2 --start-1based 11 --end-1based-inclusive 30 --dry-run",
+    )
+    .expect("preview parses");
+    assert!(matches!(
+        preview,
+        ShellCommand::FeaturesEditLocation {
+            seq_id,
+            feature_index: 2,
+            segment_index: None,
+            start_1based: 11,
+            end_1based_inclusive: 30,
+            dry_run: true,
+            expected_feature_fingerprint_sha256: None,
+            ..
+        } if seq_id == "seq"
+    ));
+    let error = parse_shell_line(
+        "features edit-location seq 2 --start-1based 11 --end-1based-inclusive 30",
+    )
+    .expect_err("apply without fingerprint rejected");
+    assert!(error.contains("--expected-feature-fingerprint-sha256"));
+}
+
+#[test]
+fn execute_features_edit_location_preview_then_apply() {
+    let mut dna = DNAsequence::from_sequence(&"A".repeat(50)).expect("sequence");
+    dna.features_mut().push(gb_io::seq::Feature {
+        kind: "gene".into(),
+        location: gb_io::seq::Location::simple_range(5, 20),
+        qualifiers: vec![("gene".into(), Some("TEST".to_string()))],
+    });
+    let mut state = ProjectState::default();
+    state.sequences.insert("seq".to_string(), dna);
+    let mut engine = GentleEngine::from_state(state);
+    let preview_command = parse_shell_line(
+        "features edit-location seq 0 --start-1based 7 --end-1based-inclusive 24 --dry-run",
+    )
+    .expect("preview command");
+    let preview = execute_shell_command(&mut engine, &preview_command).expect("preview execution");
+    assert!(!preview.state_changed);
+    let fingerprint = preview.output["report"]["before_feature_fingerprint_sha256"]
+        .as_str()
+        .expect("fingerprint")
+        .to_string();
+    assert_eq!(
+        engine.state().sequences["seq"].features()[0].location,
+        gb_io::seq::Location::simple_range(5, 20)
+    );
+
+    let apply_command = parse_shell_line(&format!(
+        "features edit-location seq 0 --start-1based 7 --end-1based-inclusive 24 --expected-feature-fingerprint-sha256 {fingerprint}"
+    ))
+    .expect("apply command");
+    let applied = execute_shell_command(&mut engine, &apply_command).expect("apply execution");
+    assert!(applied.state_changed);
+    assert_eq!(applied.output["report"]["applied"].as_bool(), Some(true));
+    assert_eq!(
+        engine.state().sequences["seq"].features()[0].location,
+        gb_io::seq::Location::simple_range(6, 24)
+    );
+}
+
+#[test]
+fn execute_features_edit_location_segment_preview_then_apply() {
+    let mut dna = DNAsequence::from_sequence(&"A".repeat(80)).expect("sequence");
+    dna.features_mut().push(gb_io::seq::Feature {
+        kind: "mRNA".into(),
+        location: gb_io::seq::Location::Join(vec![
+            gb_io::seq::Location::simple_range(5, 20),
+            gb_io::seq::Location::simple_range(30, 45),
+        ]),
+        qualifiers: vec![("transcript_id".into(), Some("TX1".to_string()))],
+    });
+    let mut state = ProjectState::default();
+    state.sequences.insert("seq".to_string(), dna);
+    let mut engine = GentleEngine::from_state(state);
+    let preview_command = parse_shell_line(
+        "features edit-location seq 0 --segment-index 1 --start-1based 33 --end-1based-inclusive 47 --dry-run",
+    )
+    .expect("segment preview command");
+    assert!(matches!(
+        preview_command,
+        ShellCommand::FeaturesEditLocation {
+            segment_index: Some(1),
+            ..
+        }
+    ));
+    let preview = execute_shell_command(&mut engine, &preview_command).expect("segment preview");
+    assert!(!preview.state_changed);
+    assert_eq!(
+        preview.output["report"]["schema"].as_str(),
+        Some(FEATURE_LOCATION_EDIT_SCHEMA_V2)
+    );
+    let fingerprint = preview.output["report"]["before_feature_fingerprint_sha256"]
+        .as_str()
+        .expect("fingerprint");
+    let apply_command = parse_shell_line(&format!(
+        "features edit-location seq 0 --segment-index 1 --start-1based 33 --end-1based-inclusive 47 --expected-feature-fingerprint-sha256 {fingerprint}"
+    ))
+    .expect("segment apply command");
+    let applied =
+        execute_shell_command(&mut engine, &apply_command).expect("segment apply execution");
+    assert!(applied.state_changed);
+    assert_eq!(
+        engine.state().sequences["seq"].features()[0].location,
+        gb_io::seq::Location::Join(vec![
+            gb_io::seq::Location::simple_range(5, 20),
+            gb_io::seq::Location::simple_range(32, 47),
+        ])
+    );
+}
+
+#[test]
+fn parse_features_create_and_delete_require_preview_tokens_for_apply() {
+    let create = parse_shell_line(
+        "features create seq --kind exon --start-1based 11 --end-1based-inclusive 20 --strand reverse --qualifier gene=TEST --qualifier pseudo --dry-run",
+    )
+    .expect("create preview parses");
+    assert!(matches!(
+        create,
+        ShellCommand::FeaturesCreate {
+            seq_id,
+            feature_kind,
+            start_1based: 11,
+            end_1based_inclusive: 20,
+            strand: FeatureLocationEditStrand::Reverse,
+            qualifiers,
+            dry_run: true,
+            ..
+        } if seq_id == "seq"
+            && feature_kind == "exon"
+            && qualifiers == vec![
+                FeatureRecordQualifier {
+                    key: "gene".to_string(),
+                    value: Some("TEST".to_string()),
+                },
+                FeatureRecordQualifier {
+                    key: "pseudo".to_string(),
+                    value: None,
+                },
+            ]
+    ));
+    let create_error = parse_shell_line(
+        "features create seq --kind exon --start-1based 11 --end-1based-inclusive 20",
+    )
+    .expect_err("create apply without token rejected");
+    assert!(create_error.contains("--expected-annotation-state-fingerprint-sha256"));
+
+    let delete =
+        parse_shell_line("features delete seq 2 --dry-run").expect("delete preview parses");
+    assert!(matches!(
+        delete,
+        ShellCommand::FeaturesDelete {
+            seq_id,
+            feature_index: 2,
+            dry_run: true,
+            ..
+        } if seq_id == "seq"
+    ));
+    let delete_error =
+        parse_shell_line("features delete seq 2").expect_err("delete apply without tokens rejected");
+    assert!(delete_error.contains("--expected-feature-fingerprint-sha256"));
+    assert!(delete_error.contains("--expected-annotation-state-fingerprint-sha256"));
+}
+
+#[test]
+fn execute_features_create_then_delete_uses_shared_curation_operations() {
+    let mut dna = DNAsequence::from_sequence(&"A".repeat(50)).expect("sequence");
+    dna.features_mut().push(gb_io::seq::Feature {
+        kind: "gene".into(),
+        location: gb_io::seq::Location::simple_range(5, 30),
+        qualifiers: vec![("gene".into(), Some("TEST".to_string()))],
+    });
+    let mut state = ProjectState::default();
+    state.sequences.insert("seq".to_string(), dna);
+    let mut engine = GentleEngine::from_state(state);
+
+    let create_preview = parse_shell_line(
+        "features create seq --kind exon --start-1based 11 --end-1based-inclusive 20 --strand reverse --qualifier gene=TEST --qualifier pseudo --dry-run",
+    )
+    .expect("create preview command");
+    let create_preview =
+        execute_shell_command(&mut engine, &create_preview).expect("create preview execution");
+    assert!(!create_preview.state_changed);
+    let annotation_fingerprint = create_preview.output["report"]
+        ["before_annotation_state_fingerprint_sha256"]
+        .as_str()
+        .expect("annotation fingerprint");
+    let create_apply = parse_shell_line(&format!(
+        "features create seq --kind exon --start-1based 11 --end-1based-inclusive 20 --strand reverse --qualifier gene=TEST --qualifier pseudo --expected-annotation-state-fingerprint-sha256 {annotation_fingerprint}"
+    ))
+    .expect("create apply command");
+    let create_applied =
+        execute_shell_command(&mut engine, &create_apply).expect("create apply execution");
+    assert!(create_applied.state_changed);
+    assert_eq!(engine.state().sequences["seq"].features().len(), 2);
+    assert_eq!(
+        engine.state().sequences["seq"].features()[1].qualifiers[1],
+        ("pseudo".into(), None)
+    );
+
+    let delete_preview =
+        parse_shell_line("features delete seq 1 --dry-run").expect("delete preview command");
+    let delete_preview =
+        execute_shell_command(&mut engine, &delete_preview).expect("delete preview execution");
+    let feature_fingerprint = delete_preview.output["report"]["outcome"]["deleted_feature"]
+        ["feature_fingerprint_sha256"]
+        .as_str()
+        .expect("feature fingerprint");
+    let annotation_fingerprint = delete_preview.output["report"]
+        ["before_annotation_state_fingerprint_sha256"]
+        .as_str()
+        .expect("annotation fingerprint");
+    let delete_apply = parse_shell_line(&format!(
+        "features delete seq 1 --expected-feature-fingerprint-sha256 {feature_fingerprint} --expected-annotation-state-fingerprint-sha256 {annotation_fingerprint}"
+    ))
+    .expect("delete apply command");
+    let delete_applied =
+        execute_shell_command(&mut engine, &delete_apply).expect("delete apply execution");
+    assert!(delete_applied.state_changed);
+    assert_eq!(engine.state().sequences["seq"].features().len(), 1);
 }

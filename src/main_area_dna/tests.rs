@@ -6,6 +6,7 @@ use super::{
     SequencingConfirmationOverviewSelection, SequencingConfirmationReviewFocusKind,
     SplicingIntronSignalKey, SplicingIntronSignalRow, ViewSvgExportProfile,
     auxiliary_workspaces::LocusEvidenceResourceReadiness,
+    feature_location_editor_ui::{FeatureEditorMode, FeatureRecordQualifierUiRow},
 };
 use crate::{
     dna_display::{ConstructReasoningOverlay, ConstructReasoningOverlaySpan, Selection},
@@ -17,7 +18,8 @@ use crate::{
         CutRunAlignConfig, CutRunInputFormat, CutRunReadLayout,
         CutRunRegulatoryTfbsConfirmationStatus, CutRunSeedFilterConfig, DotplotMode,
         DotplotOverlayAnchorExonRef, DotplotOverlayXAxisMode, DotplotView, EditableStatus, Engine,
-        EngineError, ErrorCode, EvidenceClass, FlexibilityModel, FlexibilityTrack,
+        EngineError, ErrorCode, EvidenceClass, FeatureLocationEditStrand,
+        FeatureRecordCurationOutcome, FlexibilityModel, FlexibilityTrack,
         GeneIsoformEvidenceReport, GentleEngine, LinearSequenceLetterLayoutMode, OpResult,
         Operation, PairwiseAlignmentMode, PrimerDesignBackend, PrimerDesignPairConstraint,
         PrimerDesignProgress, PrimerDesignSideConstraint, ProbeRegionEvidenceInterpretationReport,
@@ -1071,6 +1073,7 @@ fn handle_imported_sequencing_trace_result_selects_trace_and_appends_to_run() {
     area.sequencing_confirmation_ui.trace_import_add_to_run = true;
 
     area.handle_imported_sequencing_trace_result(&OpResult {
+        experimental_assay_handoff: None,
         op_id: "op-import-trace".to_string(),
         created_seq_ids: vec![],
         changed_seq_ids: vec![],
@@ -1087,10 +1090,12 @@ fn handle_imported_sequencing_trace_result_selects_trace_and_appends_to_run() {
         exon_skip_materialization: None,
         cdna_assay_test_report: None,
         cdna_assay_product_materialization: None,
+        primerbank_search_report: None,
         transcript_qpcr_panel: None,
         transcript_assay_panel: None,
         primer_specificity_handoff: None,
         primer_specificity_report: None,
+        external_primer_pair_import_report: None,
         construct_reasoning_graph: None,
         sequencing_confirmation_report: None,
         sequencing_trace_import_report: Some(SequencingTraceImportReport {
@@ -1167,6 +1172,8 @@ fn handle_imported_sequencing_trace_result_selects_trace_and_appends_to_run() {
         uniprot_projection_audit: None,
         uniprot_projection_audit_parity: None,
         lab_assistant_instructions: None,
+        feature_location_edit_report: None,
+        feature_record_curation_report: None,
     });
 
     assert_eq!(area.sequencing_confirmation_ui.selected_trace_id, "trace_b");
@@ -4896,6 +4903,7 @@ fn handle_operation_success_captures_protocol_cartoon_preview_payload() {
     };
     area.handle_operation_success(
         super::OpResult {
+            experimental_assay_handoff: None,
             op_id: "op-preview".to_string(),
             created_seq_ids: vec![],
             changed_seq_ids: vec![],
@@ -4912,10 +4920,12 @@ fn handle_operation_success_captures_protocol_cartoon_preview_payload() {
             exon_skip_materialization: None,
             cdna_assay_test_report: None,
             cdna_assay_product_materialization: None,
+            primerbank_search_report: None,
             transcript_qpcr_panel: None,
             transcript_assay_panel: None,
             primer_specificity_handoff: None,
             primer_specificity_report: None,
+            external_primer_pair_import_report: None,
             construct_reasoning_graph: None,
             sequencing_confirmation_report: None,
             sequencing_primer_overlay_report: None,
@@ -4977,6 +4987,8 @@ fn handle_operation_success_captures_protocol_cartoon_preview_payload() {
             uniprot_projection_audit: None,
             uniprot_projection_audit_parity: None,
             lab_assistant_instructions: None,
+            feature_location_edit_report: None,
+            feature_record_curation_report: None,
         },
         Instant::now(),
     );
@@ -9192,19 +9204,46 @@ fn transcript_assay_panel_gui_defaults_to_strict_endpoint_oligo_dt_design() {
         area.transcript_assay_panel_ui.assay_tier,
         crate::engine::TranscriptAssayUseTier::Unspecified
     );
-    assert!(area
-        .transcript_assay_panel_ui
-        .preferred_min_amplicon_bp
-        .is_empty());
-    assert!(area
-        .transcript_assay_panel_ui
-        .preferred_max_amplicon_bp
-        .is_empty());
+    assert!(
+        area.transcript_assay_panel_ui
+            .preferred_min_amplicon_bp
+            .is_empty()
+    );
+    assert!(
+        area.transcript_assay_panel_ui
+            .preferred_max_amplicon_bp
+            .is_empty()
+    );
     assert!(
         area.transcript_assay_panel_ui
             .oligo_dt_5prime_risk_threshold_bp
             .is_empty()
     );
+}
+
+#[test]
+fn transcript_assay_panel_gui_builds_default_experimental_handoff_operation() {
+    let operation = MainAreaDna::build_experimental_assay_handoff_operation("panel_gui_test");
+    let Operation::BuildExperimentalAssayHandoff {
+        panel_report_id,
+        policy,
+        variant_evidence_paths,
+        order_form_id,
+        path,
+        order_table_path,
+    } = operation
+    else {
+        panic!("expected BuildExperimentalAssayHandoff");
+    };
+    assert_eq!(panel_report_id, "panel_gui_test");
+    assert!(policy.require_critical_qc_pass);
+    assert!(policy.require_specificity_pass);
+    assert!(!policy.require_assay_test);
+    assert!(!policy.require_variant_evaluation);
+    assert!(variant_evidence_paths.is_empty());
+    assert!(order_form_id.is_none());
+    assert!(path.is_none());
+    assert!(order_table_path.is_none());
 }
 
 #[test]
@@ -14725,6 +14764,189 @@ fn rna_read_progress_eta_text_reports_remaining_time_for_known_working_set() {
         super::MainAreaDna::format_rna_read_progress_eta(100, 100, 10.0),
         Some("ETA: 0s".to_string())
     );
+}
+
+#[test]
+fn feature_location_editor_uses_shared_preview_operation() {
+    let mut dna = DNAsequence::from_sequence(&"A".repeat(50)).expect("sequence");
+    dna.features_mut().push(Feature {
+        kind: "gene".into(),
+        location: Location::simple_range(5, 20),
+        qualifiers: vec![("gene".into(), Some("TEST".to_string()))],
+    });
+    let mut state = ProjectState::default();
+    state.sequences.insert("seq".to_string(), dna.clone());
+    let engine = Arc::new(RwLock::new(GentleEngine::from_state(state)));
+    let mut area = MainAreaDna::new(dna, Some("seq".to_string()), Some(engine));
+    area.focus_feature_location_editor(Some(0));
+    assert!(area.feature_location_editor_is_open());
+    assert_eq!(
+        area.feature_location_editor_ui.selected_feature_index,
+        Some(0)
+    );
+    assert_eq!(area.feature_location_editor_ui.start_1based, "6");
+    area.feature_location_editor_ui.start_1based = "7".to_string();
+    area.feature_location_editor_ui.end_1based_inclusive = "24".to_string();
+    area.run_feature_location_preview();
+    let preview = area
+        .feature_location_editor_ui
+        .preview
+        .as_ref()
+        .expect("preview");
+    assert_eq!(preview.after.start_1based, 7);
+    assert_eq!(preview.after.end_1based_inclusive, 24);
+}
+
+#[test]
+fn feature_location_editor_selects_compound_segments_and_invalidates_preview() {
+    let mut dna = DNAsequence::from_sequence(&"A".repeat(80)).expect("sequence");
+    dna.features_mut().push(Feature {
+        kind: "mRNA".into(),
+        location: Location::Complement(Box::new(Location::Join(vec![
+            Location::simple_range(5, 20),
+            Location::simple_range(30, 45),
+        ]))),
+        qualifiers: vec![("transcript_id".into(), Some("TX1".to_string()))],
+    });
+    let mut state = ProjectState::default();
+    state.sequences.insert("seq".to_string(), dna.clone());
+    let engine = Arc::new(RwLock::new(GentleEngine::from_state(state)));
+    let mut area = MainAreaDna::new(dna, Some("seq".to_string()), Some(engine));
+    area.focus_feature_location_editor(Some(0));
+    assert_eq!(
+        area.feature_location_editor_ui.selected_segment_index,
+        Some(0)
+    );
+    assert_eq!(area.feature_location_editor_ui.segment_options.len(), 2);
+    assert!(
+        area.feature_location_editor_ui.segment_options[0]
+            .label
+            .contains("biological 2")
+    );
+    area.run_feature_location_preview();
+    assert!(
+        area.feature_location_editor_ui.preview.is_some(),
+        "first segment preview"
+    );
+
+    area.select_feature_location_editor_segment(1);
+    assert!(area.feature_location_editor_ui.preview.is_none());
+    assert_eq!(
+        area.feature_location_editor_ui.selected_segment_index,
+        Some(1)
+    );
+    assert_eq!(area.feature_location_editor_ui.start_1based, "31");
+    area.run_feature_location_preview();
+    let preview = area
+        .feature_location_editor_ui
+        .preview
+        .as_ref()
+        .expect("second segment preview");
+    assert_eq!(
+        preview
+            .compound_context
+            .as_ref()
+            .expect("context")
+            .biological_segment_number,
+        1
+    );
+}
+
+#[test]
+fn feature_editor_create_mode_uses_shared_preview_apply_and_preserves_qualifiers() {
+    let dna = DNAsequence::from_sequence(&"A".repeat(50)).expect("sequence");
+    let mut state = ProjectState::default();
+    state.sequences.insert("seq".to_string(), dna.clone());
+    let engine = Arc::new(RwLock::new(GentleEngine::from_state(state)));
+    let mut area = MainAreaDna::new(dna, Some("seq".to_string()), Some(engine.clone()));
+    area.focus_feature_record_create_editor(Some((9, 20)));
+    assert!(area.feature_location_editor_is_open());
+    assert_eq!(
+        area.feature_location_editor_ui.record.mode,
+        FeatureEditorMode::Create
+    );
+    area.feature_location_editor_ui.record.create_feature_kind = "exon".to_string();
+    area.feature_location_editor_ui.record.create_strand =
+        FeatureLocationEditStrand::Reverse;
+    area.feature_location_editor_ui
+        .record
+        .create_qualifiers = vec![
+        FeatureRecordQualifierUiRow {
+            key: "gene".to_string(),
+            value: "TEST".to_string(),
+            has_value: true,
+        },
+        FeatureRecordQualifierUiRow {
+            key: "pseudo".to_string(),
+            value: String::new(),
+            has_value: false,
+        },
+    ];
+    area.run_feature_record_preview();
+    let preview = area
+        .feature_location_editor_ui
+        .record
+        .preview
+        .as_ref()
+        .expect("preview");
+    assert!(matches!(
+        preview.outcome,
+        FeatureRecordCurationOutcome::Create {
+            created_feature_index: None,
+            ..
+        }
+    ));
+    assert!(engine.read().expect("engine").state().sequences["seq"]
+        .features()
+        .is_empty());
+
+    area.run_feature_record_apply();
+    let guard = engine.read().expect("engine");
+    let created = &guard.state().sequences["seq"].features()[0];
+    assert_eq!(
+        created.location,
+        Location::Complement(Box::new(Location::simple_range(9, 20)))
+    );
+    assert_eq!(
+        created.qualifiers,
+        vec![
+            ("gene".into(), Some("TEST".to_string())),
+            ("pseudo".into(), None),
+        ]
+    );
+}
+
+#[test]
+fn feature_editor_delete_mode_accepts_compound_feature_and_invalidates_preview() {
+    let mut dna = DNAsequence::from_sequence(&"A".repeat(50)).expect("sequence");
+    dna.features_mut().push(Feature {
+        kind: "mRNA".into(),
+        location: Location::Join(vec![
+            Location::simple_range(5, 15),
+            Location::simple_range(25, 35),
+        ]),
+        qualifiers: vec![("transcript_id".into(), Some("TX1".to_string()))],
+    });
+    let mut state = ProjectState::default();
+    state.sequences.insert("seq".to_string(), dna.clone());
+    let engine = Arc::new(RwLock::new(GentleEngine::from_state(state)));
+    let mut area = MainAreaDna::new(dna, Some("seq".to_string()), Some(engine.clone()));
+    area.focus_feature_record_delete_editor(Some(0));
+    assert_eq!(
+        area.feature_location_editor_ui.record.mode,
+        FeatureEditorMode::Delete
+    );
+    area.run_feature_record_preview();
+    assert!(area.feature_location_editor_ui.record.preview.is_some());
+    area.feature_location_editor_ui.record.delete_feature_index = None;
+    area.invalidate_feature_record_preview();
+    assert!(area.feature_location_editor_ui.record.preview.is_none());
+    area.feature_location_editor_ui.record.delete_feature_index = Some(0);
+    area.run_feature_record_preview();
+    area.run_feature_record_apply();
+    assert!(engine.read().expect("engine").state().sequences["seq"]
+        .features()
+        .is_empty());
 }
 
 #[cfg(test)]

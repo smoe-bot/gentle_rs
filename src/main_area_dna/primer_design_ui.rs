@@ -250,6 +250,7 @@ pub(super) struct PrimerDesignOpsUiState {
     pub(super) max_tm_delta_c: String,
     pub(super) max_pairs: String,
     pub(super) report_id: String,
+    pub(super) specificity_report_id: String,
     pub(super) specificity_target_genome_id: String,
     pub(super) specificity_pair_rank_1based: String,
     pub(super) specificity_max_target_amplicon_bp: String,
@@ -270,6 +271,7 @@ impl Default for PrimerDesignOpsUiState {
             max_tm_delta_c: "2.0".to_string(),
             max_pairs: "200".to_string(),
             report_id: "primer_report_gui".to_string(),
+            specificity_report_id: String::new(),
             specificity_target_genome_id: String::new(),
             specificity_pair_rank_1based: "1".to_string(),
             specificity_max_target_amplicon_bp: "4000".to_string(),
@@ -1247,17 +1249,13 @@ impl MainAreaDna {
         )?;
         let practicality = match (preferred_min_amplicon_bp, preferred_max_amplicon_bp) {
             (Some(min_bp), Some(max_bp)) => Some(TranscriptAssayPracticalityPolicy {
-                preferred_amplicon_bp: Some(TranscriptAssayAmpliconRange {
-                    min_bp,
-                    max_bp,
-                }),
+                preferred_amplicon_bp: Some(TranscriptAssayAmpliconRange { min_bp, max_bp }),
                 allowed_amplicon_bp: None,
             }),
             (None, None) => None,
             _ => {
                 return Err(
-                    "Preferred amplicon minimum and maximum must be supplied together"
-                        .to_string(),
+                    "Preferred amplicon minimum and maximum must be supplied together".to_string(),
                 );
             }
         };
@@ -1640,21 +1638,21 @@ impl MainAreaDna {
             max_hits_per_primer,
             ..PrimerSpecificityPolicy::default()
         };
-        let report = match engine
-            .read()
-            .expect("Engine lock poisoned")
-            .assess_primer_pair_specificity(
-                Some(report_id),
-                Some(pair_rank),
-                None,
-                None,
-                None,
-                target_genome_id,
+        let op_result = match engine.write().expect("Engine lock poisoned").apply(
+            Operation::AssessPrimerPairSpecificity {
+                primer_report_id: Some(report_id.to_string()),
+                pair_rank: Some(pair_rank),
+                pair_index: None,
+                forward_primer: None,
+                reverse_primer: None,
+                target_genome_id: target_genome_id.to_string(),
                 policy,
-                None,
-                None,
-            ) {
-            Ok(report) => report,
+                catalog_path: None,
+                cache_dir: None,
+                path: None,
+            },
+        ) {
+            Ok(result) => result,
             Err(err) => {
                 self.op_status = format!(
                     "Primer specificity failed for report '{}' rank {} against '{}': {}",
@@ -1663,8 +1661,17 @@ impl MainAreaDna {
                 return;
             }
         };
+        let Some(report) = op_result.primer_specificity_report.map(|report| *report) else {
+            self.op_status = format!(
+                "Primer specificity operation for '{}' rank {} returned no report",
+                report_id, pair_rank
+            );
+            return;
+        };
+        self.primer_design_ui.specificity_report_id = report.report_id.clone();
         self.op_status = format!(
-            "Primer specificity {} for '{}' rank {} against '{}': intended={} unintended={} failing_unintended={} primer_hits={} accepted_hits={} warnings={}",
+            "Persisted primer specificity '{}' ({}) for '{}' rank {} against '{}': intended={} unintended={} failing_unintended={} primer_hits={} accepted_hits={} warnings={}",
+            report.report_id,
             report.summary.status,
             report_id,
             pair_rank,
@@ -1676,6 +1683,43 @@ impl MainAreaDna {
             report.summary.accepted_primer_hit_count,
             report.warnings.len()
         );
+    }
+
+    pub(super) fn show_primer_specificity_report(&mut self, report_id: &str) {
+        let report_id = report_id.trim();
+        if report_id.is_empty() {
+            self.op_status = "Primer-specificity report_id is empty".to_string();
+            return;
+        }
+        let Some(engine) = self.engine.clone() else {
+            self.op_status = "No engine attached".to_string();
+            return;
+        };
+        match engine
+            .read()
+            .expect("Engine lock poisoned")
+            .get_primer_specificity_report(report_id)
+        {
+            Ok(report) => {
+                self.primer_design_ui.specificity_report_id = report.report_id.clone();
+                self.op_status = format!(
+                    "Primer specificity '{}' status={} target={} ({}) products={} failing_off_targets={} design_provenance={}",
+                    report.report_id,
+                    report.summary.status,
+                    report.target_genome_id,
+                    report.target_kind,
+                    report.summary.amplicon_count,
+                    report.summary.failing_unintended_amplicon_count,
+                    report.design_provenance.status.as_str()
+                );
+            }
+            Err(error) => {
+                self.op_status = format!(
+                    "Could not load primer-specificity report '{}': {}",
+                    report_id, error.message
+                );
+            }
+        }
     }
 
     pub(super) fn load_primer_design_report(
@@ -3878,8 +3922,12 @@ impl MainAreaDna {
                 self.transcript_assay_panel_ui.objective = report.objective;
                 self.transcript_assay_panel_ui.coverage_policy = report.coverage_policy;
                 self.transcript_assay_panel_ui.assay_tier = report.assay_tier;
-                self.transcript_assay_panel_ui.preferred_min_amplicon_bp.clear();
-                self.transcript_assay_panel_ui.preferred_max_amplicon_bp.clear();
+                self.transcript_assay_panel_ui
+                    .preferred_min_amplicon_bp
+                    .clear();
+                self.transcript_assay_panel_ui
+                    .preferred_max_amplicon_bp
+                    .clear();
                 if let Some(policy) = report.practicality_policy.as_ref()
                     && let Some(preferred) = policy.preferred_amplicon_bp.as_ref()
                 {
@@ -3889,6 +3937,7 @@ impl MainAreaDna {
                         preferred.max_bp.to_string();
                 }
                 self.cached_transcript_assay_panel_report = Some(Arc::new(report.clone()));
+                self.cached_experimental_assay_handoff = None;
                 self.op_status = format!(
                     "Loaded transcript assay-panel report '{}' ({} transcripts, {} classes, {} selected assays)",
                     report.report_id,
@@ -3963,9 +4012,7 @@ impl MainAreaDna {
             TranscriptAssayUseTier::Unspecified => "Unspecified",
             TranscriptAssayUseTier::RoutineCommonRegionScreen => "Routine common-region screen",
             TranscriptAssayUseTier::IsoformDiscrimination => "Isoform discrimination",
-            TranscriptAssayUseTier::LongRangeStructureDiscovery => {
-                "Long-range structure discovery"
-            }
+            TranscriptAssayUseTier::LongRangeStructureDiscovery => "Long-range structure discovery",
         }
     }
 
@@ -3978,9 +4025,7 @@ impl MainAreaDna {
             TranscriptAssayPracticalityClassification::AllowedNonpreferred => {
                 "allowed nonpreferred"
             }
-            TranscriptAssayPracticalityClassification::LongRangeFallback => {
-                "long-range fallback"
-            }
+            TranscriptAssayPracticalityClassification::LongRangeFallback => "long-range fallback",
         }
     }
 
@@ -4031,6 +4076,98 @@ impl MainAreaDna {
             TranscriptAssayOligoDtReachStatus::WithinConfiguredThreshold => "RT within",
             TranscriptAssayOligoDtReachStatus::Elevated5PrimeRisk => "RT risk",
             TranscriptAssayOligoDtReachStatus::Indeterminate => "RT ?",
+        }
+    }
+
+    pub(super) fn build_experimental_assay_handoff_operation(report_id: &str) -> Operation {
+        Operation::BuildExperimentalAssayHandoff {
+            panel_report_id: report_id.to_string(),
+            policy: ExperimentalAssayReadinessPolicy::default(),
+            variant_evidence_paths: vec![],
+            order_form_id: None,
+            path: None,
+            order_table_path: None,
+        }
+    }
+
+    fn render_experimental_assay_handoff(
+        ui: &mut egui::Ui,
+        report: &ExperimentalAssayHandoffReport,
+    ) {
+        ui.separator();
+        ui.heading("Experimental handoff");
+        let order_ready = report
+            .cards
+            .iter()
+            .filter(|card| card.readiness_state == ExperimentalAssayReadinessState::OrderReady)
+            .count();
+        ui.horizontal_wrapped(|ui| {
+            ui.label(format!(
+                "{} assay card(s); {} order-ready",
+                report.cards.len(),
+                order_ready
+            ));
+            ui.monospace(format!("policy {}", report.policy.policy_version));
+        });
+        ui.small(
+            "Candidate means that one or more required evidence gates are incomplete or failed; it is not an order submission.",
+        );
+        for card in &report.cards {
+            egui::CollapsingHeader::new(format!(
+                "A{} {} | {}",
+                card.pair_rank,
+                card.display_label,
+                card.readiness_state.as_str()
+            ))
+            .default_open(card.readiness_state != ExperimentalAssayReadinessState::OrderReady)
+            .show(ui, |ui| {
+                ui.monospace(&card.pair_id);
+                if !card.blockers.is_empty() {
+                    ui.colored_label(
+                        egui::Color32::from_rgb(176, 72, 58),
+                        format!("Blockers: {}", card.blockers.join(", ")),
+                    );
+                }
+                egui::Grid::new(("experimental_handoff_oligos", &card.card_id))
+                    .striped(true)
+                    .show(ui, |ui| {
+                        ui.strong("Role");
+                        ui.strong("Tube");
+                        ui.strong("Sequence 5' to 3'");
+                        ui.end_row();
+                        for oligo in &card.oligos {
+                            ui.label(&oligo.role);
+                            ui.monospace(&oligo.tube_id);
+                            ui.monospace(&oligo.sequence_5_to_3);
+                            ui.end_row();
+                        }
+                    });
+                egui::Grid::new(("experimental_handoff_gates", &card.card_id))
+                    .striped(true)
+                    .show(ui, |ui| {
+                        ui.strong("Gate");
+                        ui.strong("Required");
+                        ui.strong("Outcome");
+                        ui.end_row();
+                        for gate in &card.gate_outcomes {
+                            ui.label(&gate.gate);
+                            ui.label(if gate.required { "yes" } else { "no" });
+                            ui.label(gate.status.as_str()).on_hover_text(&gate.summary);
+                            ui.end_row();
+                        }
+                    });
+                if !card.predicted_product_lengths_bp.is_empty() {
+                    ui.small(format!(
+                        "Predicted cDNA products: {} bp",
+                        card.predicted_product_lengths_bp
+                            .iter()
+                            .map(ToString::to_string)
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ));
+                }
+                ui.small(&card.endpoint_abundance_interpretation);
+            });
         }
     }
 
@@ -4980,6 +5117,38 @@ impl MainAreaDna {
         });
         if let Some(report) = self.cached_transcript_assay_panel_report.clone() {
             Self::render_transcript_assay_panel_report(ui, report.as_ref());
+            ui.horizontal_wrapped(|ui| {
+                if ui
+                    .add_enabled(
+                        !primer_task_running,
+                        egui::Button::new("Build experimental handoff"),
+                    )
+                    .on_hover_text(
+                        "Build one default-policy readiness card per selected pair through the shared engine",
+                    )
+                    .clicked()
+                {
+                    self.cached_experimental_assay_handoff = None;
+                    self.start_primer_design_operation(
+                        Self::build_experimental_assay_handoff_operation(&report.report_id),
+                        "Experimental assay handoff",
+                    );
+                }
+                if ui.button("Copy advanced command").clicked() {
+                    ui.ctx().copy_text(format!(
+                        "primers experimental-handoff {} --path experimental_handoff.json --order-table experimental_handoff.tsv",
+                        report.report_id
+                    ));
+                    self.op_status =
+                        "Copied experimental-handoff command; add policy, variant evidence, or order-form options as needed."
+                            .to_string();
+                }
+            });
+            if let Some(handoff) = self.cached_experimental_assay_handoff.clone() {
+                if handoff.source_panel_report_id == report.report_id {
+                    Self::render_experimental_assay_handoff(ui, handoff.as_ref());
+                }
+            }
         }
     }
 
@@ -5624,6 +5793,59 @@ impl MainAreaDna {
                             self.confirm_primer_specificity_for_report(&report_id);
                         }
                     });
+                    if !self
+                        .primer_design_ui
+                        .specificity_report_id
+                        .trim()
+                        .is_empty()
+                    {
+                        ui.separator();
+                        ui.horizontal_wrapped(|ui| {
+                            ui.label("Persisted specificity evidence");
+                            ui.monospace(
+                                self.primer_design_ui
+                                    .specificity_report_id
+                                    .trim(),
+                            );
+                            if ui
+                                .button("Show summary")
+                                .on_hover_text(
+                                    "Reload this persisted specificity artifact and show its status, target database, product count, and design-provenance state.",
+                                )
+                                .clicked()
+                            {
+                                let report_id =
+                                    self.primer_design_ui.specificity_report_id.clone();
+                                self.show_primer_specificity_report(&report_id);
+                            }
+                        });
+                        let summary = self.engine.as_ref().and_then(|engine| {
+                            engine.read().ok().and_then(|engine| {
+                                engine
+                                    .list_primer_specificity_reports()
+                                    .into_iter()
+                                    .find(|summary| {
+                                        summary.report_id
+                                            == self.primer_design_ui.specificity_report_id
+                                    })
+                            })
+                        });
+                        if let Some(summary) = summary {
+                            ui.small(format!(
+                                "status={} | target={} ({}) | products={} | failing off-targets={} | design provenance={}",
+                                summary.status,
+                                summary.target_genome_id,
+                                summary.target_kind,
+                                summary.amplicon_count,
+                                summary.failing_unintended_amplicon_count,
+                                summary.design_provenance_status.as_str()
+                            ));
+                        } else {
+                            ui.small(
+                                "The selected specificity report is no longer present in project metadata.",
+                            );
+                        }
+                    }
                 });
                 self.render_primer_design_report_preview(ui);
                 self.render_restriction_cloning_handoff_section(ui, &template);

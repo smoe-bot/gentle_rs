@@ -12,8 +12,66 @@ Maintenance rule:
   document names, schemas, or feature names only when they help a reader
   understand what changed.
 
+## 2026-07-28
+
+- Added engine-owned `gentle.feature_record_curation.v1` Create/Delete
+  preview/apply operations, portable annotation-state locks, ordered
+  duplicate/valueless qualifier preservation, full undo/redo, shared
+  `features create` / `features delete` routes, and Create/Delete tabs in the
+  DNA Feature Editor. Overlap and shared INSDC identifiers remain
+  informational review evidence; split/merge and automatic propagation remain
+  deferred.
+- Extended the engine-owned Feature Location Editor and shared
+  `features edit-location` route to edit one exact child in flat
+  `Join`/`Order` annotations, including outer-complement reverse-strand
+  compounds. Segment edits preserve the complete location topology and
+  qualifiers, report stored versus biological segment numbering, expose typed
+  overlap/direction/CDS-length warnings and cross-role related boundaries, and
+  keep nested, fuzzy, topology-changing, and circular cross-origin locations
+  read-only.
+- Corrected primer-specificity interpretation for minus-strand targets and
+  per-HSP query coverage, and made exhaustive BLAST coverage enforceable by
+  setting a subject cap above the validated database sequence count; direct and
+  handoff reports now expose `search_completeness`, and unproven searches yield
+  `incomplete` rather than a specificity pass.
+- Promoted the existing primer-specificity report family to persisted
+  `gentle.primer_specificity_report.v2` computational artifacts with stable
+  ids, operation/run and database provenance, explicit independent assessment
+  states, design-report citations, CLI inspection/export, and GUI lineage
+  reopening; raw primer pairs remain explicit about absent selection
+  provenance.
+
+## 2026-07-27
+
+- Added engine-owned exact feature-location preview/apply operations,
+  `features edit-location`, optimistic-concurrency fingerprints, undo/redo,
+  adapter introspection, and a GUI Feature Location Editor reached from the
+  command palette and feature context menus; complex/fuzzy locations remain
+  explicitly read-only and related annotations are review-only.
+
+## 2026-07-23
+
+- Added provenance-aware JSON/TSV external primer-pair import with stable
+  sequence-derived identities, duplicate-source retention, shared Tm/GC/oligo-QC
+  metrics, cDNA product and genomic-carryover evaluation, optional prepared-genome
+  specificity and product gels, and an explicit rule that provider claims never
+  count as transcript-coverage or specificity evidence.
+
 ## 2026-07-22
 
+- Added a policy-aware PrimerBank adapter with live or saved-HTML search,
+  typed `gentle.primerbank_search.v1` records, exact pair lookup, JSON export,
+  and an explicit continuation into GENtle's transcript-aware cDNA PCR test
+  without inferring genomic specificity or experimental validation; typed
+  requested-versus-observed species checks are available to every adapter and
+  cDNA continuation now refuses mismatched or unresolved catalog records and
+  independently rejects a conflicting project-sequence organism annotation.
+- Added deterministic per-panel experimental assay handoffs with canonical
+  oligo/pair identities, automatic pair-linked cDNA tests, exact product-
+  sequence classes, versioned readiness gates, optional provenance-bound
+  variant evidence, procurement formulation projection, and JSON/TSV exports
+  across the shared engine, PCR Designer, shell/CLI, and generic adapter
+  surfaces.
 - Added experimental-practicality provenance to multi-transcript primer panels:
   annotation-only routine common-region screening, separate PSR/JUC support,
   preferred-versus-allowed product ranges, explicit long-range fallbacks,

@@ -7,6 +7,8 @@
 
 pub mod construct_reasoning;
 pub mod dna_ladder;
+pub mod feature_location_edit;
+pub mod feature_record_curation;
 pub mod gene_groups;
 pub mod gene_sets;
 pub mod isoform_evidence;
@@ -46,6 +48,21 @@ pub use construct_reasoning::{
 pub use dna_ladder::{
     DNALadder, DNALadderBand, DNALadders, Ladder, LadderBand, LadderCatalog, LadderMolecule,
     RNALadder, RNALadderBand, RNALadders, default_dna_ladders, default_rna_ladders,
+};
+pub use feature_location_edit::{
+    FEATURE_LOCATION_EDIT_SCHEMA, FEATURE_LOCATION_EDIT_SCHEMA_V2,
+    FEATURE_LOCATION_FINGERPRINT_ALGORITHM, FeatureLocationCompoundContext,
+    FeatureLocationCompoundKind, FeatureLocationCompoundWarning, FeatureLocationEditReport,
+    FeatureLocationEditRequest, FeatureLocationEditStrand, FeatureLocationEditTargetScope,
+    FeatureLocationIntervalBoundaryRole, FeatureLocationSnapshot, FeatureLocationStoredDirection,
+    RelatedFeatureBoundaryCandidate, RelatedFeatureBoundaryReason, RelatedSegmentBoundaryCandidate,
+};
+pub use feature_record_curation::{
+    FEATURE_ANNOTATION_STATE_FINGERPRINT_ALGORITHM, FEATURE_RECORD_CURATION_SCHEMA,
+    FeatureRecordCreateRequest, FeatureRecordCurationKind, FeatureRecordCurationOutcome,
+    FeatureRecordCurationReport, FeatureRecordCurationRequest, FeatureRecordDeleteRequest,
+    FeatureRecordQualifier, FeatureRecordReviewCandidate, FeatureRecordReviewEvidence,
+    FeatureRecordSnapshot,
 };
 pub use gene_groups::{
     GENE_GROUP_CATALOG_SCHEMA, GENE_GROUP_DOCTOR_REPORT_SCHEMA, GENE_GROUP_DRAFT_REPORT_SCHEMA,
@@ -5177,6 +5194,10 @@ const PUBLIC_ENGINE_OPERATION_NAMES: &[&str] = &[
     "QueryRepeatAnnotations",
     "QueryRepeatOverlaps",
     "MaterializeRepeatFeatures",
+    "PreviewFeatureLocationEdit",
+    "EditFeatureLocation",
+    "PreviewFeatureRecordCuration",
+    "ApplyFeatureRecordCuration",
     "BuildRepeatEnvironmentCohort",
     "MergeContainers",
     "Ligation",
@@ -5193,6 +5214,9 @@ const PUBLIC_ENGINE_OPERATION_NAMES: &[&str] = &[
     "PcrOverlapExtensionMutagenesis",
     "DesignQpcrAssays",
     "DesignTranscriptAssayPanel",
+    "BuildExperimentalAssayHandoff",
+    "SearchPrimerBank",
+    "ImportExternalPrimerPairs",
     "TestCdnaPcr",
     "TestCdnaQpcr",
     "TestCdnaQpcrFasta",
@@ -5520,6 +5544,9 @@ const MCP_PROMINENT_GLOSSARY_COMMAND_PATHS: &[&str] = &[
     "agents plan",
     "agents execute-plan",
     "op",
+    "features edit-location",
+    "features create",
+    "features delete",
     "workflow",
     "help",
     "genomes list",
@@ -6702,9 +6729,8 @@ fn infer_engine_operation_mutation(operation: &str) -> CapabilityMutation {
         || operation == "SaveFile"
         || operation == "FindRestrictionSites"
         || operation == "AlignSequences"
-        || operation == "AssessPrimerPairSpecificity"
         || operation == "PreparePrimerPairSpecificityHandoff"
-        || operation == "ImportPrimerPairSpecificityHandoff"
+        || operation == "SearchPrimerBank"
         || operation == "TestCdnaPcr"
         || operation == "TestCdnaQpcr"
         || operation == "TestCdnaQpcrFasta"

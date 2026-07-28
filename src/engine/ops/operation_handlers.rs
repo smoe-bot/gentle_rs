@@ -97,6 +97,10 @@ struct PrimerSpecificityResolvedInput {
     pair_rank: Option<usize>,
     pair_index: Option<usize>,
     expected_amplicon_length_bp: Option<usize>,
+    primary_seq_id: Option<String>,
+    related_seq_ids: Vec<String>,
+    design_provenance: PrimerDesignProvenanceCitation,
+    source_handoff_id: Option<String>,
     intended_target: PrimerSpecificityIntendedTarget,
     forward: PrimerSpecificityInputPrimer,
     reverse: PrimerSpecificityInputPrimer,
@@ -9598,8 +9602,73 @@ impl GentleEngine {
             reverse_binding_ranges: vec![reverse],
             expected_product_range,
             contiguous_genomic_product_expected: true,
-            source: format!("primer_design_report:{}:pair_rank={}", report.report_id, pair.rank),
+            source: format!(
+                "primer_design_report:{}:pair_rank={}",
+                report.report_id, pair.rank
+            ),
             warnings: vec![],
+        }
+    }
+
+    fn primer_specificity_design_provenance_not_run(
+        summary: impl Into<String>,
+    ) -> PrimerDesignProvenanceCitation {
+        PrimerDesignProvenanceCitation {
+            status: PrimerPairCharacterizationStatus::NotRun,
+            summary: summary.into(),
+            ..PrimerDesignProvenanceCitation::default()
+        }
+    }
+
+    fn primer_specificity_design_provenance_from_report(
+        report: &PrimerDesignReport,
+        pair_rank: Option<usize>,
+        pair_index: Option<usize>,
+    ) -> PrimerDesignProvenanceCitation {
+        PrimerDesignProvenanceCitation {
+            status: PrimerPairCharacterizationStatus::Pass,
+            primer_report_id: Some(report.report_id.clone()),
+            pair_rank,
+            pair_index,
+            primary_seq_id: Some(report.template.clone()),
+            source_report_schema: Some(report.schema.clone()),
+            source_op_id: report.op_id.clone(),
+            source_run_id: report.run_id.clone(),
+            source_generated_at_unix_ms: Some(report.generated_at_unix_ms),
+            backend_used: Some(report.backend.used.clone()),
+            summary: format!(
+                "Primer selection is cited from design report '{}' on template '{}'.",
+                report.report_id, report.template
+            ),
+        }
+    }
+
+    fn primer_specificity_design_provenance_from_reference(
+        &self,
+        primer_report_id: Option<&str>,
+        pair_rank: Option<usize>,
+        pair_index: Option<usize>,
+    ) -> PrimerDesignProvenanceCitation {
+        let Some(report_id) = primer_report_id else {
+            return Self::primer_specificity_design_provenance_not_run(
+                "No GENtle primer-design report was supplied; design-selection provenance is not available.",
+            );
+        };
+        match self.get_primer_design_report(report_id) {
+            Ok(report) => Self::primer_specificity_design_provenance_from_report(
+                &report, pair_rank, pair_index,
+            ),
+            Err(error) => PrimerDesignProvenanceCitation {
+                status: PrimerPairCharacterizationStatus::Incomplete,
+                primer_report_id: Some(report_id.to_string()),
+                pair_rank,
+                pair_index,
+                summary: format!(
+                    "The cited primer-design report '{}' could not be resolved: {}",
+                    report_id, error.message
+                ),
+                ..PrimerDesignProvenanceCitation::default()
+            },
         }
     }
 
@@ -9617,6 +9686,12 @@ impl GentleEngine {
                 pair_rank: None,
                 pair_index: None,
                 expected_amplicon_length_bp: None,
+                primary_seq_id: None,
+                related_seq_ids: vec![],
+                design_provenance: Self::primer_specificity_design_provenance_not_run(
+                    "Explicit primer sequences were assessed without a GENtle design report; selection provenance is not available.",
+                ),
+                source_handoff_id: None,
                 intended_target: Self::primer_specificity_unknown_intended_target(
                     "explicit_primer_sequences",
                 ),
@@ -9682,6 +9757,15 @@ impl GentleEngine {
                     pair_rank: Some(pair.rank),
                     pair_index: Some(resolved_index),
                     expected_amplicon_length_bp: Some(pair.amplicon_length_bp),
+                    primary_seq_id: Some(report.template.clone()),
+                    related_seq_ids: vec![],
+                    design_provenance:
+                        Self::primer_specificity_design_provenance_from_report(
+                            &report,
+                            Some(pair.rank),
+                            Some(resolved_index),
+                        ),
+                    source_handoff_id: None,
                     intended_target: self
                         .primer_specificity_intended_target_from_primer_report(&report, pair),
                     forward: Self::primer_specificity_input_from_record(
@@ -9887,11 +9971,8 @@ impl GentleEngine {
         let mut canonical_hit = hit.clone();
         canonical_hit.subject_id = canonical_subject_id.clone();
         let query_length = query_sequence.len().max(1);
-        let query_coverage_fraction = hit
-            .query_coverage_percent
-            .map(|value| value / 100.0)
-            .unwrap_or_else(|| hit.alignment_length as f64 / query_length as f64)
-            .clamp(0.0, 1.0);
+        let query_coverage_fraction =
+            Self::primer_specificity_hsp_query_coverage_fraction(query_length, hit);
         let three_prime_mismatches = match Self::primer_specificity_three_prime_mismatches(
             catalog,
             target_genome_id,
@@ -9983,29 +10064,56 @@ impl GentleEngine {
             .collect()
     }
 
-    fn primer_specificity_inward_amplicon_bounds(
-        left: &PrimerSpecificityPrimerHit,
-        right: &PrimerSpecificityPrimerHit,
-    ) -> Option<(usize, usize, usize)> {
-        if left.subject_id != right.subject_id || left.strand != "+" || right.strand != "-" {
+    pub(crate) fn primer_specificity_hsp_query_coverage_fraction(
+        query_length: usize,
+        hit: &BlastHit,
+    ) -> f64 {
+        if query_length == 0 {
+            return 0.0;
+        }
+        let query_start = hit.query_start.min(hit.query_end);
+        let query_end = hit.query_start.max(hit.query_end);
+        if query_start == 0 || query_end == 0 {
+            return 0.0;
+        }
+        query_end
+            .saturating_sub(query_start)
+            .saturating_add(1)
+            .min(query_length) as f64
+            / query_length as f64
+    }
+
+    fn primer_specificity_inward_amplicon_hits<'a>(
+        first: &'a PrimerSpecificityPrimerHit,
+        second: &'a PrimerSpecificityPrimerHit,
+    ) -> Option<(
+        &'a PrimerSpecificityPrimerHit,
+        &'a PrimerSpecificityPrimerHit,
+    )> {
+        if first.subject_id != second.subject_id {
             return None;
         }
+        let (left, right) = match (first.strand.as_str(), second.strand.as_str()) {
+            ("+", "-") => (first, second),
+            ("-", "+") => (second, first),
+            _ => return None,
+        };
         if left.subject_min_1based > right.subject_min_1based {
             return None;
         }
-        let start = left.subject_min_1based.min(right.subject_min_1based);
-        let end = left.subject_max_1based.max(right.subject_max_1based);
-        Some((start, end, end.saturating_sub(start).saturating_add(1)))
+        Some((left, right))
     }
 
     fn primer_specificity_amplicon_from_hits(
         kind: PrimerSpecificityAmpliconKind,
-        left: &PrimerSpecificityPrimerHit,
-        right: &PrimerSpecificityPrimerHit,
+        first: &PrimerSpecificityPrimerHit,
+        second: &PrimerSpecificityPrimerHit,
         policy: &PrimerSpecificityPolicy,
     ) -> Option<PrimerSpecificityAmplicon> {
-        let (start_1based, end_1based, length_bp) =
-            Self::primer_specificity_inward_amplicon_bounds(left, right)?;
+        let (left, right) = Self::primer_specificity_inward_amplicon_hits(first, second)?;
+        let start_1based = left.subject_min_1based;
+        let end_1based = left.subject_max_1based.max(right.subject_max_1based);
+        let length_bp = end_1based.saturating_sub(start_1based).saturating_add(1);
         if length_bp > policy.max_target_amplicon_bp {
             return None;
         }
@@ -10157,12 +10265,97 @@ impl GentleEngine {
         }
     }
 
+    fn primer_specificity_max_target_seqs(args: &[String]) -> Option<u64> {
+        args.windows(2).find_map(|window| {
+            (window[0] == "-max_target_seqs")
+                .then(|| window[1].parse::<u64>().ok())
+                .flatten()
+        })
+    }
+
+    pub(crate) fn primer_specificity_search_completeness_for_commands(
+        database: Option<&BlastDatabaseInspectionReport>,
+        commands: &[Vec<String>],
+    ) -> PrimerSpecificitySearchCompleteness {
+        let command_limits = commands
+            .iter()
+            .map(|args| Self::primer_specificity_max_target_seqs(args))
+            .collect::<Vec<_>>();
+        let observed_min_max_target_seqs = command_limits.iter().flatten().copied().min();
+        let mut result = PrimerSpecificitySearchCompleteness {
+            complete: false,
+            status: "incomplete".to_string(),
+            database_sequence_count: database.and_then(|row| row.sequence_count),
+            required_max_target_seqs: None,
+            observed_min_max_target_seqs,
+            command_count: commands.len(),
+            reason: String::new(),
+        };
+        let Some(database) = database else {
+            result.reason =
+                "No validated BLAST database inspection was attached to the search.".to_string();
+            return result;
+        };
+        if database.validation_status != "valid" {
+            result.reason = format!(
+                "BLAST database validation status is '{}', not 'valid'.",
+                database.validation_status
+            );
+            return result;
+        }
+        let Some(sequence_count) = database.sequence_count.filter(|count| *count > 0) else {
+            result.reason =
+                "The validated BLAST database does not report a positive sequence count."
+                    .to_string();
+            return result;
+        };
+        let Some(required_limit) = sequence_count.checked_add(1) else {
+            result.reason =
+                "The BLAST database sequence count cannot be converted into a safe subject limit."
+                    .to_string();
+            return result;
+        };
+        result.required_max_target_seqs = Some(required_limit);
+        if commands.len() != 2 {
+            result.reason = format!(
+                "Expected two primer BLAST commands, but observed {}.",
+                commands.len()
+            );
+            return result;
+        }
+        if command_limits.iter().any(Option::is_none) {
+            result.reason =
+                "At least one primer BLAST command omitted -max_target_seqs; BLAST's finite default cannot prove exhaustive subject coverage."
+                    .to_string();
+            return result;
+        }
+        if command_limits
+            .iter()
+            .flatten()
+            .any(|limit| *limit < required_limit)
+        {
+            result.reason = format!(
+                "At least one primer BLAST command used -max_target_seqs below the required {} for a database containing {} sequences.",
+                required_limit, sequence_count
+            );
+            return result;
+        }
+        result.complete = true;
+        result.status = "complete".to_string();
+        result.reason = format!(
+            "Both primer BLAST commands used -max_target_seqs at or above {} for the validated {}-sequence database.",
+            required_limit, sequence_count
+        );
+        result
+    }
+
     pub(crate) fn primer_specificity_summary(
         forward_hits: &[PrimerSpecificityPrimerHit],
         reverse_hits: &[PrimerSpecificityPrimerHit],
         amplicons: &[PrimerSpecificityAmplicon],
         intended_target: &PrimerSpecificityIntendedTarget,
         index_kind: BlastDatabaseIndexKind,
+        search_complete: bool,
     ) -> PrimerSpecificitySummary {
         let primer_hit_count = forward_hits.len().saturating_add(reverse_hits.len());
         let accepted_primer_hit_count = forward_hits
@@ -10190,9 +10383,12 @@ impl GentleEngine {
         } else {
             target_known
         };
-        let specificity_pass =
+        let biological_pass =
             target_known && intended_requirement_met && failing_unintended_amplicon_count == 0;
-        let status = if !target_known {
+        let specificity_pass = search_complete && biological_pass;
+        let status = if !search_complete {
+            "incomplete"
+        } else if !target_known {
             "not_assessed"
         } else if specificity_pass {
             "pass"
@@ -10200,7 +10396,10 @@ impl GentleEngine {
             "fail"
         }
         .to_string();
-        let summary = if !target_known {
+        let summary = if !search_complete {
+            "Specificity is incomplete because exhaustive BLAST subject coverage was not proven; no biological pass is asserted."
+                .to_string()
+        } else if !target_known {
             "Off-target products were enumerated, but no explicit intended-target geometry was available; aggregate specificity is not assessed."
                 .to_string()
         } else if specificity_pass && !requires_contiguous_intended {
@@ -10234,7 +10433,10 @@ impl GentleEngine {
         amplicons: &[PrimerSpecificityAmplicon],
         intended_target: &PrimerSpecificityIntendedTarget,
         index_kind: BlastDatabaseIndexKind,
-    ) -> (PrimerSpecificityTargetAssessment, PrimerSpecificityTargetAssessment) {
+    ) -> (
+        PrimerSpecificityTargetAssessment,
+        PrimerSpecificityTargetAssessment,
+    ) {
         let active = PrimerSpecificityTargetAssessment {
             target_space: index_kind.as_str().to_string(),
             status: summary.status.clone(),
@@ -10265,6 +10467,140 @@ impl GentleEngine {
             BlastDatabaseIndexKind::GenomicDna => (active, not_run("transcriptome_cdna")),
             BlastDatabaseIndexKind::TranscriptomeCdna => (not_run("genomic_dna"), active),
         }
+    }
+
+    fn primer_pair_characterization_status(status: &str) -> PrimerPairCharacterizationStatus {
+        match status.trim().to_ascii_lowercase().as_str() {
+            "pass" | "complete" => PrimerPairCharacterizationStatus::Pass,
+            "fail" | "failed" => PrimerPairCharacterizationStatus::Fail,
+            "not_run" => PrimerPairCharacterizationStatus::NotRun,
+            _ => PrimerPairCharacterizationStatus::Incomplete,
+        }
+    }
+
+    fn primer_specificity_characterization_dimensions(
+        design_provenance: &PrimerDesignProvenanceCitation,
+        genomic_specificity: &PrimerSpecificityTargetAssessment,
+        transcriptome_specificity: &PrimerSpecificityTargetAssessment,
+        search_completeness: &PrimerSpecificitySearchCompleteness,
+        policy: &PrimerSpecificityPolicy,
+        target_genome_id: &str,
+    ) -> Vec<PrimerPairCharacterizationDimension> {
+        let design_evidence_ids = design_provenance
+            .primer_report_id
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        vec![
+            PrimerPairCharacterizationDimension {
+                dimension: "design_provenance".to_string(),
+                status: design_provenance.status,
+                summary: design_provenance.summary.clone(),
+                evidence_ids: design_evidence_ids.clone(),
+            },
+            PrimerPairCharacterizationDimension {
+                dimension: "oligo_pair_qc".to_string(),
+                status: PrimerPairCharacterizationStatus::NotRun,
+                summary: if design_provenance.status == PrimerPairCharacterizationStatus::Pass {
+                    "This specificity operation did not rerun Primer3 or GENtle oligo-pair QC; consult the cited primer-design report for its stored constraints and metrics."
+                        .to_string()
+                } else {
+                    "This specificity operation did not run a separate Primer3 or GENtle oligo-pair QC assessment."
+                        .to_string()
+                },
+                evidence_ids: design_evidence_ids,
+            },
+            PrimerPairCharacterizationDimension {
+                dimension: "genomic_specificity".to_string(),
+                status: Self::primer_pair_characterization_status(&genomic_specificity.status),
+                summary: genomic_specificity.summary.clone(),
+                evidence_ids: vec![target_genome_id.to_string()],
+            },
+            PrimerPairCharacterizationDimension {
+                dimension: "transcriptome_specificity".to_string(),
+                status: Self::primer_pair_characterization_status(
+                    &transcriptome_specificity.status,
+                ),
+                summary: transcriptome_specificity.summary.clone(),
+                evidence_ids: vec![target_genome_id.to_string()],
+            },
+            PrimerPairCharacterizationDimension {
+                dimension: "search_completeness".to_string(),
+                status: if search_completeness.complete {
+                    PrimerPairCharacterizationStatus::Pass
+                } else {
+                    PrimerPairCharacterizationStatus::Incomplete
+                },
+                summary: search_completeness.reason.clone(),
+                evidence_ids: vec![target_genome_id.to_string()],
+            },
+            PrimerPairCharacterizationDimension {
+                dimension: "known_variant_screen".to_string(),
+                status: PrimerPairCharacterizationStatus::NotRun,
+                summary: if policy.avoid_known_variants {
+                    "Known-variant avoidance was requested, but v2 records that policy without applying a variant mask; no variant-clear claim is made."
+                        .to_string()
+                } else {
+                    "No known-variant screen was requested or run.".to_string()
+                },
+                evidence_ids: vec![],
+            },
+            PrimerPairCharacterizationDimension {
+                dimension: "repeat_low_complexity_screen".to_string(),
+                status: PrimerPairCharacterizationStatus::NotRun,
+                summary: if policy.avoid_rmsk_repeats || policy.avoid_low_complexity {
+                    "Repeat/low-complexity avoidance was requested, but v2 records that policy without applying a mask; no repeat-clear claim is made."
+                        .to_string()
+                } else {
+                    "No separate repeat or low-complexity mask assessment was requested or run."
+                        .to_string()
+                },
+                evidence_ids: vec![],
+            },
+        ]
+    }
+
+    fn primer_specificity_report_id(
+        resolved_input: &PrimerSpecificityResolvedInput,
+        target_genome_id: &str,
+        target_kind: BlastDatabaseIndexKind,
+        blast_database: Option<&BlastDatabaseInspectionReport>,
+        policy: &PrimerSpecificityPolicy,
+    ) -> Result<String, EngineError> {
+        let identity = serde_json::to_string(&json!({
+            "schema": PRIMER_SPECIFICITY_REPORT_SCHEMA,
+            "primer_report_id": resolved_input.primer_report_id,
+            "pair_rank": resolved_input.pair_rank,
+            "pair_index": resolved_input.pair_index,
+            "primary_seq_id": resolved_input.primary_seq_id,
+            "target_genome_id": target_genome_id,
+            "target_kind": target_kind.as_str(),
+            "blast_database_content_fingerprint": blast_database
+                .and_then(|database| database.content_fingerprint.as_deref()),
+            "blast_database_index_kind": blast_database.map(|database| database.index_kind),
+            "intended_target": resolved_input.intended_target,
+            "policy": policy,
+            "forward": resolved_input.forward,
+            "reverse": resolved_input.reverse,
+        }))
+        .map_err(|error| EngineError {
+            code: ErrorCode::Internal,
+            message: format!("Could not identify primer-specificity report: {error}"),
+            cause_chain: vec![],
+        })?;
+        Ok(short_sha256_id("primer_specificity", &identity))
+    }
+
+    fn persist_primer_specificity_report(
+        &mut self,
+        mut report: PrimerSpecificityReport,
+        op_id: &str,
+        run_id: &str,
+    ) -> Result<(PrimerSpecificityReport, bool), EngineError> {
+        report.op_id = Some(op_id.to_string());
+        report.run_id = Some(run_id.to_string());
+        let replaced = self.upsert_primer_specificity_report(report.clone())?;
+        Ok((report, replaced))
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -10309,6 +10645,12 @@ impl GentleEngine {
             pair_rank: Some(pair.rank),
             pair_index: None,
             expected_amplicon_length_bp: Some(pair.amplicon_length_bp),
+            primary_seq_id: None,
+            related_seq_ids: vec![],
+            design_provenance: Self::primer_specificity_design_provenance_not_run(
+                "The assessed pair was not retained in a persisted primer-design report.",
+            ),
+            source_handoff_id: None,
             intended_target: Self::primer_specificity_unknown_intended_target(
                 "unpersisted_primer_design_pair",
             ),
@@ -10508,6 +10850,18 @@ impl GentleEngine {
                 cause_chain: vec![],
             });
         }
+        let exhaustive_subject_limit = blast_database
+            .sequence_count
+            .filter(|count| *count > 0)
+            .and_then(|count| count.checked_add(1))
+            .ok_or_else(|| EngineError {
+                code: ErrorCode::InvalidInput,
+                message: format!(
+                    "Prepared genome '{}' has no positive validated BLAST database sequence count; exhaustive primer specificity cannot be guaranteed",
+                    resolution.resolved_genome_id
+                ),
+                cause_chain: vec![],
+            })?;
         let blast_db_prefix = inspection
             .blast_db_prefix
             .clone()
@@ -10616,6 +10970,8 @@ impl GentleEngine {
                 "no".to_string(),
                 "-soft_masking".to_string(),
                 "false".to_string(),
+                "-max_target_seqs".to_string(),
+                exhaustive_subject_limit.to_string(),
                 "-out".to_string(),
                 output_tsv_path.clone(),
             ];
@@ -10632,6 +10988,14 @@ impl GentleEngine {
                 success_exit_codes: vec![0],
             });
         }
+        let command_args = commands
+            .iter()
+            .map(|command| command.args.clone())
+            .collect::<Vec<_>>();
+        let search_completeness = Self::primer_specificity_search_completeness_for_commands(
+            Some(&blast_database),
+            &command_args,
+        );
 
         let handoff_path_text = handoff_path.to_string_lossy().to_string();
         let import_command = vec![
@@ -10656,6 +11020,9 @@ impl GentleEngine {
             handoff_id,
             bundle_dir: bundle_dir.to_string_lossy().to_string(),
             handoff_path: handoff_path_text,
+            primary_seq_id: resolved_input.primary_seq_id,
+            related_seq_ids: resolved_input.related_seq_ids,
+            design_provenance: resolved_input.design_provenance,
             primer_report_id: resolved_input.primer_report_id,
             pair_rank: resolved_input.pair_rank,
             pair_index: resolved_input.pair_index,
@@ -10675,6 +11042,7 @@ impl GentleEngine {
             intended_target: resolved_input.intended_target,
             effective_blast_options: Some(effective_options),
             commands,
+            search_completeness,
             completion_policy: "all_commands_success".to_string(),
             import_command_line: import_command
                 .iter()
@@ -10917,14 +11285,16 @@ impl GentleEngine {
             let command = command_for_role(role)?;
             match validated_outputs {
                 Some(outputs) => {
-                    let output = outputs.get(&command.command_id).ok_or_else(|| EngineError {
-                        code: ErrorCode::InvalidInput,
-                        message: format!(
-                            "No validated output bytes were retained for command '{}'",
-                            command.command_id
-                        ),
-                        cause_chain: vec![],
-                    })?;
+                    let output = outputs
+                        .get(&command.command_id)
+                        .ok_or_else(|| EngineError {
+                            code: ErrorCode::InvalidInput,
+                            message: format!(
+                                "No validated output bytes were retained for command '{}'",
+                                command.command_id
+                            ),
+                            cause_chain: vec![],
+                        })?;
                     Self::primer_specificity_blast_from_handoff_output(handoff, command, output)
                 }
                 None => Self::primer_specificity_blast_from_handoff(handoff, command),
@@ -10937,6 +11307,24 @@ impl GentleEngine {
             pair_rank: handoff.pair_rank,
             pair_index: handoff.pair_index,
             expected_amplicon_length_bp: handoff.expected_amplicon_length_bp,
+            primary_seq_id: handoff.primary_seq_id.clone().or_else(|| {
+                handoff.primer_report_id.as_deref().and_then(|report_id| {
+                    self.get_primer_design_report(report_id)
+                        .ok()
+                        .map(|report| report.template)
+                })
+            }),
+            related_seq_ids: handoff.related_seq_ids.clone(),
+            design_provenance: if handoff.design_provenance.summary.trim().is_empty() {
+                self.primer_specificity_design_provenance_from_reference(
+                    handoff.primer_report_id.as_deref(),
+                    handoff.pair_rank,
+                    handoff.pair_index,
+                )
+            } else {
+                handoff.design_provenance.clone()
+            },
+            source_handoff_id: Some(handoff.handoff_id.clone()),
             intended_target: handoff.intended_target.clone(),
             forward,
             reverse,
@@ -11306,6 +11694,15 @@ impl GentleEngine {
                     pair_rank: Some(assay.rank),
                     pair_index: None,
                     expected_amplicon_length_bp: Some(assay.primer_pair.amplicon_length_bp),
+                    primary_seq_id: Some(report.source_seq_id.clone()),
+                    related_seq_ids: vec![],
+                    design_provenance: Self::primer_specificity_design_provenance_not_run(
+                        format!(
+                            "Primer selection is recorded by transcript assay panel '{}' rather than a standalone primer-design report.",
+                            report.report_id
+                        ),
+                    ),
+                    source_handoff_id: None,
                     intended_target: self
                         .primer_specificity_intended_target_from_transcript_assay(&report, &assay),
                     forward: forward.clone(),
@@ -11522,8 +11919,7 @@ impl GentleEngine {
         if handoff.policy_schema != PRIMER_SPECIFICITY_POLICY_SCHEMA
             || handoff.execution_manifest_schema
                 != TRANSCRIPT_ASSAY_PANEL_SPECIFICITY_EXECUTION_MANIFEST_SCHEMA
-            || handoff.completion_policy
-                != "all_assays_all_commands_success_and_specificity_pass"
+            || handoff.completion_policy != "all_assays_all_commands_success_and_specificity_pass"
         {
             issues.push(Self::transcript_assay_panel_specificity_issue(
                 "handoff_contract_mismatch",
@@ -11616,20 +12012,18 @@ impl GentleEngine {
                     "The nested primer handoff does not match the aggregate genome provenance",
                 ));
             }
-            let nested_policy = serde_json::to_value(&assay.handoff.policy).map_err(|error| {
-                EngineError {
+            let nested_policy =
+                serde_json::to_value(&assay.handoff.policy).map_err(|error| EngineError {
                     code: ErrorCode::Internal,
                     message: format!("Could not compare specificity policies: {error}"),
                     cause_chain: vec![],
-                }
-            })?;
-            let aggregate_policy = serde_json::to_value(&handoff.policy).map_err(|error| {
-                EngineError {
+                })?;
+            let aggregate_policy =
+                serde_json::to_value(&handoff.policy).map_err(|error| EngineError {
                     code: ErrorCode::Internal,
                     message: format!("Could not compare specificity policies: {error}"),
                     cause_chain: vec![],
-                }
-            })?;
+                })?;
             if nested_policy != aggregate_policy {
                 issues.push(Self::transcript_assay_panel_specificity_issue(
                     "specificity_policy_mismatch",
@@ -11804,16 +12198,27 @@ impl GentleEngine {
                     &assay.handoff,
                     Some(&validated_outputs),
                 ) {
-                    Ok(report) => assessments.push(TranscriptAssayGenomicSpecificityAssessment {
-                        assay_id: assay.assay_id.clone(),
-                        assay_rank: assay.assay_rank,
-                        status: if report.summary.specificity_pass {
-                            "external_blast_pass".to_string()
+                    Ok(report) => {
+                        let status = if !report.search_completeness.complete {
+                            issues.push(Self::transcript_assay_panel_specificity_issue(
+                                "specificity_search_incomplete",
+                                Some(&assay.assay_id),
+                                None,
+                                report.search_completeness.reason.clone(),
+                            ));
+                            "external_blast_incomplete"
+                        } else if report.summary.specificity_pass {
+                            "external_blast_pass"
                         } else {
-                            "external_blast_fail".to_string()
-                        },
-                        report,
-                    }),
+                            "external_blast_fail"
+                        };
+                        assessments.push(TranscriptAssayGenomicSpecificityAssessment {
+                            assay_id: assay.assay_id.clone(),
+                            assay_rank: assay.assay_rank,
+                            status: status.to_string(),
+                            report,
+                        });
+                    }
                     Err(error) => issues.push(Self::transcript_assay_panel_specificity_issue(
                         "specificity_import_failed",
                         Some(&assay.assay_id),
@@ -11939,8 +12344,7 @@ impl GentleEngine {
             Self::normalize_primer_specificity_policy(target_genome_id, policy)?;
 
         let blast_preflight = self.blast_external_binary_preflight_report();
-        let forward_blast = self
-            .blast_reference_genome_complete_with_project_and_request_options(
+        let forward_blast = self.blast_reference_genome_complete_with_project_and_request_options(
             catalog_path,
             &target_genome_id,
             &resolved_input.forward.annealing_sequence,
@@ -11949,8 +12353,7 @@ impl GentleEngine {
             Some(policy.max_hits_per_primer),
             cache_dir,
         )?;
-        let reverse_blast = self
-            .blast_reference_genome_complete_with_project_and_request_options(
+        let reverse_blast = self.blast_reference_genome_complete_with_project_and_request_options(
             catalog_path,
             &target_genome_id,
             &resolved_input.reverse.annealing_sequence,
@@ -12006,11 +12409,8 @@ impl GentleEngine {
                 reverse_blast.stderr.trim()
             ));
         }
-        let subject_aliases = Self::primer_specificity_subject_aliases(
-            &catalog,
-            &forward_blast.genome_id,
-            cache_dir,
-        );
+        let subject_aliases =
+            Self::primer_specificity_subject_aliases(&catalog, &forward_blast.genome_id, cache_dir);
         let blast_database = catalog
             .inspect_blast_database(&forward_blast.genome_id, cache_dir)
             .map_err(|error| EngineError {
@@ -12025,6 +12425,17 @@ impl GentleEngine {
             .as_ref()
             .map(|database| database.index_kind)
             .unwrap_or(BlastDatabaseIndexKind::GenomicDna);
+        let search_commands = vec![forward_blast.command.clone(), reverse_blast.command.clone()];
+        let search_completeness = Self::primer_specificity_search_completeness_for_commands(
+            blast_database.as_ref(),
+            &search_commands,
+        );
+        if !search_completeness.complete {
+            warnings.push(format!(
+                "Primer specificity search is incomplete: {}",
+                search_completeness.reason
+            ));
+        }
         let mut intended_target = resolved_input.intended_target.clone();
         if let Some(subject_id) = intended_target.subject_id.clone() {
             intended_target.subject_id = Some(Self::primer_specificity_normalize_subject_id(
@@ -12076,17 +12487,14 @@ impl GentleEngine {
             &reverse_hits,
             &policy,
         );
-        Self::primer_specificity_finalize_amplicons(
-            &mut amplicons,
-            &intended_target,
-            &policy,
-        );
+        Self::primer_specificity_finalize_amplicons(&mut amplicons, &intended_target, &policy);
         let summary = Self::primer_specificity_summary(
             &forward_hits,
             &reverse_hits,
             &amplicons,
             &intended_target,
             index_kind,
+            search_completeness.complete,
         );
         let (genomic_specificity, transcriptome_specificity) =
             Self::primer_specificity_target_assessments(
@@ -12095,9 +12503,161 @@ impl GentleEngine {
                 &intended_target,
                 index_kind,
             );
+        let report_id = Self::primer_specificity_report_id(
+            &resolved_input,
+            target_genome_id,
+            index_kind,
+            blast_database.as_ref(),
+            &policy,
+        )?;
+        let mut related_seq_ids = resolved_input.related_seq_ids.clone();
+        related_seq_ids.sort();
+        related_seq_ids.dedup();
+        let design_provenance = resolved_input.design_provenance.clone();
+        let characterization_dimensions = Self::primer_specificity_characterization_dimensions(
+            &design_provenance,
+            &genomic_specificity,
+            &transcriptome_specificity,
+            &search_completeness,
+            &policy,
+            target_genome_id,
+        );
+        let mut external_inputs = vec![];
+        if let Some(database) = blast_database.as_ref() {
+            let label = [
+                database.source_assembly.as_deref(),
+                database.source_release.as_deref(),
+            ]
+            .into_iter()
+            .flatten()
+            .filter(|value| !value.trim().is_empty())
+            .collect::<Vec<_>>()
+            .join(" ");
+            external_inputs.push(ComputationalArtifactExternalInput {
+                source_kind: "blast_database".to_string(),
+                source_id: target_genome_id.to_string(),
+                source_path: Some(database.prefix.clone()),
+                checksum: database.content_fingerprint.clone(),
+                checksum_algorithm: (!database.fingerprint_algorithm.trim().is_empty())
+                    .then(|| database.fingerprint_algorithm.clone()),
+                label: (!label.is_empty()).then_some(label),
+            });
+        }
+        external_inputs.push(ComputationalArtifactExternalInput {
+            source_kind: "reference_genome_catalog".to_string(),
+            source_id: target_genome_id.to_string(),
+            source_path: Some(resolved_catalog_path.clone()),
+            checksum: None,
+            checksum_algorithm: None,
+            label: Some("Genome catalog used to resolve the prepared BLAST database".to_string()),
+        });
+        if let Some(primer_report_id) = resolved_input.primer_report_id.as_ref() {
+            external_inputs.push(ComputationalArtifactExternalInput {
+                source_kind: "primer_design_report".to_string(),
+                source_id: primer_report_id.clone(),
+                source_path: None,
+                checksum: None,
+                checksum_algorithm: None,
+                label: Some("Cited GENtle primer-selection artifact".to_string()),
+            });
+        }
+        if let Some(handoff_id) = resolved_input.source_handoff_id.as_ref() {
+            external_inputs.push(ComputationalArtifactExternalInput {
+                source_kind: "primer_specificity_handoff".to_string(),
+                source_id: handoff_id.clone(),
+                source_path: None,
+                checksum: None,
+                checksum_algorithm: None,
+                label: Some("Externally executed GENtle BLAST handoff".to_string()),
+            });
+        }
+        external_inputs.sort_by(|left, right| {
+            left.source_kind
+                .cmp(&right.source_kind)
+                .then(left.source_id.cmp(&right.source_id))
+        });
+        let input_kind = if resolved_input.source_handoff_id.is_some() {
+            "specificity_handoff"
+        } else if resolved_input.primer_report_id.is_some() {
+            "primer_design_report"
+        } else {
+            "explicit_primers"
+        };
+        let request_summary = BTreeMap::from([
+            ("input_kind".to_string(), json!(input_kind)),
+            (
+                "primer_report_id".to_string(),
+                json!(resolved_input.primer_report_id),
+            ),
+            ("pair_rank".to_string(), json!(resolved_input.pair_rank)),
+            ("pair_index".to_string(), json!(resolved_input.pair_index)),
+            ("target_genome_id".to_string(), json!(target_genome_id)),
+            ("target_kind".to_string(), json!(index_kind.as_str())),
+        ]);
+        let effective_settings_summary = BTreeMap::from([
+            ("policy".to_string(), json!(policy)),
+            (
+                "database_content_fingerprint".to_string(),
+                json!(
+                    blast_database
+                        .as_ref()
+                        .and_then(|database| database.content_fingerprint.as_deref())
+                ),
+            ),
+            (
+                "database_release".to_string(),
+                json!(
+                    blast_database
+                        .as_ref()
+                        .and_then(|database| database.source_release.as_deref())
+                ),
+            ),
+            (
+                "blast_tool_version".to_string(),
+                json!(
+                    blast_database
+                        .as_ref()
+                        .and_then(|database| database.tool_version.as_deref())
+                ),
+            ),
+            (
+                "search_completeness".to_string(),
+                json!(search_completeness.status),
+            ),
+            (
+                "intended_target_model".to_string(),
+                json!(intended_target.model),
+            ),
+        ]);
+        let reopen_hint = resolved_input
+            .primer_report_id
+            .as_ref()
+            .zip(resolved_input.primary_seq_id.as_ref())
+            .map(|(primer_report_id, seq_id)| {
+                format!(
+                    "pcr_designer?seq_id={}&primer_report_id={}",
+                    seq_id, primer_report_id
+                )
+            })
+            .or_else(|| {
+                resolved_input
+                    .primary_seq_id
+                    .as_ref()
+                    .map(|seq_id| format!("sequence?seq_id={seq_id}"))
+            });
         Ok(PrimerSpecificityReport {
             schema: PRIMER_SPECIFICITY_REPORT_SCHEMA.to_string(),
+            report_id,
             generated_at_unix_ms: Self::now_unix_ms(),
+            op_id: None,
+            run_id: None,
+            primary_seq_id: resolved_input.primary_seq_id,
+            related_seq_ids,
+            external_inputs,
+            request_summary,
+            effective_settings_summary,
+            reopen_hint,
+            export_kinds: vec!["json".to_string()],
             primer_report_id: resolved_input.primer_report_id,
             pair_rank: resolved_input.pair_rank,
             pair_index: resolved_input.pair_index,
@@ -12132,9 +12692,12 @@ impl GentleEngine {
             forward_hits,
             reverse_hits,
             amplicons,
+            search_completeness,
             summary,
             genomic_specificity,
             transcriptome_specificity,
+            design_provenance,
+            characterization_dimensions,
             warnings: Self::primer_specificity_aggregate_warnings(warnings),
         })
     }
@@ -12513,10 +13076,17 @@ impl GentleEngine {
                         &source_ranges_0based,
                         request.max_amplicon_bp,
                     );
+                let product_sequence_sha256 = template
+                    .sequence
+                    .get(amplicon_start..amplicon_end)
+                    .map(oligo_sequence_sha256);
                 products.push(CdnaAssayProduct {
                     amplicon_start_0based: amplicon_start,
                     amplicon_end_0based_exclusive: amplicon_end,
                     amplicon_length_bp: amplicon_length,
+                    product_sequence_sha256,
+                    product_sequence_basis: "mature_cdna_template_5prime_to_3prime_0based_half_open_including_binding_regions_excluding_nonannealing_tails_and_primer_induced_substitutions"
+                        .to_string(),
                     forward_hit_index: forward_idx,
                     reverse_hit_index: reverse_idx,
                     probe_hit_indices,
@@ -12867,8 +13437,30 @@ impl GentleEngine {
         if let Some(warning) = Self::cdna_assay_genomic_carryover_warning(&genomic_carryover_risk) {
             warnings.push(warning);
         }
+        let requested_transcript_id = transcript_id
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(ToString::to_string);
+        let pair_id = primer_pair_full_id(&request.forward_primer, &request.reverse_primer);
+        let assay_test_id = Self::cdna_assay_test_id(
+            &pair_id,
+            request.probe.as_deref(),
+            "transcript_derived",
+            &[],
+            seq_id,
+            source_feature_id,
+            requested_transcript_id.as_deref(),
+            request.max_mismatches,
+            request.require_3prime_exact_bases,
+            request.min_amplicon_bp,
+            request.max_amplicon_bp,
+            transcript_order,
+            transcript_map_coordinate_mode,
+        );
         let mut report = CdnaAssayTestReport {
             schema: CDNA_ASSAY_TEST_REPORT_SCHEMA.to_string(),
+            pair_id,
+            assay_test_id,
             assay_kind,
             template_source_kind: "transcript_derived".to_string(),
             source_paths: vec![],
@@ -12876,10 +13468,7 @@ impl GentleEngine {
             source_feature_id,
             group_label: splicing.group_label,
             strand: splicing.strand,
-            requested_transcript_id: transcript_id
-                .map(str::trim)
-                .filter(|value| !value.is_empty())
-                .map(ToString::to_string),
+            requested_transcript_id,
             forward_primer: request.forward_primer,
             reverse_primer: request.reverse_primer,
             probe: request.probe,
@@ -12924,6 +13513,43 @@ impl GentleEngine {
         } else {
             token
         }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn cdna_assay_test_id(
+        pair_id: &str,
+        probe: Option<&str>,
+        template_source_kind: &str,
+        source_paths: &[String],
+        source_seq_id: &str,
+        source_feature_id: usize,
+        requested_transcript_id: Option<&str>,
+        max_mismatches: usize,
+        require_3prime_exact_bases: usize,
+        min_amplicon_bp: usize,
+        max_amplicon_bp: usize,
+        transcript_order: CdnaAssayTranscriptOrder,
+        transcript_map_coordinate_mode: CdnaAssayTranscriptMapCoordinateMode,
+    ) -> String {
+        let identity = json!({
+            "pair_id": pair_id,
+            "probe_id": probe.map(oligo_full_id),
+            "template_source_kind": template_source_kind,
+            "source_paths": source_paths,
+            "source_seq_id": source_seq_id,
+            "source_feature_id": source_feature_id,
+            "requested_transcript_id": requested_transcript_id,
+            "max_mismatches": max_mismatches,
+            "require_3prime_exact_bases": require_3prime_exact_bases,
+            "min_amplicon_bp": min_amplicon_bp,
+            "max_amplicon_bp": max_amplicon_bp,
+            "transcript_order": transcript_order,
+            "transcript_map_coordinate_mode": transcript_map_coordinate_mode,
+        });
+        format!(
+            "assay_test_sha256_{}",
+            sha256_hex_str(&identity.to_string())
+        )
     }
 
     fn default_cdna_assay_product_prefix(report: &CdnaAssayTestReport) -> String {
@@ -13333,7 +13959,7 @@ impl GentleEngine {
             .collect())
     }
 
-    fn materialize_cdna_assay_products(
+    pub(super) fn materialize_cdna_assay_products(
         &mut self,
         result: &mut OpResult,
         report: &CdnaAssayTestReport,
@@ -14517,13 +15143,14 @@ impl GentleEngine {
         if let Some(probe) = request.probe.as_deref() {
             let forward_present =
                 !Self::find_all_subsequences(template_bytes, probe.as_bytes()).is_empty();
-            let reverse_present = request
-                .probe_reverse_binding
-                .as_deref()
-                .is_some_and(|reverse_probe| {
-                    !Self::find_all_subsequences(template_bytes, reverse_probe.as_bytes())
-                        .is_empty()
-                });
+            let reverse_present =
+                request
+                    .probe_reverse_binding
+                    .as_deref()
+                    .is_some_and(|reverse_probe| {
+                        !Self::find_all_subsequences(template_bytes, reverse_probe.as_bytes())
+                            .is_empty()
+                    });
             if !(forward_present || reverse_present) {
                 return true;
             }
@@ -14885,9 +15512,10 @@ impl GentleEngine {
                 *index != selected_index
                     && (candidate.design_equivalence_group_id
                         == selected.design_equivalence_group_id
-                        || candidate.end_reaction_ids.iter().any(|reaction_id| {
-                            selected.end_reaction_ids.contains(reaction_id)
-                        }))
+                        || candidate
+                            .end_reaction_ids
+                            .iter()
+                            .any(|reaction_id| selected.end_reaction_ids.contains(reaction_id)))
             })
             .collect::<Vec<_>>();
         if related.is_empty() {
@@ -14900,15 +15528,20 @@ impl GentleEngine {
         related.sort_by(|(_, left), (_, right)| {
             Self::transcript_assay_candidate_preference(right, left, assay_tier)
         });
-        let mut picked = related.iter().take(3).map(|(index, _)| *index).collect::<Vec<_>>();
+        let mut picked = related
+            .iter()
+            .take(3)
+            .map(|(index, _)| *index)
+            .collect::<Vec<_>>();
         for classification in [
             TranscriptAssayPracticalityClassification::Routine,
             TranscriptAssayPracticalityClassification::AllowedNonpreferred,
             TranscriptAssayPracticalityClassification::LongRangeFallback,
         ] {
-            if let Some((index, _)) = related.iter().find(|(_, candidate)| {
-                candidate.practicality_classification == classification
-            }) && !picked.contains(index)
+            if let Some((index, _)) = related
+                .iter()
+                .find(|(_, candidate)| candidate.practicality_classification == classification)
+                && !picked.contains(index)
                 && picked.len() < 5
             {
                 picked.push(*index);
@@ -15615,16 +16248,22 @@ impl GentleEngine {
         if start_1based == 0 || end_1based < start_1based {
             return None;
         }
-        if report.coordinate_frame.to_ascii_lowercase().contains("local") {
+        if report
+            .coordinate_frame
+            .to_ascii_lowercase()
+            .contains("local")
+        {
             return Some(SequenceRange0Based {
                 start_0based: start_1based - 1,
                 end_0based_exclusive: end_1based,
             });
         }
         let anchor = anchor?;
-        if row.chromosome.as_deref().is_some_and(|chromosome| {
-            !Self::chromosomes_match(chromosome, &anchor.chromosome)
-        }) {
+        if row
+            .chromosome
+            .as_deref()
+            .is_some_and(|chromosome| !Self::chromosomes_match(chromosome, &anchor.chromosome))
+        {
             return None;
         }
         let overlap_start = start_1based.max(anchor.start_1based);
@@ -15727,9 +16366,7 @@ impl GentleEngine {
                         chromosome: row.chromosome.clone(),
                         region_start_1based: row.start_1based,
                         region_end_1based: row.end_1based,
-                        source_start_0based: source_range
-                            .as_ref()
-                            .map(|range| range.start_0based),
+                        source_start_0based: source_range.as_ref().map(|range| range.start_0based),
                         source_end_0based_exclusive: source_range
                             .as_ref()
                             .map(|range| range.end_0based_exclusive),
@@ -15808,9 +16445,7 @@ impl GentleEngine {
                         chromosome: row.chromosome.clone(),
                         region_start_1based: row.start_1based,
                         region_end_1based: row.end_1based,
-                        source_start_0based: source_range
-                            .as_ref()
-                            .map(|range| range.start_0based),
+                        source_start_0based: source_range.as_ref().map(|range| range.start_0based),
                         source_end_0based_exclusive: source_range
                             .as_ref()
                             .map(|range| range.end_0based_exclusive),
@@ -15855,10 +16490,7 @@ impl GentleEngine {
     }
 
     fn transcript_assay_primer_id(sequence: &str) -> String {
-        short_sha256_id(
-            "primer",
-            sequence.trim().to_ascii_uppercase().as_str(),
-        )
+        short_sha256_id("primer", sequence.trim().to_ascii_uppercase().as_str())
     }
 
     fn transcript_assay_display_token(value: &str) -> String {
@@ -16227,6 +16859,10 @@ impl GentleEngine {
         };
 
         PrimerPairCommunicationSummary {
+            pair_id: primer_pair_full_id(
+                &candidate.primer_pair.forward.sequence,
+                &candidate.primer_pair.reverse.sequence,
+            ),
             display_label: Self::transcript_assay_pair_display_label(
                 &gene_token,
                 &forward_exons,
@@ -16279,6 +16915,16 @@ impl GentleEngine {
                 primer_spans_junction: reverse_exons.len() > 1,
                 ..Default::default()
             },
+            probe: candidate
+                .probe
+                .as_ref()
+                .map(|probe| PrimerPairSummaryOligo {
+                    primer_id: Self::transcript_assay_primer_id(&probe.sequence),
+                    role: "probe".to_string(),
+                    display_label: format!("{gene_token}_PROBE"),
+                    origin: PrimerPairSummaryOrigin::DeNovo,
+                    ..Default::default()
+                }),
             design_amplicon_start_0based: candidate.primer_pair.amplicon_start_0based,
             design_amplicon_end_0based_exclusive: candidate
                 .primer_pair
@@ -16391,8 +17037,7 @@ impl GentleEngine {
             warnings,
             rule_flags: flags.clone(),
             primer_pair_complementary_run_bp: pair.primer_pair_complementary_run_bp,
-            primer_pair_3prime_complementary_run_bp: pair
-                .primer_pair_3prime_complementary_run_bp,
+            primer_pair_3prime_complementary_run_bp: pair.primer_pair_3prime_complementary_run_bp,
         }
     }
 
@@ -16485,9 +17130,15 @@ impl GentleEngine {
                 assay.junction_matches.iter().any(|row| row.reverse_spans);
             let fallback_forward_label = format!("{gene_token}_F");
             let fallback_reverse_label = format!("{gene_token}_R");
+            let fallback_probe_label = format!("{gene_token}_PROBE");
+            let empty_previous_probe = PrimerPairSummaryOligo::default();
             assay.primer_pair_summary = PrimerPairCommunicationSummary {
                 schema: PRIMER_PAIR_SUMMARY_SCHEMA.to_string(),
                 assay_id: assay.assay_id.clone(),
+                pair_id: primer_pair_full_id(
+                    &assay.primer_pair.forward.sequence,
+                    &assay.primer_pair.reverse.sequence,
+                ),
                 pair_rank: assay.rank,
                 design_transcript_id: assay.design_transcript_id.clone(),
                 design_equivalence_group_id: assay.design_equivalence_group_id.clone(),
@@ -16547,6 +17198,15 @@ impl GentleEngine {
                     &fallback_reverse_label,
                     reverse_spans_requested_junction,
                 ),
+                probe: assay.probe.as_ref().map(|probe| {
+                    Self::primer_pair_summary_oligo(
+                        "probe",
+                        probe,
+                        previous.probe.as_ref().unwrap_or(&empty_previous_probe),
+                        &fallback_probe_label,
+                        false,
+                    )
+                }),
                 design_amplicon_start_0based: assay.primer_pair.amplicon_start_0based,
                 design_amplicon_end_0based_exclusive: assay
                     .primer_pair
@@ -16772,16 +17432,15 @@ impl GentleEngine {
                 cause_chain: vec![],
             });
         }
-        let resolved_practicality = if practicality.is_some()
-            || assay_tier != TranscriptAssayUseTier::Unspecified
-        {
-            Some(TranscriptAssayPracticalityPolicy {
-                preferred_amplicon_bp: Some(preferred_amplicon_bp),
-                allowed_amplicon_bp: Some(allowed_amplicon_bp),
-            })
-        } else {
-            None
-        };
+        let resolved_practicality =
+            if practicality.is_some() || assay_tier != TranscriptAssayUseTier::Unspecified {
+                Some(TranscriptAssayPracticalityPolicy {
+                    preferred_amplicon_bp: Some(preferred_amplicon_bp),
+                    allowed_amplicon_bp: Some(allowed_amplicon_bp),
+                })
+            } else {
+                None
+            };
         if oligo_dt_5prime_risk_threshold_bp == Some(0) {
             return Err(EngineError {
                 code: ErrorCode::InvalidInput,
@@ -16907,12 +17566,7 @@ impl GentleEngine {
         let mut junction_selection_evidence = vec![];
         let source_anchor = self.transcript_qpcr_panel_source_anchor(&seq_id, &source_dna);
         for evidence_path in &junction_evidence_paths {
-            let (
-                mut evidence_junctions,
-                provenance,
-                mut evidence_rows,
-                evidence_warnings,
-            ) =
+            let (mut evidence_junctions, provenance, mut evidence_rows, evidence_warnings) =
                 Self::transcript_assay_load_junction_evidence(
                     evidence_path,
                     junction_evidence_priority,
@@ -17010,8 +17664,7 @@ impl GentleEngine {
             if assay_tier == TranscriptAssayUseTier::RoutineCommonRegionScreen {
                 let common_source_ranges =
                     Self::transcript_assay_common_annotation_source_ranges(&templates);
-                let minimum_pair_footprint =
-                    forward.min_length.saturating_add(reverse.min_length);
+                let minimum_pair_footprint = forward.min_length.saturating_add(reverse.min_length);
                 let mut scheduled_common_target = false;
                 for group in &equivalence_groups {
                     let template = &templates[group.representative_template_index];
@@ -17021,24 +17674,20 @@ impl GentleEngine {
                                 template,
                                 std::slice::from_ref(source_range),
                             );
-                        let Some((local_start, local_end)) = local_ranges
-                            .into_iter()
-                            .find(|(start, end)| {
+                        let Some((local_start, local_end)) =
+                            local_ranges.into_iter().find(|(start, end)| {
                                 end.saturating_sub(*start) >= min_amplicon_bp
                                     && end.saturating_sub(*start) >= minimum_pair_footprint
                             })
                         else {
                             continue;
                         };
-                        let midpoint = local_start.saturating_add(
-                            local_end.saturating_sub(local_start) / 2,
-                        );
+                        let midpoint =
+                            local_start.saturating_add(local_end.saturating_sub(local_start) / 2);
                         targets.push(TranscriptAssayDesignTarget {
                             template_index: group.representative_template_index,
                             roi_start_0based: midpoint.saturating_sub(1),
-                            roi_end_0based: midpoint
-                                .saturating_add(1)
-                                .min(template.sequence.len()),
+                            roi_end_0based: midpoint.saturating_add(1).min(template.sequence.len()),
                             junction: None,
                             end_reaction_id: None,
                             forward_window_0based: Some((local_start, local_end)),
@@ -17410,9 +18059,7 @@ impl GentleEngine {
                             .len()
                             .cmp(&detected_indices(right).len())
                             .then_with(|| {
-                                Self::transcript_assay_candidate_preference(
-                                    left, right, assay_tier,
-                                )
+                                Self::transcript_assay_candidate_preference(left, right, assay_tier)
                             })
                     })
                     .map(|(index, _)| index);
@@ -17525,9 +18172,7 @@ impl GentleEngine {
                             })
                         })
                         .max_by(|(_, left), (_, right)| {
-                            Self::transcript_assay_candidate_preference(
-                                left, right, assay_tier,
-                            )
+                            Self::transcript_assay_candidate_preference(left, right, assay_tier)
                         })
                         .map(|(index, _)| index);
                     if let Some(index) = best {
@@ -17947,9 +18592,7 @@ impl GentleEngine {
                 .collect::<Vec<_>>()
                 .join("|")
         );
-        if assay_tier != TranscriptAssayUseTier::Unspecified
-            || resolved_practicality.is_some()
-        {
+        if assay_tier != TranscriptAssayUseTier::Unspecified || resolved_practicality.is_some() {
             default_report_material.push_str(&format!(
                 "|{}|{}-{}|{}-{}",
                 assay_tier.as_str(),
@@ -17967,10 +18610,7 @@ impl GentleEngine {
                 max_amplicon_bp,
             ));
         }
-        let default_report_id = short_sha256_id(
-            "transcript_assay_panel",
-            &default_report_material,
-        );
+        let default_report_id = short_sha256_id("transcript_assay_panel", &default_report_material);
         let report_id = Self::normalize_primer_design_report_id(
             report_id.as_deref().unwrap_or(&default_report_id),
         )?;
@@ -18044,7 +18684,9 @@ impl GentleEngine {
                 genomic_specificity_assessments.push(TranscriptAssayGenomicSpecificityAssessment {
                     assay_id: assay.assay_id.clone(),
                     assay_rank: assay.rank,
-                    status: if report.summary.specificity_pass {
+                    status: if !report.search_completeness.complete {
+                        "local_blast_incomplete".to_string()
+                    } else if report.summary.specificity_pass {
                         "local_blast_pass".to_string()
                     } else {
                         "local_blast_fail".to_string()
@@ -18255,6 +18897,888 @@ impl GentleEngine {
         Ok(())
     }
 
+    fn experimental_assay_gate(
+        gate: &str,
+        required: bool,
+        status: ExperimentalAssayGateStatus,
+        summary: impl Into<String>,
+        evidence_ids: Vec<String>,
+    ) -> ExperimentalAssayGateOutcome {
+        ExperimentalAssayGateOutcome {
+            gate: gate.to_string(),
+            required,
+            status,
+            summary: summary.into(),
+            evidence_ids,
+        }
+    }
+
+    fn experimental_assay_gate_blocks(gate: &ExperimentalAssayGateOutcome) -> bool {
+        gate.status == ExperimentalAssayGateStatus::Fail
+            || (gate.required
+                && matches!(
+                    gate.status,
+                    ExperimentalAssayGateStatus::Incomplete
+                        | ExperimentalAssayGateStatus::NotEvaluated
+                ))
+    }
+
+    fn experimental_assay_oligo_identity(
+        oligo: &PrimerPairSummaryOligo,
+        order_form: Option<&OligoOrderForm>,
+    ) -> ExperimentalAssayOligoIdentity {
+        let canonical_sequence = canonical_oligo_sequence(&oligo.sequence_5_to_3);
+        let oligo_id = oligo_full_id(&canonical_sequence);
+        let mut formulations_by_key = BTreeMap::<String, ExperimentalAssayOligoFormulation>::new();
+        if let Some(form) = order_form {
+            for line in &form.line_items {
+                if canonical_oligo_sequence(&line.sequence_5_to_3) != canonical_sequence {
+                    continue;
+                }
+                let key = Self::oligo_procurement_key(line);
+                let formulation = formulations_by_key.entry(key.clone()).or_insert_with(|| {
+                    ExperimentalAssayOligoFormulation {
+                        formulation_id: format!(
+                            "formulation_sha256_{}",
+                            sha256_hex_str(&format!("{oligo_id}|{key}"))
+                        ),
+                        modifications: line.modifications.clone(),
+                        scale: line.scale.clone(),
+                        purification: line.purification.clone(),
+                        order_line_ids: vec![],
+                    }
+                });
+                formulation.order_line_ids.push(line.line_id.clone());
+            }
+        }
+        let mut formulations = formulations_by_key.into_values().collect::<Vec<_>>();
+        for formulation in &mut formulations {
+            formulation.order_line_ids.sort();
+        }
+        ExperimentalAssayOligoIdentity {
+            role: oligo.role.clone(),
+            oligo_id,
+            sequence_sha256: oligo_sequence_sha256(&canonical_sequence),
+            tube_id: oligo_tube_id(&canonical_sequence),
+            legacy_primer_id: oligo.primer_id.clone(),
+            display_label: oligo.display_label.clone(),
+            aliases: oligo.aliases.clone(),
+            sequence_5_to_3: canonical_sequence.clone(),
+            length_nt: canonical_sequence.len(),
+            formulations,
+            analysis_species_caveat: "Tm, GC, secondary-structure, and specificity facts describe the unmodified annealing sequence; procurement formulations require chemistry-specific review."
+                .to_string(),
+        }
+    }
+
+    fn experimental_assay_product_sequence_classes(
+        panel: &TranscriptAssayPanelReport,
+        assay_test: &CdnaAssayTestReport,
+    ) -> Vec<ExperimentalAssayProductSequenceClass> {
+        let equivalence_by_transcript = panel
+            .equivalence_groups
+            .iter()
+            .flat_map(|group| {
+                group.members.iter().map(move |member| {
+                    (
+                        member.transcript_id.as_str(),
+                        group.equivalence_group_id.as_str(),
+                    )
+                })
+            })
+            .collect::<HashMap<_, _>>();
+        let mut classes = BTreeMap::<String, ExperimentalAssayProductSequenceClass>::new();
+        for transcript in &assay_test.transcript_results {
+            for product in &transcript.products {
+                let Some(sequence_sha256) = product.product_sequence_sha256.as_ref() else {
+                    continue;
+                };
+                let class = classes.entry(sequence_sha256.clone()).or_insert_with(|| {
+                    ExperimentalAssayProductSequenceClass {
+                        sequence_sha256: sequence_sha256.clone(),
+                        interpretation: "A shared digest identifies one exact mature-cDNA product sequence and cannot identify which member transcript produced it; different digests do not by themselves imply gel-resolvable products."
+                            .to_string(),
+                        ..Default::default()
+                    }
+                });
+                class.transcript_ids.push(transcript.transcript_id.clone());
+                if let Some(group_id) =
+                    equivalence_by_transcript.get(transcript.transcript_id.as_str())
+                {
+                    class.equivalence_group_ids.push((*group_id).to_string());
+                }
+                class.product_lengths_bp.push(product.amplicon_length_bp);
+            }
+        }
+        let mut classes = classes.into_values().collect::<Vec<_>>();
+        for class in &mut classes {
+            class.transcript_ids.sort();
+            class.transcript_ids.dedup();
+            class.equivalence_group_ids.sort();
+            class.equivalence_group_ids.dedup();
+            class.product_lengths_bp.sort_unstable();
+            class.product_lengths_bp.dedup();
+        }
+        classes
+    }
+
+    fn experimental_assay_controls(
+        summary: &PrimerPairCommunicationSummary,
+        assay_test: &CdnaAssayTestReport,
+    ) -> Vec<ExperimentalAssayControlAdvice> {
+        let actual_primer_spans_junction = summary.forward.primer_spans_junction
+            || summary.reverse.primer_spans_junction
+            || assay_test.transcript_results.iter().any(|row| {
+                row.forward_hits.iter().any(|hit| hit.spans_junction)
+                    || row.reverse_hits.iter().any(|hit| hit.spans_junction)
+            });
+        let amplicon_spans_junction = summary.amplicon_spans_junction
+            || assay_test
+                .transcript_results
+                .iter()
+                .flat_map(|row| &row.products)
+                .any(|product| product.spans_junction);
+        let contiguous_genomic_product = assay_test
+            .transcript_results
+            .iter()
+            .flat_map(|row| &row.products)
+            .any(|product| product.genomic_equivalent_length_bp.is_some());
+        let (no_rt_requirement, no_rt_rationale, gdna_requirement, gdna_rationale) =
+            if actual_primer_spans_junction {
+                (
+                    "recommended",
+                    "At least one primer spans an exon-exon junction; no-RT still checks residual genomic carryover.",
+                    "recommended",
+                    "Purified genomic DNA is an expected-negative diagnostic for the junction-spanning primer geometry.",
+                )
+            } else if amplicon_spans_junction {
+                (
+                    "required",
+                    "The amplicon spans a junction but neither primer is confirmed junction-spanning, so reverse-transcriptase dependence must be demonstrated.",
+                    if contiguous_genomic_product {
+                        "required"
+                    } else {
+                        "recommended"
+                    },
+                    "Purified genomic DNA tests whether the intron-containing genomic locus can produce a competing product under the chosen PCR conditions.",
+                )
+            } else {
+                (
+                    "required",
+                    "No junction-based primer discrimination is established; no-RT is required to detect genomic carryover.",
+                    "required",
+                    "The assay lacks confirmed junction discrimination, so purified genomic DNA should be tested directly.",
+                )
+            };
+        vec![
+            ExperimentalAssayControlAdvice {
+                control: "no_template_control".to_string(),
+                requirement: "required".to_string(),
+                rationale: "Universal contamination/reagent control for PCR assays.".to_string(),
+            },
+            ExperimentalAssayControlAdvice {
+                control: "positive_cdna_control".to_string(),
+                requirement: "required".to_string(),
+                rationale: "Confirms that the assay and reaction mix can amplify an appropriate cDNA template."
+                    .to_string(),
+            },
+            ExperimentalAssayControlAdvice {
+                control: "no_rt_control".to_string(),
+                requirement: no_rt_requirement.to_string(),
+                rationale: no_rt_rationale.to_string(),
+            },
+            ExperimentalAssayControlAdvice {
+                control: "purified_genomic_dna_control".to_string(),
+                requirement: gdna_requirement.to_string(),
+                rationale: gdna_rationale.to_string(),
+            },
+        ]
+    }
+
+    fn experimental_assay_gel_assessment(
+        product_lengths: &[usize],
+        conditions: Option<&GelRunConditions>,
+    ) -> ExperimentalAssayGelAssessment {
+        let Some(conditions) = conditions else {
+            return ExperimentalAssayGelAssessment {
+                status: "not_evaluated".to_string(),
+                model: "none".to_string(),
+                interpretation: "Co-migration is not inferred without named gel-run assumptions."
+                    .to_string(),
+                ..Default::default()
+            };
+        };
+        let unique_lengths = product_lengths.iter().copied().collect::<BTreeSet<_>>();
+        if unique_lengths.is_empty() {
+            return ExperimentalAssayGelAssessment {
+                status: "incomplete".to_string(),
+                model: conditions.describe(),
+                interpretation:
+                    "No predicted product lengths were available for gel-resolution assessment."
+                        .to_string(),
+                ..Default::default()
+            };
+        }
+        let sample = crate::pool_gel::GelSampleInput {
+            name: "predicted assay products".to_string(),
+            role_label: Some("experimental_handoff".to_string()),
+            members: unique_lengths
+                .iter()
+                .map(|length| crate::pool_gel::GelSampleMember {
+                    seq_id: format!("predicted_{length}bp"),
+                    bp: *length,
+                    topology_form: GelTopologyForm::Linear,
+                })
+                .collect(),
+        };
+        match crate::pool_gel::build_serial_gel_layout(&[sample], &[], Some(conditions)) {
+            Ok(layout) => {
+                let mut groups = layout
+                    .lanes
+                    .iter()
+                    .filter(|lane| !lane.is_ladder)
+                    .flat_map(|lane| &lane.bands)
+                    .filter_map(|band| {
+                        let mut lengths = band
+                            .labels
+                            .iter()
+                            .filter_map(|label| {
+                                label
+                                    .strip_prefix("predicted_")?
+                                    .split_once("bp")?
+                                    .0
+                                    .parse::<usize>()
+                                    .ok()
+                            })
+                            .collect::<Vec<_>>();
+                        lengths.sort_unstable();
+                        lengths.dedup();
+                        (lengths.len() > 1).then_some(lengths)
+                    })
+                    .collect::<Vec<_>>();
+                groups.sort();
+                ExperimentalAssayGelAssessment {
+                    status: if groups.is_empty() { "pass" } else { "co_migration_predicted" }
+                        .to_string(),
+                    model: layout.conditions.describe(),
+                    co_migrating_product_length_groups_bp: groups,
+                    interpretation: "This is a deterministic virtual-gel heuristic under the named conditions, not an observed separation result."
+                        .to_string(),
+                }
+            }
+            Err(error) => ExperimentalAssayGelAssessment {
+                status: "incomplete".to_string(),
+                model: conditions.describe(),
+                interpretation: format!("Could not evaluate virtual-gel resolution: {error}"),
+                ..Default::default()
+            },
+        }
+    }
+
+    fn load_primer_variant_evidence(
+        paths: &[String],
+    ) -> Result<Vec<PrimerVariantEvidenceReport>, EngineError> {
+        let mut reports = vec![];
+        let mut pair_ids = BTreeSet::new();
+        for path in paths
+            .iter()
+            .map(|path| path.trim())
+            .filter(|path| !path.is_empty())
+        {
+            let text = fs::read_to_string(path).map_err(|error| EngineError {
+                code: ErrorCode::Io,
+                message: format!("Could not read primer variant evidence '{path}': {error}"),
+                cause_chain: vec![],
+            })?;
+            let report: PrimerVariantEvidenceReport =
+                serde_json::from_str(&text).map_err(|error| EngineError {
+                    code: ErrorCode::InvalidInput,
+                    message: format!(
+                        "Could not parse primer variant evidence '{path}' as {}: {error}",
+                        PRIMER_VARIANT_EVIDENCE_SCHEMA
+                    ),
+                    cause_chain: vec![],
+                })?;
+            if report.schema != PRIMER_VARIANT_EVIDENCE_SCHEMA {
+                return Err(EngineError {
+                    code: ErrorCode::InvalidInput,
+                    message: format!(
+                        "Primer variant evidence '{path}' has schema '{}', expected '{}'",
+                        report.schema, PRIMER_VARIANT_EVIDENCE_SCHEMA
+                    ),
+                    cause_chain: vec![],
+                });
+            }
+            let missing_provenance = [
+                ("pair_id", report.pair_id.as_str()),
+                ("reference_assembly", report.reference_assembly.as_str()),
+                ("source_name", report.source_name.as_str()),
+                ("source_release", report.source_release.as_str()),
+                ("population", report.population.as_str()),
+                ("retrieval_time", report.retrieval_time.as_str()),
+                ("content_sha256", report.content_sha256.as_str()),
+            ]
+            .into_iter()
+            .filter_map(|(field, value)| value.trim().is_empty().then_some(field))
+            .collect::<Vec<_>>();
+            if !missing_provenance.is_empty() {
+                return Err(EngineError {
+                    code: ErrorCode::InvalidInput,
+                    message: format!(
+                        "Primer variant evidence '{path}' is missing provenance field(s): {}",
+                        missing_provenance.join(", ")
+                    ),
+                    cause_chain: vec![],
+                });
+            }
+            if !report.pair_id.starts_with("pair_sha256_") {
+                return Err(EngineError {
+                    code: ErrorCode::InvalidInput,
+                    message: format!(
+                        "Primer variant evidence '{path}' pair_id '{}' is not a canonical physical primer-pair identity",
+                        report.pair_id
+                    ),
+                    cause_chain: vec![],
+                });
+            }
+            if !pair_ids.insert(report.pair_id.clone()) {
+                return Err(EngineError {
+                    code: ErrorCode::InvalidInput,
+                    message: format!(
+                        "Primer variant evidence '{path}' has duplicate pair_id '{}'",
+                        report.pair_id
+                    ),
+                    cause_chain: vec![],
+                });
+            }
+            reports.push(report);
+        }
+        reports.sort_by(|left, right| left.pair_id.cmp(&right.pair_id));
+        Ok(reports)
+    }
+
+    pub fn build_experimental_assay_handoff(
+        &self,
+        panel_report_id: &str,
+        mut policy: ExperimentalAssayReadinessPolicy,
+        variant_evidence_paths: &[String],
+        order_form_id: Option<&str>,
+    ) -> Result<ExperimentalAssayHandoffReport, EngineError> {
+        if policy.schema.trim().is_empty() {
+            policy.schema = EXPERIMENTAL_ASSAY_READINESS_POLICY_SCHEMA.to_string();
+        } else if policy.schema != EXPERIMENTAL_ASSAY_READINESS_POLICY_SCHEMA {
+            return Err(EngineError {
+                code: ErrorCode::InvalidInput,
+                message: format!(
+                    "Unsupported experimental assay readiness policy schema '{}'; expected '{}'",
+                    policy.schema, EXPERIMENTAL_ASSAY_READINESS_POLICY_SCHEMA
+                ),
+                cause_chain: vec![],
+            });
+        }
+        if policy.policy_version.trim().is_empty() {
+            policy.policy_version = "1".to_string();
+        }
+        let panel = self.get_transcript_assay_panel_report(panel_report_id)?;
+        let panel_bytes = serde_json::to_vec(&panel).map_err(|error| EngineError {
+            code: ErrorCode::Internal,
+            message: format!("Could not fingerprint transcript assay panel: {error}"),
+            cause_chain: vec![],
+        })?;
+        let source_panel_sha256 = sha256_prefixed_bytes(&panel_bytes);
+        let policy_text = serde_json::to_string(&policy).map_err(|error| EngineError {
+            code: ErrorCode::Internal,
+            message: format!("Could not identify experimental readiness policy: {error}"),
+            cause_chain: vec![],
+        })?;
+        let policy_id = format!("readiness_policy_sha256_{}", sha256_hex_str(&policy_text));
+        let variant_evidence = Self::load_primer_variant_evidence(variant_evidence_paths)?;
+        let selected_pair_ids = panel
+            .selected_assays
+            .iter()
+            .map(|assay| {
+                primer_pair_full_id(
+                    &assay.primer_pair.forward.sequence,
+                    &assay.primer_pair.reverse.sequence,
+                )
+            })
+            .collect::<HashSet<_>>();
+        if let Some(unmatched) = variant_evidence
+            .iter()
+            .find(|report| !selected_pair_ids.contains(&report.pair_id))
+        {
+            return Err(EngineError {
+                code: ErrorCode::InvalidInput,
+                message: format!(
+                    "Primer variant evidence '{}' targets pair_id '{}', which is not selected in panel '{}'",
+                    unmatched.evidence_id, unmatched.pair_id, panel.report_id
+                ),
+                cause_chain: vec![],
+            });
+        }
+        let variant_by_pair = variant_evidence
+            .iter()
+            .map(|report| (report.pair_id.as_str(), report))
+            .collect::<HashMap<_, _>>();
+        let order_form = order_form_id
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(|form_id| self.get_oligo_order_form(form_id))
+            .transpose()?;
+        let source_order_form_sha256 = order_form
+            .as_ref()
+            .map(|form| {
+                serde_json::to_vec(form)
+                    .map(|bytes| sha256_prefixed_bytes(&bytes))
+                    .map_err(|error| EngineError {
+                        code: ErrorCode::Internal,
+                        message: format!("Could not fingerprint linked oligo order form: {error}"),
+                        cause_chain: vec![],
+                    })
+            })
+            .transpose()?;
+        let specificity_pass_ids = panel
+            .specificity_acceptance
+            .as_ref()
+            .filter(|acceptance| acceptance.accepted)
+            .map(|acceptance| {
+                acceptance
+                    .passing_assay_ids
+                    .iter()
+                    .cloned()
+                    .collect::<HashSet<_>>()
+            })
+            .unwrap_or_default();
+
+        let mut cards = vec![];
+        let mut assay_tests = vec![];
+        let mut package_warnings = vec![];
+        for assay in &panel.selected_assays {
+            let summary = &assay.primer_pair_summary;
+            let expected_pair_id = primer_pair_full_id(
+                &assay.primer_pair.forward.sequence,
+                &assay.primer_pair.reverse.sequence,
+            );
+            let assay_test = self.test_cdna_assay(
+                &panel.source_seq_id,
+                panel.source_feature_id,
+                &assay.primer_pair.forward.sequence,
+                &assay.primer_pair.reverse.sequence,
+                assay.probe.as_ref().map(|probe| probe.sequence.as_str()),
+                None,
+                Some(panel.min_amplicon_bp),
+                Some(panel.max_amplicon_bp),
+                Some(panel.max_mismatches),
+                Some(panel.require_3prime_exact_bases),
+                CdnaAssayTranscriptOrder::TranscriptId,
+                CdnaAssayTranscriptMapCoordinateMode::Cdna,
+            )?;
+            let oligo_identity_verified =
+                summary.pair_id == expected_pair_id && assay_test.pair_id == expected_pair_id;
+            let assay_test_bytes =
+                serde_json::to_vec(&assay_test).map_err(|error| EngineError {
+                    code: ErrorCode::Internal,
+                    message: format!("Could not fingerprint cDNA assay test: {error}"),
+                    cause_chain: vec![],
+                })?;
+            let assay_test_link = ExperimentalAssayTestLink {
+                assay_test_id: assay_test.assay_test_id.clone(),
+                pair_id: expected_pair_id.clone(),
+                report_schema: assay_test.schema.clone(),
+                report_sha256: sha256_prefixed_bytes(&assay_test_bytes),
+                oligo_identity_verified,
+            };
+            let mut oligos = vec![
+                Self::experimental_assay_oligo_identity(&summary.forward, order_form.as_ref()),
+                Self::experimental_assay_oligo_identity(&summary.reverse, order_form.as_ref()),
+            ];
+            if let Some(probe) = summary.probe.as_ref() {
+                oligos.push(Self::experimental_assay_oligo_identity(
+                    probe,
+                    order_form.as_ref(),
+                ));
+            }
+            let mut product_lengths = assay_test
+                .transcript_results
+                .iter()
+                .flat_map(|row| {
+                    row.products
+                        .iter()
+                        .map(|product| product.amplicon_length_bp)
+                })
+                .collect::<Vec<_>>();
+            product_lengths.sort_unstable();
+            product_lengths.dedup();
+            let product_sequence_classes =
+                Self::experimental_assay_product_sequence_classes(&panel, &assay_test);
+            let controls = Self::experimental_assay_controls(summary, &assay_test);
+            let gel_assessment = Self::experimental_assay_gel_assessment(
+                &product_lengths,
+                policy.gel_conditions.as_ref(),
+            );
+            let variant = variant_by_pair.get(expected_pair_id.as_str()).copied();
+            let variant_evidence_report_sha256 = variant
+                .map(|report| {
+                    serde_json::to_vec(report)
+                        .map(|bytes| sha256_prefixed_bytes(&bytes))
+                        .map_err(|error| EngineError {
+                            code: ErrorCode::Internal,
+                            message: format!(
+                                "Could not fingerprint primer variant evidence: {error}"
+                            ),
+                            cause_chain: vec![],
+                        })
+                })
+                .transpose()?;
+
+            let mut gates = vec![];
+            gates.push(Self::experimental_assay_gate(
+                "critical_qc",
+                policy.require_critical_qc_pass,
+                if summary.oligo_qc.status == "pass" {
+                    ExperimentalAssayGateStatus::Pass
+                } else {
+                    ExperimentalAssayGateStatus::Fail
+                },
+                format!("Stored primer-pair QC status: {}", summary.oligo_qc.status),
+                vec![summary.assay_id.clone()],
+            ));
+            let specificity_status = if specificity_pass_ids.contains(&assay.assay_id)
+                || matches!(
+                    summary.whole_genome_specificity_status.as_str(),
+                    "external_blast_pass" | "specificity_pass" | "pass"
+                ) {
+                ExperimentalAssayGateStatus::Pass
+            } else if summary.whole_genome_specificity_status.trim().is_empty()
+                || summary.whole_genome_specificity_status == "not_run"
+            {
+                ExperimentalAssayGateStatus::NotEvaluated
+            } else if summary.whole_genome_specificity_status == "incomplete" {
+                ExperimentalAssayGateStatus::Incomplete
+            } else {
+                ExperimentalAssayGateStatus::Fail
+            };
+            gates.push(Self::experimental_assay_gate(
+                "whole_genome_specificity",
+                policy.require_specificity_pass,
+                specificity_status,
+                format!(
+                    "Stored whole-genome specificity status: {}",
+                    summary.whole_genome_specificity_status
+                ),
+                panel
+                    .specificity_acceptance
+                    .as_ref()
+                    .map(|acceptance| vec![acceptance.acceptance_id.clone()])
+                    .unwrap_or_default(),
+            ));
+            gates.push(Self::experimental_assay_gate(
+                "annotation_provenance",
+                policy.require_annotation_provenance,
+                if summary
+                    .provenance
+                    .annotation_release
+                    .as_deref()
+                    .is_some_and(|value| !value.trim().is_empty())
+                {
+                    ExperimentalAssayGateStatus::Pass
+                } else {
+                    ExperimentalAssayGateStatus::Incomplete
+                },
+                summary
+                    .provenance
+                    .annotation_release
+                    .as_deref()
+                    .map(|release| format!("Annotation release: {release}"))
+                    .unwrap_or_else(|| "Annotation release is not recorded.".to_string()),
+                vec![panel.report_id.clone()],
+            ));
+            let assay_test_status = if !oligo_identity_verified || assay_test.product_count == 0 {
+                ExperimentalAssayGateStatus::Fail
+            } else {
+                ExperimentalAssayGateStatus::Pass
+            };
+            gates.push(Self::experimental_assay_gate(
+                "cdna_assay_test",
+                policy.require_assay_test,
+                assay_test_status,
+                if oligo_identity_verified {
+                    format!(
+                        "Shared cDNA assay test evaluated {} transcript(s) and found {} product(s).",
+                        assay_test.transcript_count, assay_test.product_count
+                    )
+                } else {
+                    "Canonical pair identity does not match across panel and assay-test reports."
+                        .to_string()
+                },
+                vec![assay_test.assay_test_id.clone()],
+            ));
+            let (variant_status, variant_summary, variant_ids) = match variant {
+                Some(report) => (
+                    match report.status {
+                        PrimerVariantEvidenceStatus::EvaluatedNoRelevantVariant => {
+                            ExperimentalAssayGateStatus::Pass
+                        }
+                        PrimerVariantEvidenceStatus::VariantDetected
+                        | PrimerVariantEvidenceStatus::IncompatibleReference => {
+                            ExperimentalAssayGateStatus::Fail
+                        }
+                        PrimerVariantEvidenceStatus::NotEvaluated => {
+                            ExperimentalAssayGateStatus::NotEvaluated
+                        }
+                    },
+                    format!("Primer variant evidence status: {:?}", report.status),
+                    vec![report.evidence_id.clone()],
+                ),
+                None => (
+                    ExperimentalAssayGateStatus::NotEvaluated,
+                    "No provenance-bound primer variant evidence was supplied.".to_string(),
+                    vec![],
+                ),
+            };
+            gates.push(Self::experimental_assay_gate(
+                "variant_evidence",
+                policy.require_variant_evaluation,
+                variant_status,
+                variant_summary,
+                variant_ids,
+            ));
+            let duplicate_gate = match order_form.as_ref() {
+                None => Self::experimental_assay_gate(
+                    "duplicate_review",
+                    false,
+                    ExperimentalAssayGateStatus::NotApplicable,
+                    "No oligo order form was linked to this handoff.",
+                    vec![],
+                ),
+                Some(form) if form.duplicate_groups.is_empty() => Self::experimental_assay_gate(
+                    "duplicate_review",
+                    policy.require_duplicate_review,
+                    ExperimentalAssayGateStatus::Pass,
+                    "The linked order form has no exact procurement duplicate groups.",
+                    vec![form.form_id.clone()],
+                ),
+                Some(form) if form.duplicate_review.status == "reviewed" => {
+                    Self::experimental_assay_gate(
+                        "duplicate_review",
+                        policy.require_duplicate_review,
+                        ExperimentalAssayGateStatus::Pass,
+                        "Exact procurement duplicates were reviewed and retained separately.",
+                        vec![form.form_id.clone()],
+                    )
+                }
+                Some(form) => Self::experimental_assay_gate(
+                    "duplicate_review",
+                    policy.require_duplicate_review,
+                    ExperimentalAssayGateStatus::Incomplete,
+                    format!(
+                        "The linked order form contains {} duplicate group(s) with review status '{}'.",
+                        form.duplicate_groups.len(),
+                        form.duplicate_review.status
+                    ),
+                    vec![form.form_id.clone()],
+                ),
+            };
+            gates.push(duplicate_gate);
+            gates.push(Self::experimental_assay_gate(
+                "experimental_practicality",
+                true,
+                if summary.practicality_classification
+                    == TranscriptAssayPracticalityClassification::LongRangeFallback
+                    && !policy.allow_long_range_fallback
+                {
+                    ExperimentalAssayGateStatus::Fail
+                } else {
+                    ExperimentalAssayGateStatus::Pass
+                },
+                format!(
+                    "Practicality classification: {:?}; long-range fallback allowed: {}.",
+                    summary.practicality_classification, policy.allow_long_range_fallback
+                ),
+                vec![summary.assay_id.clone()],
+            ));
+            let gel_gate_status = match gel_assessment.status.as_str() {
+                "pass" => ExperimentalAssayGateStatus::Pass,
+                "co_migration_predicted" => ExperimentalAssayGateStatus::Fail,
+                "incomplete" => ExperimentalAssayGateStatus::Incomplete,
+                _ => ExperimentalAssayGateStatus::NotEvaluated,
+            };
+            gates.push(Self::experimental_assay_gate(
+                "gel_resolution",
+                policy.require_resolved_gel_bands,
+                gel_gate_status,
+                gel_assessment.interpretation.clone(),
+                vec![],
+            ));
+
+            let blockers = gates
+                .iter()
+                .filter(|gate| Self::experimental_assay_gate_blocks(gate))
+                .map(|gate| gate.gate.clone())
+                .collect::<Vec<_>>();
+            let readiness_state = if blockers.is_empty() {
+                ExperimentalAssayReadinessState::OrderReady
+            } else if specificity_status == ExperimentalAssayGateStatus::Pass {
+                ExperimentalAssayReadinessState::SpecificityChecked
+            } else {
+                ExperimentalAssayReadinessState::Candidate
+            };
+            let card_identity = json!({
+                "panel_sha256": source_panel_sha256,
+                "assay_id": assay.assay_id,
+                "pair_id": expected_pair_id,
+                "assay_test_id": assay_test.assay_test_id,
+                "policy_id": policy_id,
+                "variant_evidence_id": variant.map(|report| report.evidence_id.as_str()),
+                "variant_evidence_report_sha256": variant_evidence_report_sha256.as_deref(),
+                "order_form_id": order_form.as_ref().map(|form| form.form_id.as_str()),
+                "order_form_sha256": source_order_form_sha256.as_deref(),
+            });
+            let card_id = format!(
+                "assay_card_sha256_{}",
+                sha256_hex_str(&card_identity.to_string())
+            );
+            let mut warnings = summary.oligo_qc.warnings.clone();
+            warnings.extend(assay_test.warnings.clone());
+            if oligos.iter().any(|oligo| oligo.formulations.len() > 1) {
+                warnings.push(
+                    "At least one base-sequence oligo has multiple procurement formulations; each formulation remains a separate reagent identity."
+                        .to_string(),
+                );
+            }
+            let card = ExperimentalAssayCard {
+                schema: EXPERIMENTAL_ASSAY_CARD_SCHEMA.to_string(),
+                card_id,
+                panel_report_id: panel.report_id.clone(),
+                assay_id: assay.assay_id.clone(),
+                pair_id: expected_pair_id,
+                pair_rank: assay.rank,
+                display_label: summary.display_label.clone(),
+                assay_kind: panel.assay_kind,
+                assay_tier: summary.assay_tier,
+                readiness_state,
+                policy_schema: policy.schema.clone(),
+                policy_version: policy.policy_version.clone(),
+                policy_id: policy_id.clone(),
+                gate_outcomes: gates,
+                blockers,
+                oligos,
+                pair_summary: summary.clone(),
+                assay_test_link,
+                product_sequence_classes,
+                predicted_product_lengths_bp: product_lengths,
+                controls,
+                gel_assessment,
+                variant_evidence_status: variant
+                    .map(|report| report.status)
+                    .unwrap_or_default(),
+                variant_evidence_id: variant.map(|report| report.evidence_id.clone()),
+                variant_evidence_report_sha256,
+                endpoint_abundance_interpretation: "Endpoint-gel abundance is ordinal/semi-quantitative only (for example absent, faint, or strong). Compare the same primer pair with matched input, biological replicates, and sub-plateau cycles; do not report fold changes from band intensity."
+                    .to_string(),
+                warnings,
+            };
+            assay_tests.push(assay_test);
+            cards.push(card);
+        }
+        cards.sort_by(|left, right| {
+            left.pair_rank
+                .cmp(&right.pair_rank)
+                .then(left.assay_id.cmp(&right.assay_id))
+        });
+        assay_tests.sort_by(|left, right| left.assay_test_id.cmp(&right.assay_test_id));
+        let order_readiness_table = cards
+            .iter()
+            .map(|card| ExperimentalAssayOrderReadinessRow {
+                card_id: card.card_id.clone(),
+                assay_id: card.assay_id.clone(),
+                pair_id: card.pair_id.clone(),
+                pair_rank: card.pair_rank,
+                display_label: card.display_label.clone(),
+                readiness_state: card.readiness_state,
+                order_ready: card.readiness_state == ExperimentalAssayReadinessState::OrderReady,
+                blocker_codes: card.blockers.clone(),
+                oligo_ids: card
+                    .oligos
+                    .iter()
+                    .map(|oligo| oligo.oligo_id.clone())
+                    .collect(),
+                tube_ids: card
+                    .oligos
+                    .iter()
+                    .map(|oligo| oligo.tube_id.clone())
+                    .collect(),
+                sequences_5_to_3: card
+                    .oligos
+                    .iter()
+                    .map(|oligo| oligo.sequence_5_to_3.clone())
+                    .collect(),
+                predicted_product_lengths_bp: card.predicted_product_lengths_bp.clone(),
+            })
+            .collect::<Vec<_>>();
+        if panel.selected_assays.is_empty() {
+            package_warnings.push("The source panel contains no selected assays.".to_string());
+        }
+        let package_identity = json!({
+            "source_panel_sha256": source_panel_sha256,
+            "policy_id": policy_id,
+            "card_ids": cards.iter().map(|card| card.card_id.as_str()).collect::<Vec<_>>(),
+        });
+        Ok(ExperimentalAssayHandoffReport {
+            schema: EXPERIMENTAL_ASSAY_HANDOFF_SCHEMA.to_string(),
+            package_id: format!(
+                "experimental_handoff_sha256_{}",
+                sha256_hex_str(&package_identity.to_string())
+            ),
+            source_panel_report_id: panel.report_id,
+            source_panel_schema: panel.schema,
+            source_panel_sha256,
+            source_seq_id: panel.source_seq_id,
+            source_feature_id: panel.source_feature_id,
+            source_order_form_id: order_form.as_ref().map(|form| form.form_id.clone()),
+            source_order_form_sha256,
+            policy,
+            policy_id,
+            order_readiness_table,
+            cards,
+            assay_tests,
+            variant_evidence,
+            warnings: package_warnings,
+        })
+    }
+
+    fn experimental_assay_order_table_tsv(report: &ExperimentalAssayHandoffReport) -> String {
+        fn cell(value: &str) -> String {
+            value.replace(['\t', '\r', '\n'], " ")
+        }
+        let mut rows = vec![
+            "card_id\tassay_id\tpair_id\tpair_rank\tdisplay_label\treadiness_state\torder_ready\tblockers\toligo_ids\ttube_ids\tsequences_5_to_3\tpredicted_product_lengths_bp"
+                .to_string(),
+        ];
+        for row in &report.order_readiness_table {
+            rows.push(format!(
+                "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                cell(&row.card_id),
+                cell(&row.assay_id),
+                cell(&row.pair_id),
+                row.pair_rank,
+                cell(&row.display_label),
+                row.readiness_state.as_str(),
+                row.order_ready,
+                cell(&row.blocker_codes.join(",")),
+                cell(&row.oligo_ids.join(",")),
+                cell(&row.tube_ids.join(",")),
+                cell(&row.sequences_5_to_3.join(",")),
+                row.predicted_product_lengths_bp
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(","),
+            ));
+        }
+        rows.join("\n") + "\n"
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn test_cdna_qpcr_fasta_assay(
         &self,
@@ -18432,8 +19956,26 @@ impl GentleEngine {
             );
         }
 
+        let pair_id = primer_pair_full_id(&request.forward_primer, &request.reverse_primer);
+        let assay_test_id = Self::cdna_assay_test_id(
+            &pair_id,
+            request.probe.as_deref(),
+            "external_fasta",
+            &source_paths,
+            "external_cdna_fasta",
+            0,
+            requested_transcript_id.as_deref(),
+            request.max_mismatches,
+            request.require_3prime_exact_bases,
+            request.min_amplicon_bp,
+            request.max_amplicon_bp,
+            CdnaAssayTranscriptOrder::default(),
+            CdnaAssayTranscriptMapCoordinateMode::default(),
+        );
         let mut report = CdnaAssayTestReport {
             schema: CDNA_ASSAY_TEST_REPORT_SCHEMA.to_string(),
+            pair_id,
+            assay_test_id,
             assay_kind,
             template_source_kind: "external_fasta".to_string(),
             source_paths,
@@ -22168,6 +23710,449 @@ impl GentleEngine {
         Ok((report, created_seq_ids, warnings))
     }
 
+    fn execute_feature_location_edit(
+        &mut self,
+        request: FeatureLocationEditRequest,
+        apply_change: bool,
+        result: &mut OpResult,
+    ) -> Result<(), EngineError> {
+        let (sequence_len, sequence_is_circular, features) = {
+            let dna = self.state.sequences.get(&request.seq_id).ok_or_else(|| {
+                EngineError::new(
+                    ErrorCode::NotFound,
+                    format!("Sequence '{}' not found", request.seq_id),
+                )
+            })?;
+            (dna.len(), dna.is_circular(), dna.features().clone())
+        };
+        let feature = features.get(request.feature_index).ok_or_else(|| {
+            EngineError::new(
+                ErrorCode::NotFound,
+                format!(
+                    "Feature index {} is out of range for sequence '{}' ({} features)",
+                    request.feature_index,
+                    request.seq_id,
+                    features.len()
+                ),
+            )
+        })?;
+        if request.new_start_0based < 0 || request.new_end_0based_exclusive < 0 {
+            return Err(EngineError::invalid_input(
+                "Feature edit coordinates must not be negative",
+            ));
+        }
+        if request.new_start_0based >= request.new_end_0based_exclusive {
+            return Err(EngineError::invalid_input(
+                "Feature edit requires start_0based < end_0based_exclusive",
+            ));
+        }
+        let new_start_0based = usize::try_from(request.new_start_0based).map_err(|_| {
+            EngineError::invalid_input("Feature edit start exceeds the supported coordinate range")
+        })?;
+        let new_end_0based_exclusive =
+            usize::try_from(request.new_end_0based_exclusive).map_err(|_| {
+                EngineError::invalid_input(
+                    "Feature edit end exceeds the supported coordinate range",
+                )
+            })?;
+        if new_end_0based_exclusive > sequence_len {
+            return Err(EngineError::invalid_input(format!(
+                "Feature edit range {}..{} exceeds sequence '{}' length {}",
+                request.new_start_0based,
+                request.new_end_0based_exclusive,
+                request.seq_id,
+                sequence_len
+            )));
+        }
+        let before_fingerprint = crate::feature_location::feature_fingerprint_sha256(feature)?;
+        if apply_change && request.expected_feature_fingerprint_sha256.is_none() {
+            return Err(EngineError::invalid_input(
+                "Applying a feature-location edit requires the fingerprint returned by preview",
+            ));
+        }
+        if let Some(expected) = request.expected_feature_fingerprint_sha256.as_deref()
+            && expected != before_fingerprint
+        {
+            return Err(EngineError::invalid_input(format!(
+                "Feature {} changed after preview: expected fingerprint {}, found {}",
+                request.feature_index, expected, before_fingerprint
+            )));
+        }
+        let (before, after, proposed_location, compound_context, compound_validation_warnings) =
+            if let Some(segment_index) = request.segment_index {
+                let view = crate::feature_location::flat_compound_location_view(
+                    &feature.location,
+                    sequence_len,
+                    sequence_is_circular,
+                )?;
+                let segment = view.segments.get(segment_index).ok_or_else(|| {
+                    EngineError::invalid_input(format!(
+                        "Segment index {} is out of range for compound feature with {} segments",
+                        segment_index,
+                        view.segments.len()
+                    ))
+                })?;
+                let before = segment.snapshot.clone();
+                let after = crate::feature_location::feature_location_snapshot(
+                    new_start_0based,
+                    new_end_0based_exclusive,
+                    view.strand,
+                )?;
+                let proposed_location = crate::feature_location::replace_flat_compound_segment(
+                    &feature.location,
+                    segment_index,
+                    &after,
+                )?;
+                let warnings = crate::feature_location::compound_location_edit_warnings(
+                    feature,
+                    &view,
+                    segment_index,
+                    &after,
+                )?;
+                let context = view.context_for_segment(segment_index)?;
+                (before, after, proposed_location, Some(context), warnings)
+            } else {
+                let before = crate::feature_location::exact_feature_location_snapshot(feature)?;
+                let after = crate::feature_location::feature_location_snapshot(
+                    new_start_0based,
+                    new_end_0based_exclusive,
+                    before.strand,
+                )?;
+                let proposed_location =
+                    crate::feature_location::simple_location_from_snapshot(&after)?;
+                (before, after, proposed_location, None, Vec::new())
+            };
+        let mut proposed_feature = feature.clone();
+        proposed_feature.location = proposed_location;
+        let after_fingerprint =
+            crate::feature_location::feature_fingerprint_sha256(&proposed_feature)?;
+        let related_features = crate::feature_location::related_feature_boundary_candidates(
+            &features,
+            request.feature_index,
+            &before,
+        );
+        let related_segment_boundaries = request
+            .segment_index
+            .map(|segment_index| {
+                crate::feature_location::related_segment_boundary_candidates(
+                    &features,
+                    request.feature_index,
+                    segment_index,
+                    &before,
+                    sequence_len,
+                    sequence_is_circular,
+                )
+            })
+            .unwrap_or_default();
+
+        if apply_change {
+            let dna = self
+                .state
+                .sequences
+                .get_mut(&request.seq_id)
+                .ok_or_else(|| {
+                    EngineError::new(
+                        ErrorCode::NotFound,
+                        format!("Sequence '{}' not found", request.seq_id),
+                    )
+                })?;
+            let feature = dna
+                .features_mut()
+                .get_mut(request.feature_index)
+                .ok_or_else(|| {
+                    EngineError::new(
+                        ErrorCode::NotFound,
+                        format!(
+                            "Feature index {} is no longer present on sequence '{}'",
+                            request.feature_index, request.seq_id
+                        ),
+                    )
+                })?;
+            feature.location = proposed_feature.location.clone();
+            result.changed_seq_ids.push(request.seq_id.clone());
+        }
+
+        let feature_kind = feature.kind.to_string();
+        for warning in &compound_validation_warnings {
+            result.warnings.push(match warning {
+                FeatureLocationCompoundWarning::OverlappingSegments {
+                    edited_segment_index,
+                    overlapping_segment_index,
+                } => format!(
+                    "Edited segment {} overlaps segment {}; review the compound annotation",
+                    edited_segment_index, overlapping_segment_index
+                ),
+                FeatureLocationCompoundWarning::EstablishedDirectionBroken {
+                    first_segment_index,
+                    second_segment_index,
+                    established_direction,
+                } => format!(
+                    "Edited compound no longer follows its established {:?} direction between segments {} and {}",
+                    established_direction, first_segment_index, second_segment_index
+                ),
+                FeatureLocationCompoundWarning::CdsCodingLengthDeltaNotDivisibleByThree {
+                    signed_length_delta_nt,
+                } => format!(
+                    "CDS coding length changes by {signed_length_delta_nt} nt, which is not divisible by three; /codon_start was preserved"
+                ),
+            });
+        }
+        let is_segment_edit = request.segment_index.is_some();
+        result.feature_location_edit_report = Some(Box::new(FeatureLocationEditReport {
+            schema: if is_segment_edit {
+                FEATURE_LOCATION_EDIT_SCHEMA_V2
+            } else {
+                FEATURE_LOCATION_EDIT_SCHEMA
+            }
+            .to_string(),
+            seq_id: request.seq_id.clone(),
+            feature_index: request.feature_index,
+            feature_kind: feature_kind.clone(),
+            dry_run: !apply_change,
+            applied: apply_change,
+            before,
+            after,
+            fingerprint_algorithm: FEATURE_LOCATION_FINGERPRINT_ALGORITHM.to_string(),
+            before_feature_fingerprint_sha256: before_fingerprint,
+            after_feature_fingerprint_sha256: after_fingerprint,
+            related_features,
+            target_scope: is_segment_edit.then_some(FeatureLocationEditTargetScope::Segment),
+            compound_context,
+            compound_validation_warnings,
+            related_segment_boundaries,
+        }));
+        result.messages.push(if apply_change {
+            if let Some(segment_index) = request.segment_index {
+                format!(
+                    "Updated segment {} of feature {} ({}) on '{}'",
+                    segment_index, request.feature_index, feature_kind, request.seq_id
+                )
+            } else {
+                format!(
+                    "Updated feature {} ({}) on '{}'",
+                    request.feature_index, feature_kind, request.seq_id
+                )
+            }
+        } else {
+            if let Some(segment_index) = request.segment_index {
+                format!(
+                    "Previewed segment {} of feature {} ({}) location edit on '{}'",
+                    segment_index, request.feature_index, feature_kind, request.seq_id
+                )
+            } else {
+                format!(
+                    "Previewed feature {} ({}) location edit on '{}'",
+                    request.feature_index, feature_kind, request.seq_id
+                )
+            }
+        });
+        Ok(())
+    }
+
+    fn execute_feature_record_curation(
+        &mut self,
+        request: FeatureRecordCurationRequest,
+        apply_change: bool,
+        result: &mut OpResult,
+    ) -> Result<(), EngineError> {
+        let seq_id = request.seq_id().to_string();
+        let (sequence_len, sequence_is_circular, features) = {
+            let dna = self.state.sequences.get(&seq_id).ok_or_else(|| {
+                EngineError::new(
+                    ErrorCode::NotFound,
+                    format!("Sequence '{seq_id}' not found"),
+                )
+            })?;
+            (dna.len(), dna.is_circular(), dna.features().clone())
+        };
+        let before_annotation_fingerprint =
+            crate::feature_record_curation::annotation_state_fingerprint_sha256(
+                &seq_id,
+                sequence_len,
+                sequence_is_circular,
+                &features,
+            )?;
+
+        let (
+            operation_kind,
+            after_features,
+            outcome,
+            review_candidates,
+            expected_annotation_fingerprint,
+        ) = match request {
+            FeatureRecordCurationRequest::Create(request) => {
+                if request.start_0based < 0 || request.end_0based_exclusive < 0 {
+                    return Err(EngineError::invalid_input(
+                        "Feature create coordinates must not be negative",
+                    ));
+                }
+                if request.start_0based >= request.end_0based_exclusive {
+                    return Err(EngineError::invalid_input(
+                        "Feature create requires start_0based < end_0based_exclusive",
+                    ));
+                }
+                let start_0based = usize::try_from(request.start_0based).map_err(|_| {
+                    EngineError::invalid_input(
+                        "Feature create start exceeds the supported coordinate range",
+                    )
+                })?;
+                let end_0based_exclusive =
+                    usize::try_from(request.end_0based_exclusive).map_err(|_| {
+                        EngineError::invalid_input(
+                            "Feature create end exceeds the supported coordinate range",
+                        )
+                    })?;
+                if end_0based_exclusive > sequence_len {
+                    return Err(EngineError::invalid_input(format!(
+                        "Feature create range {}..{} exceeds sequence '{}' length {}",
+                        request.start_0based,
+                        request.end_0based_exclusive,
+                        seq_id,
+                        sequence_len
+                    )));
+                }
+                let proposed_feature = crate::feature_record_curation::build_simple_feature(
+                    &request.feature_kind,
+                    start_0based,
+                    end_0based_exclusive,
+                    request.strand,
+                    &request.qualifiers,
+                )?;
+                let review_candidates =
+                    crate::feature_record_curation::feature_record_review_candidates(
+                        &features,
+                        &proposed_feature,
+                        None,
+                    );
+                let proposed_snapshot =
+                    crate::feature_record_curation::feature_record_snapshot(&proposed_feature)?;
+                let mut after_features = features.clone();
+                after_features.push(proposed_feature);
+                (
+                    FeatureRecordCurationKind::Create,
+                    after_features,
+                    FeatureRecordCurationOutcome::Create {
+                        proposed_feature: proposed_snapshot,
+                        created_feature_index: apply_change.then_some(features.len()),
+                    },
+                    review_candidates,
+                    request.expected_annotation_state_fingerprint_sha256,
+                )
+            }
+            FeatureRecordCurationRequest::Delete(request) => {
+                let feature = features.get(request.feature_index).ok_or_else(|| {
+                    EngineError::new(
+                        ErrorCode::NotFound,
+                        format!(
+                            "Feature index {} is out of range for sequence '{}' ({} features)",
+                            request.feature_index,
+                            seq_id,
+                            features.len()
+                        ),
+                    )
+                })?;
+                let feature_fingerprint =
+                    crate::feature_location::feature_fingerprint_sha256(feature)?;
+                if apply_change && request.expected_feature_fingerprint_sha256.is_none() {
+                    return Err(EngineError::invalid_input(
+                        "Applying feature deletion requires the feature fingerprint returned by preview",
+                    ));
+                }
+                if let Some(expected) = request.expected_feature_fingerprint_sha256.as_deref()
+                    && expected != feature_fingerprint
+                {
+                    return Err(EngineError::invalid_input(format!(
+                        "Feature {} changed after preview: expected fingerprint {}, found {}",
+                        request.feature_index, expected, feature_fingerprint
+                    )));
+                }
+                let review_candidates =
+                    crate::feature_record_curation::feature_record_review_candidates(
+                        &features,
+                        feature,
+                        Some(request.feature_index),
+                    );
+                let deleted_snapshot =
+                    crate::feature_record_curation::feature_record_snapshot(feature)?;
+                let shifted_feature_count =
+                    features.len().saturating_sub(request.feature_index + 1);
+                let mut after_features = features.clone();
+                after_features.remove(request.feature_index);
+                (
+                    FeatureRecordCurationKind::Delete,
+                    after_features,
+                    FeatureRecordCurationOutcome::Delete {
+                        deleted_feature_index: request.feature_index,
+                        deleted_feature: deleted_snapshot,
+                        shifted_feature_count,
+                    },
+                    review_candidates,
+                    request.expected_annotation_state_fingerprint_sha256,
+                )
+            }
+        };
+
+        if apply_change && expected_annotation_fingerprint.is_none() {
+            return Err(EngineError::invalid_input(
+                "Applying feature-record curation requires the annotation-state fingerprint returned by preview",
+            ));
+        }
+        if let Some(expected) = expected_annotation_fingerprint.as_deref()
+            && expected != before_annotation_fingerprint
+        {
+            return Err(EngineError::invalid_input(format!(
+                "Sequence '{}' annotations changed after preview: expected fingerprint {}, found {}",
+                seq_id, expected, before_annotation_fingerprint
+            )));
+        }
+        let after_annotation_fingerprint =
+            crate::feature_record_curation::annotation_state_fingerprint_sha256(
+                &seq_id,
+                sequence_len,
+                sequence_is_circular,
+                &after_features,
+            )?;
+
+        if apply_change {
+            let dna = self.state.sequences.get_mut(&seq_id).ok_or_else(|| {
+                EngineError::new(
+                    ErrorCode::NotFound,
+                    format!("Sequence '{seq_id}' not found"),
+                )
+            })?;
+            *dna.features_mut() = after_features;
+            result.changed_seq_ids.push(seq_id.clone());
+        }
+
+        let review_candidate_count = review_candidates.len();
+        result.feature_record_curation_report = Some(Box::new(
+            FeatureRecordCurationReport {
+                schema: FEATURE_RECORD_CURATION_SCHEMA.to_string(),
+                seq_id: seq_id.clone(),
+                operation_kind,
+                dry_run: !apply_change,
+                applied: apply_change,
+                fingerprint_algorithm: FEATURE_ANNOTATION_STATE_FINGERPRINT_ALGORITHM.to_string(),
+                before_annotation_state_fingerprint_sha256: before_annotation_fingerprint,
+                after_annotation_state_fingerprint_sha256: after_annotation_fingerprint,
+                outcome,
+                review_candidates,
+            },
+        ));
+        result.messages.push(format!(
+            "{} feature-record {} on '{}' ({} informational review candidate{})",
+            if apply_change { "Applied" } else { "Previewed" },
+            match operation_kind {
+                FeatureRecordCurationKind::Create => "creation",
+                FeatureRecordCurationKind::Delete => "deletion",
+            },
+            seq_id,
+            review_candidate_count,
+            if review_candidate_count == 1 { "" } else { "s" }
+        ));
+        Ok(())
+    }
+
     pub(super) fn apply_internal(
         &mut self,
         op: Operation,
@@ -22236,8 +24221,11 @@ impl GentleEngine {
             exon_skip_materialization: None,
             cdna_assay_test_report: None,
             cdna_assay_product_materialization: None,
+            primerbank_search_report: None,
+            external_primer_pair_import_report: None,
             transcript_qpcr_panel: None,
             transcript_assay_panel: None,
+            experimental_assay_handoff: None,
             primer_specificity_handoff: None,
             primer_specificity_report: None,
             construct_reasoning_graph: None,
@@ -22301,6 +24289,8 @@ impl GentleEngine {
             uniprot_projection_audit: None,
             uniprot_projection_audit_parity: None,
             lab_assistant_instructions: None,
+            feature_location_edit_report: None,
+            feature_record_curation_report: None,
         };
 
         if matches!(
@@ -27949,6 +29939,11 @@ impl GentleEngine {
                         catalog_path.as_deref(),
                         cache_dir.as_deref(),
                     )?;
+                    let (report, replaced) =
+                        self.persist_primer_specificity_report(report, &result.op_id, run_id)?;
+                    if let Some(seq_id) = report.primary_seq_id.as_ref() {
+                        parent_seq_ids.push(seq_id.clone());
+                    }
                     if let Some(path) = path
                         .as_deref()
                         .map(str::trim)
@@ -27975,6 +29970,11 @@ impl GentleEngine {
                             .messages
                             .push(format!("Wrote primer specificity report to '{path}'"));
                     }
+                    result.messages.push(format!(
+                        "{} persisted primer-specificity report '{}'",
+                        if replaced { "Updated" } else { "Created" },
+                        report.report_id
+                    ));
                     result.messages.push(report.summary.summary.clone());
                     result.primer_specificity_report = Some(Box::new(report));
                 }
@@ -28012,6 +30012,11 @@ impl GentleEngine {
                 }
                 Operation::ImportPrimerPairSpecificityHandoff { handoff_path, path } => {
                     let report = self.import_primer_pair_specificity_handoff(&handoff_path)?;
+                    let (report, replaced) =
+                        self.persist_primer_specificity_report(report, &result.op_id, run_id)?;
+                    if let Some(seq_id) = report.primary_seq_id.as_ref() {
+                        parent_seq_ids.push(seq_id.clone());
+                    }
                     if let Some(path) = path
                         .as_deref()
                         .map(str::trim)
@@ -28038,6 +30043,11 @@ impl GentleEngine {
                             .messages
                             .push(format!("Wrote primer specificity report to '{path}'"));
                     }
+                    result.messages.push(format!(
+                        "{} persisted primer-specificity report '{}'",
+                        if replaced { "Updated" } else { "Created" },
+                        report.report_id
+                    ));
                     result.messages.push(report.summary.summary.clone());
                     result.primer_specificity_report = Some(Box::new(report));
                 }
@@ -28124,6 +30134,54 @@ impl GentleEngine {
                         report_id,
                     )?;
                 }
+                Operation::SearchPrimerBank {
+                    request,
+                    source_html_path,
+                    path,
+                } => {
+                    let report = crate::primerbank::search_primerbank(
+                        &request,
+                        source_html_path.as_deref().map(Path::new),
+                    )
+                    .map_err(|message| EngineError {
+                        code: ErrorCode::InvalidInput,
+                        message,
+                        cause_chain: vec![],
+                    })?;
+                    if let Some(path) = path
+                        .as_deref()
+                        .map(str::trim)
+                        .filter(|value| !value.is_empty())
+                    {
+                        let file = File::create(path).map_err(|error| EngineError {
+                            code: ErrorCode::Io,
+                            message: format!(
+                                "Could not create PrimerBank search report '{path}': {error}"
+                            ),
+                            cause_chain: vec![],
+                        })?;
+                        serde_json::to_writer_pretty(BufWriter::new(file), &report).map_err(
+                            |error| EngineError {
+                                code: ErrorCode::Io,
+                                message: format!(
+                                    "Could not serialize PrimerBank search report '{path}': {error}"
+                                ),
+                                cause_chain: vec![],
+                            },
+                        )?;
+                        result
+                            .messages
+                            .push(format!("Wrote PrimerBank search report JSON to '{path}'"));
+                    }
+                    result.warnings.extend(report.warnings.clone());
+                    result.messages.push(format!(
+                        "PrimerBank query '{}' returned {} gene record(s) and {} primer pair(s)",
+                        report.query.query,
+                        report.genes.len(),
+                        report.primer_pairs().count()
+                    ));
+                    result.primerbank_search_report = Some(report);
+                }
                 Operation::TestCdnaPcr {
                     seq_id,
                     source_feature_id,
@@ -28168,6 +30226,29 @@ impl GentleEngine {
                         product_gel_svg_path.as_deref(),
                         product_gel_ladders.as_deref(),
                     )?;
+                }
+                Operation::ImportExternalPrimerPairs { request, path } => {
+                    parent_seq_ids.push(request.seq_id.clone());
+                    let report = self.import_external_primer_pairs(&mut result, request)?;
+                    if let Some(path) = path
+                        .as_deref()
+                        .map(str::trim)
+                        .filter(|value| !value.is_empty())
+                    {
+                        self.export_external_primer_pair_import_report(&report.report_id, path)?;
+                        result.messages.push(format!(
+                            "Wrote external primer-pair import report to '{path}'."
+                        ));
+                    }
+                    result.messages.push(format!(
+                        "Imported {} source row(s) as {} unique primer pair(s) and evaluated them against cDNA feature n-{} on '{}'.",
+                        report.source_record_count,
+                        report.unique_pair_count,
+                        report.source_feature_id.saturating_add(1),
+                        report.seq_id
+                    ));
+                    result.warnings.extend(report.warnings.iter().cloned());
+                    result.external_primer_pair_import_report = Some(Box::new(report));
                 }
                 Operation::TestCdnaQpcr {
                     seq_id,
@@ -28325,6 +30406,71 @@ impl GentleEngine {
                         report_id,
                         path,
                     )?;
+                }
+                Operation::BuildExperimentalAssayHandoff {
+                    panel_report_id,
+                    policy,
+                    variant_evidence_paths,
+                    order_form_id,
+                    path,
+                    order_table_path,
+                } => {
+                    let report = self.build_experimental_assay_handoff(
+                        &panel_report_id,
+                        policy,
+                        &variant_evidence_paths,
+                        order_form_id.as_deref(),
+                    )?;
+                    parent_seq_ids.push(report.source_seq_id.clone());
+                    if let Some(path) = path
+                        .as_deref()
+                        .map(str::trim)
+                        .filter(|value| !value.is_empty())
+                    {
+                        let file = File::create(path).map_err(|error| EngineError {
+                            code: ErrorCode::Io,
+                            message: format!(
+                                "Could not create experimental assay handoff '{path}': {error}"
+                            ),
+                            cause_chain: vec![],
+                        })?;
+                        serde_json::to_writer_pretty(BufWriter::new(file), &report).map_err(
+                            |error| EngineError {
+                                code: ErrorCode::Io,
+                                message: format!(
+                                    "Could not serialize experimental assay handoff '{path}': {error}"
+                                ),
+                                cause_chain: vec![],
+                            },
+                        )?;
+                        result
+                            .messages
+                            .push(format!("Wrote experimental assay handoff JSON to '{path}'"));
+                    }
+                    if let Some(path) = order_table_path
+                        .as_deref()
+                        .map(str::trim)
+                        .filter(|value| !value.is_empty())
+                    {
+                        fs::write(path, Self::experimental_assay_order_table_tsv(&report))
+                            .map_err(|error| EngineError {
+                                code: ErrorCode::Io,
+                                message: format!(
+                                    "Could not write experimental assay order/readiness table '{path}': {error}"
+                                ),
+                                cause_chain: vec![],
+                            })?;
+                        result.messages.push(format!(
+                            "Wrote experimental assay order/readiness TSV to '{path}'"
+                        ));
+                    }
+                    result.messages.push(format!(
+                        "Built experimental assay handoff '{}' with {} card(s).",
+                        report.package_id,
+                        report.cards.len()
+                    ));
+                    result.warnings.extend(report.warnings.clone());
+                    result.experimental_assay_handoff = Some(Box::new(report));
                 }
                 Operation::TestCdnaQpcrFasta {
                     cdna_fasta_paths,
@@ -33045,6 +35191,18 @@ impl GentleEngine {
                     result
                         .messages
                         .push(format!("Recomputed features for '{seq_id}'"));
+                }
+                Operation::PreviewFeatureLocationEdit { request } => {
+                    self.execute_feature_location_edit(request, false, &mut result)?;
+                }
+                Operation::EditFeatureLocation { request } => {
+                    self.execute_feature_location_edit(request, true, &mut result)?;
+                }
+                Operation::PreviewFeatureRecordCuration { request } => {
+                    self.execute_feature_record_curation(request, false, &mut result)?;
+                }
+                Operation::ApplyFeatureRecordCuration { request } => {
+                    self.execute_feature_record_curation(request, true, &mut result)?;
                 }
                 Operation::AnnotateTfbs {
                     seq_id,

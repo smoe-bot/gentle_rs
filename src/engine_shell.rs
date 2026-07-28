@@ -47,10 +47,13 @@ use crate::{
         DEFAULT_PROMOTER_WINDOW_DOWNSTREAM_BP, DEFAULT_PROMOTER_WINDOW_UPSTREAM_BP,
         DOTPLOT_ANALYSIS_METADATA_KEY, DisplayTarget, DotplotMode, DotplotOverlayAnchorExonRef,
         DotplotOverlayQuerySpec, DotplotOverlayXAxisMode, EditableStatus, Engine, EvidenceClass,
-        ExonSkipReturnKind, ExonSkipSelectionCriterion, FactAtom, FactBasis, FactExpression,
-        FactSubject, FactSubjectKind, FactTruth, FeatureBedCoordinateMode, FeatureExpertTarget,
-        FeatureExpertView, FlexibilityModel, GUIDE_DESIGN_METADATA_KEY,
-        GeneIsoformEvidenceRequest, GeneLocusEvidenceDisplayRequest,
+        ExonSkipReturnKind, ExonSkipSelectionCriterion, ExperimentalAssayReadinessPolicy,
+        ExternalPrimerPairImportRequest, ExternalPrimerPairSpecificityRequest, FactAtom, FactBasis,
+        FactExpression, FactSubject, FactSubjectKind, FactTruth, FeatureBedCoordinateMode,
+        FeatureExpertTarget, FeatureExpertView, FeatureLocationEditRequest,
+        FeatureLocationEditStrand, FeatureRecordCreateRequest, FeatureRecordCurationRequest,
+        FeatureRecordDeleteRequest, FeatureRecordQualifier, FlexibilityModel,
+        GUIDE_DESIGN_METADATA_KEY, GeneIsoformEvidenceRequest, GeneLocusEvidenceDisplayRequest,
         GeneSetCohortRelationship, GeneSetProducerFilter, GeneSetPromoterCohortReport,
         GeneSetRequest, GeneSetResolutionReport, GeneSetResolutionReviewStatus, GenomeAnchorSide,
         GenomeAnnotationScope, GenomeGeneExtractMode, GenomeTrackSource, GenomeTrackSubscription,
@@ -62,15 +65,14 @@ use crate::{
         PLANNING_ESTIMATE_SCHEMA, PLANNING_OBJECTIVE_SCHEMA, PLANNING_PROFILE_SCHEMA,
         PLANNING_SUGGESTION_SCHEMA, PLANNING_SYNC_STATUS_SCHEMA,
         PRIMER_DESIGN_REPORTS_METADATA_KEY, PROTEIN_EXPRESSION_HANDOFF_SCHEMA,
-        PROTEIN_EXPRESSION_REQUIREMENTS_SCHEMA,
-        PairwiseAlignmentMode, PlanningCloningConsultation, PlanningCloningHelperVectorSummary,
-        PlanningCloningHostProfileSummary, PlanningCloningLocalConstraint,
-        PlanningCloningMissingQuestion, PlanningCloningStrategyCandidate,
-        PlanningCloningSuggestedNextAction, PlanningCloningVectorCandidate, PlanningEstimate,
-        PlanningObjective, PlanningProfile, PlanningProfileScope, PlanningSuggestionStatus,
-        PrimerDesignBackend, PrimerDesignPairConstraint, PrimerDesignReport,
-        PrimerDesignSideConstraint, PrimerSpecificityCheckMode, PrimerSpecificityPolicy,
-        ProbeRegionRequest, ProjectFact,
+        PROTEIN_EXPRESSION_REQUIREMENTS_SCHEMA, PairwiseAlignmentMode, PlanningCloningConsultation,
+        PlanningCloningHelperVectorSummary, PlanningCloningHostProfileSummary,
+        PlanningCloningLocalConstraint, PlanningCloningMissingQuestion,
+        PlanningCloningStrategyCandidate, PlanningCloningSuggestedNextAction,
+        PlanningCloningVectorCandidate, PlanningEstimate, PlanningObjective, PlanningProfile,
+        PlanningProfileScope, PlanningSuggestionStatus, PrimerDesignBackend,
+        PrimerDesignPairConstraint, PrimerDesignReport, PrimerDesignSideConstraint,
+        PrimerSpecificityCheckMode, PrimerSpecificityPolicy, ProbeRegionRequest, ProjectFact,
         ProjectFactDomain, ProjectFactGraph, ProjectFactTypeSpec, ProjectState,
         PromoterArtifactManifestEntry, PromoterCohortKind, PromoterExpressionEvidenceInput,
         PromoterTfbsGeneQuery, PromoterWindowCollapseMode, ProteinExpressionCdsAssessment,
@@ -99,15 +101,15 @@ use crate::{
         SequencingConfirmationTargetKind, SequencingConfirmationTargetSpec, SplicingRange,
         SplicingScopePreset, TfThresholdOverride, TfbsRegionSummaryRequest,
         TfbsScoreTrackCorrelationMetric, TfbsScoreTrackCorrelationSignalSource,
-        TfbsScoreTrackValueKind, TfbsTrackSimilarityRankingMetric, TranscriptAssayCdnaSynthesis,
-        TranscriptAssayCoveragePolicy, TranscriptAssayJunctionPriority,
-        TranscriptAssayAmpliconRange, TranscriptAssayJunctionRequest, TranscriptAssayKind,
-        TranscriptAssayPanelObjective,
-        TranscriptAssayPanelSpecificityExecutionManifest, TranscriptAssayPracticalityPolicy,
-        TranscriptAssaySpecificityRequest, TranscriptAssayUseTier,
-        TranslationSpeedMark, TranslationSpeedProfile, UniprotFeatureCodingDnaQueryMode,
-        VariantAlleleChoice, WORKFLOW_MACRO_TEMPLATES_METADATA_KEY, Workflow,
-        WorkflowMacroTemplate, WorkflowMacroTemplateParam, WorkflowMacroTemplatePort,
+        TfbsScoreTrackValueKind, TfbsTrackSimilarityRankingMetric, TranscriptAssayAmpliconRange,
+        TranscriptAssayCdnaSynthesis, TranscriptAssayCoveragePolicy,
+        TranscriptAssayJunctionPriority, TranscriptAssayJunctionRequest, TranscriptAssayKind,
+        TranscriptAssayPanelObjective, TranscriptAssayPanelSpecificityExecutionManifest,
+        TranscriptAssayPracticalityPolicy, TranscriptAssaySpecificityRequest,
+        TranscriptAssayUseTier, TranslationSpeedMark, TranslationSpeedProfile,
+        UniprotFeatureCodingDnaQueryMode, VariantAlleleChoice,
+        WORKFLOW_MACRO_TEMPLATES_METADATA_KEY, Workflow, WorkflowMacroTemplate,
+        WorkflowMacroTemplateParam, WorkflowMacroTemplatePort,
         construct_reasoning_action_dotplot_request, parse_feature_coordinate_term_on_sequence,
         project_fact_type_specs, resolve_selection_formula_range_0based_on_sequence,
         split_feature_formula_range_expression,
@@ -125,6 +127,11 @@ use crate::{
     },
     gibson_planning::{GIBSON_ASSEMBLY_PREVIEW_SCHEMA, GibsonAssemblyPlan},
     mirna::{self, MirnaRegionClass, MirnaSeedClass, MirnaTargetScanRequest},
+    primerbank::{
+        PRIMERBANK_CDNA_TEST_REPORT_SCHEMA, PRIMERBANK_USAGE_POLICY_URL, PrimerBankCdnaTestReport,
+        PrimerBankQueryKind, PrimerBankSearchRequest, PrimerBankSpecies,
+        PrimerBankSpeciesMatchStatus,
+    },
     protocol_cartoon::{ProtocolCartoonKind, protocol_cartoon_catalog_rows},
     publication_resources, resource_status, resource_sync,
     runtime_status::{
@@ -148,8 +155,7 @@ use gentle_protocol::{
     EXTERNAL_SERVICE_REQUEST_SCHEMA, ExternalServiceDeliveryRouteReport,
     ExternalServiceDeliveryRouteRequest, ExternalServiceRequest,
     GENE_SET_CO_REGULATED_CACHE_SCHEMA, GENE_SET_DIRECT_LIST_CACHE_SCHEMA,
-    GENE_SET_ONTOLOGY_ASSIGNMENT_CACHE_SCHEMA, capability_registry,
-    SharedAssetActivityStatus,
+    GENE_SET_ONTOLOGY_ASSIGNMENT_CACHE_SCHEMA, SharedAssetActivityStatus, capability_registry,
 };
 #[cfg(all(target_os = "macos", feature = "screenshot-capture"))]
 use objc2_app_kit::NSApplication;
@@ -2132,6 +2138,35 @@ pub enum ShellCommand {
         seq_id: String,
         expression: String,
     },
+    FeaturesEditLocation {
+        seq_id: String,
+        feature_index: usize,
+        segment_index: Option<usize>,
+        start_1based: usize,
+        end_1based_inclusive: usize,
+        dry_run: bool,
+        expected_feature_fingerprint_sha256: Option<String>,
+        path: Option<String>,
+    },
+    FeaturesCreate {
+        seq_id: String,
+        feature_kind: String,
+        start_1based: usize,
+        end_1based_inclusive: usize,
+        strand: FeatureLocationEditStrand,
+        qualifiers: Vec<FeatureRecordQualifier>,
+        dry_run: bool,
+        expected_annotation_state_fingerprint_sha256: Option<String>,
+        path: Option<String>,
+    },
+    FeaturesDelete {
+        seq_id: String,
+        feature_index: usize,
+        dry_run: bool,
+        expected_feature_fingerprint_sha256: Option<String>,
+        expected_annotation_state_fingerprint_sha256: Option<String>,
+        path: Option<String>,
+    },
     FeaturesQuery {
         query: SequenceFeatureQuery,
     },
@@ -2307,6 +2342,27 @@ pub enum ShellCommand {
         backend: Option<PrimerDesignBackend>,
         primer3_executable: Option<String>,
     },
+    PrimersPrimerBankSearch {
+        request: PrimerBankSearchRequest,
+        source_html_path: Option<String>,
+        path: Option<String>,
+    },
+    PrimersPrimerBankTestCdna {
+        seq_id: String,
+        feature_id: usize,
+        primerbank_id: String,
+        expected_species: PrimerBankSpecies,
+        source_html_path: Option<String>,
+        transcript_id: Option<String>,
+        min_amplicon_bp: Option<usize>,
+        max_amplicon_bp: Option<usize>,
+        max_mismatches: Option<usize>,
+        require_3prime_exact_bases: Option<usize>,
+        transcript_order: Option<CdnaAssayTranscriptOrder>,
+        transcript_map_coordinate_mode: Option<CdnaAssayTranscriptMapCoordinateMode>,
+        path: Option<String>,
+        svg_path: Option<String>,
+    },
     PrimersSeedFromFeature {
         seq_id: String,
         feature_id: usize,
@@ -2394,6 +2450,27 @@ pub enum ShellCommand {
     PrimersTranscriptAssaySpecificityFinalize {
         handoff_path: String,
         execution_manifest_json: String,
+        path: Option<String>,
+    },
+    PrimersImportExternalPairs {
+        input_path: String,
+        input_format: Option<String>,
+        seq_id: String,
+        feature_id: usize,
+        report_id: Option<String>,
+        transcript_id: Option<String>,
+        min_amplicon_bp: Option<usize>,
+        max_amplicon_bp: Option<usize>,
+        max_mismatches: Option<usize>,
+        require_3prime_exact_bases: Option<usize>,
+        transcript_order: Option<CdnaAssayTranscriptOrder>,
+        transcript_map_coordinate_mode: Option<CdnaAssayTranscriptMapCoordinateMode>,
+        specificity_target_genome_id: Option<String>,
+        specificity_catalog_path: Option<String>,
+        specificity_cache_dir: Option<String>,
+        artifact_output_dir: Option<String>,
+        materialize_products: bool,
+        product_gel_ladders: Vec<String>,
         path: Option<String>,
     },
     PrimersTestCdnaPcr {
@@ -2537,6 +2614,14 @@ pub enum ShellCommand {
     PrimersExportTranscriptAssayPanel {
         report_id: String,
         path: String,
+    },
+    PrimersExperimentalHandoff {
+        panel_report_id: String,
+        policy_json: Option<String>,
+        variant_evidence_paths: Vec<String>,
+        order_form_id: Option<String>,
+        path: Option<String>,
+        order_table_path: Option<String>,
     },
     PrimersOligoOrderCreate {
         request_json: String,
@@ -10143,6 +10228,53 @@ impl ShellCommand {
                 "resolve feature-coordinate formula on '{}' ({})",
                 seq_id, expression
             ),
+            Self::FeaturesEditLocation {
+                seq_id,
+                feature_index,
+                segment_index,
+                start_1based,
+                end_1based_inclusive,
+                dry_run,
+                ..
+            } => format!(
+                "{} feature {}{} location on '{}' to {}..{}",
+                if *dry_run { "preview" } else { "edit" },
+                feature_index,
+                segment_index
+                    .map(|index| format!(" segment {index}"))
+                    .unwrap_or_default(),
+                seq_id,
+                start_1based,
+                end_1based_inclusive
+            ),
+            Self::FeaturesCreate {
+                seq_id,
+                feature_kind,
+                start_1based,
+                end_1based_inclusive,
+                strand,
+                dry_run,
+                ..
+            } => format!(
+                "{} {} feature on '{}' at {}..{} ({:?})",
+                if *dry_run { "preview" } else { "create" },
+                feature_kind,
+                seq_id,
+                start_1based,
+                end_1based_inclusive,
+                strand
+            ),
+            Self::FeaturesDelete {
+                seq_id,
+                feature_index,
+                dry_run,
+                ..
+            } => format!(
+                "{} feature {} deletion on '{}'",
+                if *dry_run { "preview" } else { "apply" },
+                feature_index,
+                seq_id
+            ),
             Self::FeaturesQuery { query } => format!(
                 "query features on '{}' (kinds={}, range={}..{}, relation={}, strand={}, label='{}', qualifiers={}, limit={}, offset={})",
                 query.seq_id,
@@ -10744,6 +10876,33 @@ impl ShellCommand {
                     .filter(|v| !v.is_empty())
                     .unwrap_or("default"),
             ),
+            Self::PrimersPrimerBankSearch {
+                request,
+                source_html_path,
+                path,
+            } => format!(
+                "search PrimerBank for '{}' (by={}, species={}, source={}, path={})",
+                request.query,
+                request.query_kind.as_str(),
+                request.species.as_str(),
+                source_html_path.as_deref().unwrap_or("live"),
+                path.as_deref().unwrap_or("none"),
+            ),
+            Self::PrimersPrimerBankTestCdna {
+                seq_id,
+                feature_id,
+                primerbank_id,
+                expected_species,
+                source_html_path,
+                ..
+            } => format!(
+                "retrieve PrimerBank pair '{}' for species '{}' and test it on '{}' feature n-{} (source={})",
+                primerbank_id,
+                expected_species.as_str(),
+                seq_id,
+                feature_id + 1,
+                source_html_path.as_deref().unwrap_or("live"),
+            ),
             Self::PrimersSeedFromFeature { seq_id, feature_id } => format!(
                 "seed primer/qPCR design ROI payloads from feature n-{} on '{}'",
                 feature_id, seq_id
@@ -11060,6 +11219,21 @@ impl ShellCommand {
                     .filter(|v| !v.trim().is_empty())
                     .unwrap_or("none"),
             ),
+            Self::PrimersImportExternalPairs {
+                input_path,
+                seq_id,
+                feature_id,
+                specificity_target_genome_id,
+                materialize_products,
+                ..
+            } => format!(
+                "import external primer pairs from '{}' and evaluate them on '{}' feature n-{} (specificity_genome={}, materialize_products={})",
+                input_path,
+                seq_id,
+                feature_id.saturating_add(1),
+                specificity_target_genome_id.as_deref().unwrap_or("not_run"),
+                materialize_products,
+            ),
             Self::PrimersTestCdnaPcr {
                 seq_id,
                 feature_id,
@@ -11246,12 +11420,17 @@ impl ShellCommand {
                     .filter(|v| !v.is_empty())
                     .unwrap_or("default"),
             ),
-            Self::PrimersListReports => "list stored primer-design reports".to_string(),
+            Self::PrimersListReports => {
+                "list stored primer-design and primer-specificity reports".to_string()
+            }
             Self::PrimersShowReport { report_id } => {
-                format!("show stored primer-design report '{}'", report_id)
+                format!(
+                    "show stored primer-design or primer-specificity report '{}'",
+                    report_id
+                )
             }
             Self::PrimersExportReport { report_id, path } => format!(
-                "export stored primer-design report '{}' to '{}'",
+                "export stored primer-design or primer-specificity report '{}' to '{}'",
                 report_id, path
             ),
             Self::PrimersListQpcrReports => "list stored qPCR-design reports".to_string(),
@@ -11271,6 +11450,21 @@ impl ShellCommand {
             Self::PrimersExportTranscriptAssayPanel { report_id, path } => format!(
                 "export stored transcript assay panel report '{}' to '{}'",
                 report_id, path
+            ),
+            Self::PrimersExperimentalHandoff {
+                panel_report_id,
+                variant_evidence_paths,
+                order_form_id,
+                path,
+                order_table_path,
+                ..
+            } => format!(
+                "build experimental handoff from transcript assay panel '{}' (variant_evidence={}, order_form={}, json={}, table={})",
+                panel_report_id,
+                variant_evidence_paths.len(),
+                order_form_id.as_deref().unwrap_or("none"),
+                path.as_deref().unwrap_or("none"),
+                order_table_path.as_deref().unwrap_or("none"),
             ),
             Self::PrimersOligoOrderCreate { request_json } => format!(
                 "create oligo order form from JSON request payload (len={})",
@@ -12506,6 +12700,12 @@ impl ShellCommand {
     }
 
     pub fn is_state_mutating(&self) -> bool {
+        if let Self::FeaturesEditLocation { dry_run, .. }
+        | Self::FeaturesCreate { dry_run, .. }
+        | Self::FeaturesDelete { dry_run, .. } = self
+        {
+            return !dry_run;
+        }
         if let Self::MacrosTemplateRun { validate_only, .. } = self
             && *validate_only
         {
@@ -13679,8 +13879,7 @@ fn runtime_activity_from_blast_async_job(status: &BlastAsyncJobStatus) -> Runtim
     ));
     if status.total_queries > 0 {
         activity.progress_percent = Some(
-            ((status.done_queries as f64 / status.total_queries as f64) * 100.0)
-                .clamp(0.0, 100.0),
+            ((status.done_queries as f64 / status.total_queries as f64) * 100.0).clamp(0.0, 100.0),
         );
     }
     activity.started_at_unix_ms = status.started_at_unix_ms;
@@ -13705,7 +13904,9 @@ fn observed_activity_state(
         return RuntimeStatusActivityObservation::CrossProcess;
     }
     match lifecycle_status.trim().to_ascii_lowercase().as_str() {
-        "running" | "queued" | "preparing" | "in_progress" => RuntimeStatusActivityObservation::Live,
+        "running" | "queued" | "preparing" | "in_progress" => {
+            RuntimeStatusActivityObservation::Live
+        }
         "ready" | "completed" | "done" | "ok" => RuntimeStatusActivityObservation::Completed,
         "failed" | "error" => RuntimeStatusActivityObservation::Failed,
         "cancelled" | "canceled" => RuntimeStatusActivityObservation::Cancelled,
@@ -14400,16 +14601,10 @@ fn parse_feature_expert_target_tokens(
                             )?);
                     }
                     "--occupancy-layout" => {
-                        let raw = parse_option_path(
-                            tokens,
-                            &mut idx,
-                            "--occupancy-layout",
-                            context,
-                        )?;
-                        request.occupancy_layout = parse_required_json_payload(
-                            &raw,
-                            "gene locus occupancy layout",
-                        )?;
+                        let raw =
+                            parse_option_path(tokens, &mut idx, "--occupancy-layout", context)?;
+                        request.occupancy_layout =
+                            parse_required_json_payload(&raw, "gene locus occupancy layout")?;
                     }
                     "--upstream-bp" | "--downstream-bp" | "--flank-bp" => {
                         let flag = tokens[idx].clone();
@@ -14427,12 +14622,9 @@ fn parse_feature_expert_target_tokens(
                         }
                     }
                     "--motif" => {
-                        request.motifs.push(parse_option_path(
-                            tokens,
-                            &mut idx,
-                            "--motif",
-                            context,
-                        )?);
+                        request
+                            .motifs
+                            .push(parse_option_path(tokens, &mut idx, "--motif", context)?);
                     }
                     "--motifs" => {
                         let raw = parse_option_path(tokens, &mut idx, "--motifs", context)?;
@@ -14451,23 +14643,15 @@ fn parse_feature_expert_target_tokens(
                                 .to_string();
                     }
                     "--motif-threshold" => {
-                        let raw = parse_option_path(
-                            tokens,
-                            &mut idx,
-                            "--motif-threshold",
-                            context,
-                        )?;
-                        request.motif_display_threshold = Some(raw.parse::<f64>().map_err(
-                            |error| format!("Invalid --motif-threshold value '{raw}': {error}"),
-                        )?);
+                        let raw =
+                            parse_option_path(tokens, &mut idx, "--motif-threshold", context)?;
+                        request.motif_display_threshold =
+                            Some(raw.parse::<f64>().map_err(|error| {
+                                format!("Invalid --motif-threshold value '{raw}': {error}")
+                            })?);
                     }
                     "--motif-top-hits" => {
-                        let raw = parse_option_path(
-                            tokens,
-                            &mut idx,
-                            "--motif-top-hits",
-                            context,
-                        )?;
+                        let raw = parse_option_path(tokens, &mut idx, "--motif-top-hits", context)?;
                         request.motif_top_hit_count = raw.parse::<usize>().map_err(|error| {
                             format!("Invalid --motif-top-hits value '{raw}': {error}")
                         })?;
@@ -14512,11 +14696,7 @@ fn parse_feature_expert_target_tokens(
             }
             request.probe_effect_contrasts = unique_probe_effect_contrasts;
             let mut unique_occupancy_tracks = Vec::new();
-            for track_name in request
-                .isoform_evidence
-                .occupancy_track_names
-                .drain(..)
-            {
+            for track_name in request.isoform_evidence.occupancy_track_names.drain(..) {
                 if !unique_occupancy_tracks
                     .iter()
                     .any(|value: &String| value.eq_ignore_ascii_case(&track_name))
@@ -14806,9 +14986,7 @@ fn parse_primer_design_backend(value: &str) -> Result<PrimerDesignBackend, Strin
     }
 }
 
-fn parse_primer_specificity_check_mode(
-    value: &str,
-) -> Result<PrimerSpecificityCheckMode, String> {
+fn parse_primer_specificity_check_mode(value: &str) -> Result<PrimerSpecificityCheckMode, String> {
     match value.trim().to_ascii_lowercase().replace('-', "_").as_str() {
         "none" | "off" => Ok(PrimerSpecificityCheckMode::None),
         "report_only" | "report" => Ok(PrimerSpecificityCheckMode::ReportOnly),
@@ -15504,6 +15682,12 @@ fn push_introspection_report_facts(graph: &mut ProjectFactGraph, engine: &Gentle
     );
     graph.facts.extend(
         engine
+            .list_primer_specificity_reports()
+            .into_iter()
+            .map(|row| introspection_report_fact(row.report_id, "primer_specificity")),
+    );
+    graph.facts.extend(
+        engine
             .list_qpcr_design_reports()
             .into_iter()
             .map(|row| introspection_report_fact(row.report_id, "qpcr_design")),
@@ -15513,6 +15697,12 @@ fn push_introspection_report_facts(graph: &mut ProjectFactGraph, engine: &Gentle
             .list_transcript_assay_panel_reports()
             .into_iter()
             .map(|row| introspection_report_fact(row.report_id, "transcript_assay_panel")),
+    );
+    graph.facts.extend(
+        engine
+            .list_external_primer_pair_import_report_ids()
+            .into_iter()
+            .map(|report_id| introspection_report_fact(report_id, "external_primer_pair_import")),
     );
     graph.facts.extend(
         engine
@@ -16220,6 +16410,48 @@ fn cdna_assay_test_descriptor(
             }
         ],
         "precondition_expr": precondition_expr,
+        "description": description,
+        "annotation_status": "fact_annotated",
+        "registry": registry_metadata_for_introspection(id)
+    })
+}
+
+fn external_primer_pair_import_descriptor(id: &str, description: &str) -> Value {
+    json!({
+        "id": id,
+        "kind": "operation",
+        "mutating": "true",
+        "requires_confirmation": false,
+        "args": [
+            {"name": "INPUT_PATH", "required": true, "subject_kind": "other", "detail": "external primer-pair JSON or TSV batch path"},
+            {"name": "SEQ_ID", "required": true, "subject_kind": "sequence", "detail": "loaded sequence carrying transcript annotation"},
+            {"name": "FEATURE_ID", "required": true, "subject_kind": "other", "detail": "source transcript/gene feature index"},
+            {"name": "REPORT_ID", "required": false, "subject_kind": "report", "detail": "explicit external-primer import report id; required for deterministic effect verification"},
+            {"name": "OUTPUT_PATH", "required": false, "subject_kind": "other", "detail": "optional external JSON report path"},
+            {"name": "ARTIFACT_OUTPUT_DIR", "required": false, "subject_kind": "other", "detail": "optional directory for per-pair cDNA map/report and gel artifacts"},
+            {"name": "MATERIALIZE_PRODUCTS", "required": false, "subject_kind": "other", "detail": "whether detected cDNA products are materialized and gel-rendered"}
+        ],
+        "reads": [
+            {"fact": "sequence.exists", "subject": {"arg": "SEQ_ID"}}
+        ],
+        "effects": [
+            {
+                "fact": "report.exists",
+                "subject": {"arg": "REPORT_ID"},
+                "report_kind": "external_primer_pair_import",
+                "equals": "external_primer_pair_import",
+                "effect_kind": "must_on_success"
+            },
+            {
+                "effect_kind": "may_on_success",
+                "description": "May write an aggregate JSON export and per-pair cDNA report, transcript-map, and product-gel artifacts; may materialize detected cDNA products when requested."
+            }
+        ],
+        "precondition_expr": {
+            "all": [
+                {"fact": "sequence.exists", "subject": {"arg": "SEQ_ID"}}
+            ]
+        },
         "description": description,
         "annotation_status": "fact_annotated",
         "registry": registry_metadata_for_introspection(id)
@@ -18857,17 +19089,30 @@ fn annotated_introspection_capability_descriptors() -> Vec<Value> {
                 arrangement_id_atom()
             ]}),
         ),
-        pool_artifact_descriptor(
-            "AssessPrimerPairSpecificity",
-            "Assess one primer pair against a prepared reference genome and optionally write the returned specificity report to JSON.",
-            vec![
+        json!({
+            "id": "AssessPrimerPairSpecificity",
+            "kind": "operation",
+            "mutating": "true",
+            "requires_confirmation": false,
+            "args": [
                 json!({"name": "PRIMER_REPORT_ID", "required": false, "subject_kind": "report", "detail": "optional primer-design report id carried by primer_report_id"}),
                 json!({"name": "FORWARD_PRIMER", "required": false, "subject_kind": "other", "detail": "explicit forward primer sequence alternative"}),
                 json!({"name": "REVERSE_PRIMER", "required": false, "subject_kind": "other", "detail": "explicit reverse primer sequence alternative"}),
                 json!({"name": "TARGET_GENOME_ID", "required": true, "subject_kind": "other", "detail": "prepared reference genome id used for specificity search"}),
                 json!({"name": "OUTPUT_PATH", "required": false, "subject_kind": "other", "detail": "optional external primer-specificity JSON output path carried by path"}),
             ],
-        ),
+            "reads": [],
+            "effects": [
+                {
+                    "effect_kind": "may_on_success",
+                    "description": "Persists a derived-id primer_specificity report fact and may also write the optional JSON path."
+                }
+            ],
+            "precondition_expr": {"all": []},
+            "description": "Assess one primer pair against a prepared reference genome, persist the returned specificity artifact, and optionally write it to JSON.",
+            "annotation_status": "fact_annotated",
+            "registry": registry_metadata_for_introspection("AssessPrimerPairSpecificity")
+        }),
         pool_artifact_descriptor(
             "PreparePrimerPairSpecificityHandoff",
             "Prepare deterministic primer BLAST commands and query files without running the BLAST searches.",
@@ -18879,14 +19124,27 @@ fn annotated_introspection_capability_descriptors() -> Vec<Value> {
                 json!({"name": "OUTPUT_PATH", "required": true, "subject_kind": "other", "detail": "external handoff bundle directory carried by output_dir"}),
             ],
         ),
-        pool_artifact_descriptor(
-            "ImportPrimerPairSpecificityHandoff",
-            "Import completed primer BLAST TSVs from a deterministic handoff and apply the shared specificity interpretation.",
-            vec![
+        json!({
+            "id": "ImportPrimerPairSpecificityHandoff",
+            "kind": "operation",
+            "mutating": "true",
+            "requires_confirmation": false,
+            "args": [
                 json!({"name": "HANDOFF_PATH", "required": true, "subject_kind": "other", "detail": "existing gentle.primer_specificity_handoff.v1 JSON path"}),
                 json!({"name": "OUTPUT_PATH", "required": false, "subject_kind": "other", "detail": "optional external primer-specificity JSON output path carried by path"}),
             ],
-        ),
+            "reads": [],
+            "effects": [
+                {
+                    "effect_kind": "may_on_success",
+                    "description": "Persists a derived-id primer_specificity report fact and may also write the optional JSON path."
+                }
+            ],
+            "precondition_expr": {"all": []},
+            "description": "Import completed primer BLAST TSVs from a deterministic handoff, apply the shared specificity interpretation, and persist the report artifact.",
+            "annotation_status": "fact_annotated",
+            "registry": registry_metadata_for_introspection("ImportPrimerPairSpecificityHandoff")
+        }),
         arrangement_create_descriptor(
             "arrange-serial",
             "Create a persisted serial arrangement from one or more existing containers.",
@@ -19849,6 +20107,165 @@ fn annotated_introspection_capability_descriptors() -> Vec<Value> {
             "description": "Set the topology flag of one loaded sequence.",
             "annotation_status": "fact_annotated",
             "registry": registry_metadata_for_introspection("SetTopology")
+        }),
+        json!({
+            "id": "features edit-location",
+            "kind": "operation",
+            "mutating": "true",
+            "requires_confirmation": true,
+            "args": [
+                {"name": "SEQ_ID", "required": true, "subject_kind": "sequence", "detail": "loaded sequence containing the feature"},
+                {"name": "FEATURE_INDEX", "required": true, "subject_kind": "other", "detail": "zero-based feature index"},
+                {"name": "--segment-index", "required": false, "subject_kind": "other", "detail": "zero-based child index in a supported flat exact Join/Order compound"},
+                {"name": "--start-1based", "required": true, "subject_kind": "other", "detail": "new 1-based inclusive start"},
+                {"name": "--end-1based-inclusive", "required": true, "subject_kind": "other", "detail": "new 1-based inclusive end"},
+                {"name": "--dry-run", "required": false, "subject_kind": "other", "detail": "preview without mutation and return the required feature fingerprint"},
+                {"name": "--expected-feature-fingerprint-sha256", "required": false, "subject_kind": "other", "detail": "preview fingerprint required when applying"}
+            ],
+            "reads": [
+                {"fact": "sequence.exists", "subject": {"arg": "SEQ_ID"}}
+            ],
+            "effects": [],
+            "precondition_expr": {
+                "all": [
+                    {"fact": "sequence.exists", "subject": {"arg": "SEQ_ID"}}
+                ]
+            },
+            "description": "Preview or apply one exact simple feature-location edit or one segment-boundary edit in a supported flat compound; apply requires the fingerprint returned by preview.",
+            "annotation_status": "fact_annotated",
+            "registry": registry_metadata_for_introspection("features edit-location")
+        }),
+        json!({
+            "id": "PreviewFeatureLocationEdit",
+            "kind": "operation",
+            "mutating": "false",
+            "requires_confirmation": false,
+            "args": [
+                {"name": "SEQ_ID", "required": true, "subject_kind": "sequence", "detail": "loaded sequence id carried by request.seq_id"},
+                {"name": "FEATURE_INDEX", "required": true, "subject_kind": "other", "detail": "zero-based feature index carried by request.feature_index"},
+                {"name": "SEGMENT_INDEX", "required": false, "subject_kind": "other", "detail": "optional zero-based child index for a supported flat exact Join/Order compound"},
+                {"name": "NEW_START_0BASED", "required": true, "subject_kind": "other", "detail": "new half-open interval start"},
+                {"name": "NEW_END_0BASED_EXCLUSIVE", "required": true, "subject_kind": "other", "detail": "new half-open interval end"}
+            ],
+            "reads": [
+                {"fact": "sequence.exists", "subject": {"arg": "SEQ_ID"}}
+            ],
+            "effects": [],
+            "precondition_expr": {
+                "all": [
+                    {"fact": "sequence.exists", "subject": {"arg": "SEQ_ID"}}
+                ]
+            },
+            "description": "Validate and report one exact simple or flat-compound segment location edit without changing project state.",
+            "annotation_status": "fact_annotated",
+            "registry": registry_metadata_for_introspection("PreviewFeatureLocationEdit")
+        }),
+        json!({
+            "id": "EditFeatureLocation",
+            "kind": "operation",
+            "mutating": "true",
+            "requires_confirmation": true,
+            "args": [
+                {"name": "SEQ_ID", "required": true, "subject_kind": "sequence", "detail": "loaded sequence id carried by request.seq_id"},
+                {"name": "FEATURE_INDEX", "required": true, "subject_kind": "other", "detail": "zero-based feature index carried by request.feature_index"},
+                {"name": "SEGMENT_INDEX", "required": false, "subject_kind": "other", "detail": "optional zero-based child index for a supported flat exact Join/Order compound"},
+                {"name": "NEW_START_0BASED", "required": true, "subject_kind": "other", "detail": "new half-open interval start"},
+                {"name": "NEW_END_0BASED_EXCLUSIVE", "required": true, "subject_kind": "other", "detail": "new half-open interval end"},
+                {"name": "EXPECTED_FEATURE_FINGERPRINT_SHA256", "required": true, "subject_kind": "other", "detail": "complete-feature fingerprint returned by preview"}
+            ],
+            "reads": [
+                {"fact": "sequence.exists", "subject": {"arg": "SEQ_ID"}}
+            ],
+            "effects": [],
+            "precondition_expr": {
+                "all": [
+                    {"fact": "sequence.exists", "subject": {"arg": "SEQ_ID"}}
+                ]
+            },
+            "description": "Apply one previewed exact simple or flat-compound segment location edit while preserving strand, topology, and qualifier content.",
+            "annotation_status": "fact_annotated",
+            "registry": registry_metadata_for_introspection("EditFeatureLocation")
+        }),
+        json!({
+            "id": "features create",
+            "kind": "operation",
+            "mutating": "true",
+            "requires_confirmation": true,
+            "args": [
+                {"name": "SEQ_ID", "required": true, "subject_kind": "sequence", "detail": "loaded sequence receiving the appended feature record"},
+                {"name": "--kind", "required": true, "subject_kind": "other", "detail": "GenBank feature kind"},
+                {"name": "--start-1based", "required": true, "subject_kind": "other", "detail": "new 1-based inclusive start"},
+                {"name": "--end-1based-inclusive", "required": true, "subject_kind": "other", "detail": "new 1-based inclusive end"},
+                {"name": "--strand", "required": false, "subject_kind": "other", "detail": "forward or reverse; defaults to forward"},
+                {"name": "--qualifier", "required": false, "subject_kind": "other", "detail": "repeatable ordered KEY or KEY=VALUE qualifier"},
+                {"name": "--dry-run", "required": false, "subject_kind": "other", "detail": "preview without mutation and return the annotation-state fingerprint"},
+                {"name": "--expected-annotation-state-fingerprint-sha256", "required": false, "subject_kind": "other", "detail": "preview fingerprint required when applying"}
+            ],
+            "reads": [
+                {"fact": "sequence.exists", "subject": {"arg": "SEQ_ID"}}
+            ],
+            "effects": [],
+            "precondition_expr": {
+                "all": [
+                    {"fact": "sequence.exists", "subject": {"arg": "SEQ_ID"}}
+                ]
+            },
+            "description": "Preview or append one exact simple feature record while preserving ordered duplicate and valueless qualifiers.",
+            "annotation_status": "fact_annotated",
+            "registry": registry_metadata_for_introspection("features create")
+        }),
+        json!({
+            "id": "features delete",
+            "kind": "operation",
+            "mutating": "true",
+            "requires_confirmation": true,
+            "args": [
+                {"name": "SEQ_ID", "required": true, "subject_kind": "sequence", "detail": "loaded sequence containing the feature"},
+                {"name": "FEATURE_INDEX", "required": true, "subject_kind": "other", "detail": "zero-based feature index"},
+                {"name": "--dry-run", "required": false, "subject_kind": "other", "detail": "preview without mutation and return both required fingerprints"},
+                {"name": "--expected-feature-fingerprint-sha256", "required": false, "subject_kind": "other", "detail": "complete-feature preview fingerprint required when applying"},
+                {"name": "--expected-annotation-state-fingerprint-sha256", "required": false, "subject_kind": "other", "detail": "ordered annotation-state preview fingerprint required when applying"}
+            ],
+            "reads": [
+                {"fact": "sequence.exists", "subject": {"arg": "SEQ_ID"}}
+            ],
+            "effects": [],
+            "precondition_expr": {
+                "all": [
+                    {"fact": "sequence.exists", "subject": {"arg": "SEQ_ID"}}
+                ]
+            },
+            "description": "Preview or delete one complete feature record of any existing location shape; later feature indices shift down by one.",
+            "annotation_status": "fact_annotated",
+            "registry": registry_metadata_for_introspection("features delete")
+        }),
+        json!({
+            "id": "PreviewFeatureRecordCuration",
+            "kind": "operation",
+            "mutating": "false",
+            "requires_confirmation": false,
+            "args": [
+                {"name": "REQUEST", "required": true, "subject_kind": "other", "detail": "tagged create/delete request carrying request.seq_id"}
+            ],
+            "reads": [],
+            "effects": [],
+            "description": "Validate and report one feature-record creation or deletion without changing project state.",
+            "annotation_status": "fact_annotated",
+            "registry": registry_metadata_for_introspection("PreviewFeatureRecordCuration")
+        }),
+        json!({
+            "id": "ApplyFeatureRecordCuration",
+            "kind": "operation",
+            "mutating": "true",
+            "requires_confirmation": true,
+            "args": [
+                {"name": "REQUEST", "required": true, "subject_kind": "other", "detail": "tagged create/delete request carrying preview fingerprints"}
+            ],
+            "reads": [],
+            "effects": [],
+            "description": "Apply one preview-locked feature-record creation or deletion with full undo history.",
+            "annotation_status": "fact_annotated",
+            "registry": registry_metadata_for_introspection("ApplyFeatureRecordCuration")
         }),
         json!({
             "id": "RecomputeFeatures",
@@ -21714,7 +22131,7 @@ fn annotated_introspection_capability_descriptors() -> Vec<Value> {
             "reads": [],
             "effects": [],
             "precondition_expr": {"all": []},
-            "description": "List persisted primer-pair design reports.",
+            "description": "List persisted primer-pair design reports and primer-specificity artifacts.",
             "annotation_status": "fact_annotated",
             "registry": registry_metadata_for_introspection("primers list-reports")
         }),
@@ -21724,18 +22141,19 @@ fn annotated_introspection_capability_descriptors() -> Vec<Value> {
             "mutating": "false",
             "requires_confirmation": false,
             "args": [
-                {"name": "REPORT_ID", "required": true, "subject_kind": "report", "detail": "persisted primer-design report id"}
+                {"name": "REPORT_ID", "required": true, "subject_kind": "report", "detail": "persisted primer-design or primer-specificity report id"}
             ],
             "reads": [
-                {"fact": "report.exists", "subject": {"arg": "REPORT_ID"}, "equals": "primer_design"}
+                {"fact": "report.exists", "subject": {"arg": "REPORT_ID"}}
             ],
             "effects": [],
             "precondition_expr": {
-                "all": [
-                    {"fact": "report.exists", "subject": {"arg": "REPORT_ID"}, "equals": "primer_design"}
+                "any": [
+                    {"fact": "report.exists", "subject": {"arg": "REPORT_ID"}, "equals": "primer_design"},
+                    {"fact": "report.exists", "subject": {"arg": "REPORT_ID"}, "equals": "primer_specificity"}
                 ]
             },
-            "description": "Inspect one persisted primer-pair design report.",
+            "description": "Inspect one persisted primer-pair design or primer-specificity report.",
             "annotation_status": "fact_annotated",
             "registry": registry_metadata_for_introspection("primers show-report")
         }),
@@ -21745,11 +22163,11 @@ fn annotated_introspection_capability_descriptors() -> Vec<Value> {
             "mutating": "false",
             "requires_confirmation": false,
             "args": [
-                {"name": "REPORT_ID", "required": true, "subject_kind": "report", "detail": "persisted primer-design report id"},
+                {"name": "REPORT_ID", "required": true, "subject_kind": "report", "detail": "persisted primer-design or primer-specificity report id"},
                 {"name": "OUTPUT_PATH", "required": true, "subject_kind": "other", "detail": "external JSON output path"}
             ],
             "reads": [
-                {"fact": "report.exists", "subject": {"arg": "REPORT_ID"}, "equals": "primer_design"}
+                {"fact": "report.exists", "subject": {"arg": "REPORT_ID"}}
             ],
             "effects": [
                 {
@@ -21759,11 +22177,12 @@ fn annotated_introspection_capability_descriptors() -> Vec<Value> {
                 }
             ],
             "precondition_expr": {
-                "all": [
-                    {"fact": "report.exists", "subject": {"arg": "REPORT_ID"}, "equals": "primer_design"}
+                "any": [
+                    {"fact": "report.exists", "subject": {"arg": "REPORT_ID"}, "equals": "primer_design"},
+                    {"fact": "report.exists", "subject": {"arg": "REPORT_ID"}, "equals": "primer_specificity"}
                 ]
             },
-            "description": "Export one persisted primer-pair design report to an external JSON file.",
+            "description": "Export one persisted primer-pair design or primer-specificity report to an external JSON file.",
             "annotation_status": "fact_annotated",
             "registry": registry_metadata_for_introspection("primers export-report")
         }),
@@ -21833,6 +22252,95 @@ fn annotated_introspection_capability_descriptors() -> Vec<Value> {
             "annotation_status": "fact_annotated",
             "registry": registry_metadata_for_introspection("DesignTranscriptAssayPanel")
         }),
+        json!({
+            "id": "BuildExperimentalAssayHandoff",
+            "kind": "operation",
+            "mutating": "false",
+            "requires_confirmation": false,
+            "args": [
+                {"name": "PANEL_REPORT_ID", "required": true, "subject_kind": "report", "detail": "persisted transcript assay panel report id"},
+                {"name": "OUTPUT_PATH", "required": false, "subject_kind": "other", "detail": "optional external handoff JSON path"}
+            ],
+            "reads": [
+                {"fact": "report.exists", "subject": {"arg": "PANEL_REPORT_ID"}, "equals": "transcript_assay_panel"}
+            ],
+            "effects": [],
+            "precondition_expr": {
+                "all": [
+                    {"fact": "report.exists", "subject": {"arg": "PANEL_REPORT_ID"}, "equals": "transcript_assay_panel"}
+                ]
+            },
+            "description": "Project one persisted transcript assay panel into deterministic per-pair experimental cards and an order/readiness table.",
+            "annotation_status": "fact_annotated",
+            "registry": registry_metadata_for_introspection("BuildExperimentalAssayHandoff")
+        }),
+        optional_artifact_inspection_operation_descriptor(
+            "SearchPrimerBank",
+            "optional external gentle.primerbank_search.v1 JSON output path",
+            "Search individual PrimerBank records through the shared read-only engine operation using the official public HTML form or a saved response.",
+            vec![
+                json!({"name": "REQUEST", "required": true, "subject_kind": "other", "detail": "typed PrimerBank query, query-kind, and species selector; results report matched, mismatch, unresolved, or not_requested"}),
+                json!({"name": "SOURCE_HTML_PATH", "required": false, "subject_kind": "other", "detail": "optional saved PrimerBank HTML response for offline/reproducible parsing"}),
+            ],
+        ),
+        optional_artifact_inspection_operation_descriptor(
+            "primers primerbank search",
+            "optional external gentle.primerbank_search.v1 JSON output path",
+            "Search individual PrimerBank records through the official public HTML form or parse a saved response without mirroring the database.",
+            vec![
+                json!({"name": "QUERY", "required": true, "subject_kind": "other", "detail": "gene symbol, accession, NCBI id, PrimerBank id, or keyword"}),
+                json!({"name": "QUERY_KIND", "required": false, "subject_kind": "other", "detail": "PrimerBank search-field selector"}),
+                json!({"name": "SPECIES", "required": false, "subject_kind": "other", "detail": "human, mouse, or all"}),
+                json!({"name": "SOURCE_HTML_PATH", "required": false, "subject_kind": "other", "detail": "optional saved PrimerBank HTML response for offline/reproducible parsing"}),
+            ],
+        ),
+        optional_artifact_inspection_operation_descriptor(
+            "primers primerbank show",
+            "optional external gentle.primerbank_search.v1 JSON output path",
+            "Look up one PrimerBank id through the same typed, policy-aware search adapter.",
+            vec![
+                json!({"name": "PRIMERBANK_ID", "required": true, "subject_kind": "other", "detail": "PrimerBank pair identifier"}),
+                json!({"name": "EXPECTED_SPECIES", "required": false, "subject_kind": "other", "detail": "optional human, mouse, or all species selector and response cross-check"}),
+                json!({"name": "SOURCE_HTML_PATH", "required": false, "subject_kind": "other", "detail": "optional saved PrimerBank HTML response for offline/reproducible parsing"}),
+            ],
+        ),
+        json!({
+            "id": "primers primerbank test-cdna",
+            "kind": "operation",
+            "mutating": "false",
+            "requires_confirmation": false,
+            "args": [
+                {"name": "SEQ_ID", "required": true, "subject_kind": "sequence", "detail": "loaded sequence carrying transcript annotations"},
+                {"name": "FEATURE_ID", "required": true, "subject_kind": "other", "detail": "zero-based source transcript/gene feature index"},
+                {"name": "PRIMERBANK_ID", "required": true, "subject_kind": "other", "detail": "PrimerBank pair identifier"},
+                {"name": "EXPECTED_SPECIES", "required": true, "subject_kind": "other", "detail": "required human or mouse species cross-check against both the returned PrimerBank record and any organism annotation on the selected sequence"},
+                {"name": "SOURCE_HTML_PATH", "required": false, "subject_kind": "other", "detail": "optional saved PrimerBank HTML response"},
+                {"name": "OUTPUT_PATH", "required": false, "subject_kind": "other", "detail": "optional external gentle.primerbank_cdna_test.v1 JSON path"},
+                {"name": "SVG_PATH", "required": false, "subject_kind": "other", "detail": "optional external transcript-map SVG path"}
+            ],
+            "reads": [
+                {"fact": "sequence.exists", "subject": {"arg": "SEQ_ID"}}
+            ],
+            "effects": [
+                {"effect_kind": "may_on_success", "description": "May write optional cDNA assay JSON/SVG artifacts; the project remains unchanged."}
+            ],
+            "precondition_expr": {
+                "all": [
+                    {"fact": "sequence.exists", "subject": {"arg": "SEQ_ID"}}
+                ]
+            },
+            "description": "Retrieve one PrimerBank pair, cross-check catalog and annotated target species, and test it through GENtle's existing transcript-derived cDNA PCR engine without implying genomic specificity or experimental validation.",
+            "annotation_status": "fact_annotated",
+            "registry": registry_metadata_for_introspection("primers primerbank test-cdna")
+        }),
+        external_primer_pair_import_descriptor(
+            "ImportExternalPrimerPairs",
+            "Import a provenance-bearing external primer-pair batch, canonicalize sequence-derived identities, and evaluate every unique pair through GENtle's shared cDNA, QC, carryover, specificity, map, and optional product-gel paths.",
+        ),
+        external_primer_pair_import_descriptor(
+            "primers import-external-pairs",
+            "Import a JSON or TSV external primer-pair batch and evaluate every unique pair without treating source targeting or validation claims as biological evidence.",
+        ),
         cdna_assay_test_descriptor(
             "TestCdnaPcr",
             "Test supplied PCR primers against transcript-derived cDNA templates for one loaded splicing group.",
@@ -21961,6 +22469,28 @@ fn annotated_introspection_capability_descriptors() -> Vec<Value> {
             "description": "Generate and persist an exact-cDNA-equivalence-aware transcript assay panel; require_all is the default coverage policy.",
             "annotation_status": "fact_annotated",
             "registry": registry_metadata_for_introspection("primers design-transcript-assay-panel")
+        }),
+        json!({
+            "id": "primers experimental-handoff",
+            "kind": "operation",
+            "mutating": "false",
+            "requires_confirmation": false,
+            "args": [
+                {"name": "PANEL_REPORT_ID", "required": true, "subject_kind": "report", "detail": "persisted transcript assay panel report id"},
+                {"name": "OUTPUT_PATH", "required": false, "subject_kind": "other", "detail": "optional external handoff JSON path"}
+            ],
+            "reads": [
+                {"fact": "report.exists", "subject": {"arg": "PANEL_REPORT_ID"}, "equals": "transcript_assay_panel"}
+            ],
+            "effects": [],
+            "precondition_expr": {
+                "all": [
+                    {"fact": "report.exists", "subject": {"arg": "PANEL_REPORT_ID"}, "equals": "transcript_assay_panel"}
+                ]
+            },
+            "description": "Build deterministic experimental assay cards and an order/readiness table from a persisted transcript assay panel.",
+            "annotation_status": "fact_annotated",
+            "registry": registry_metadata_for_introspection("primers experimental-handoff")
         }),
         json!({
             "id": "primers list-transcript-assay-panels",
@@ -26376,19 +26906,24 @@ fn capability_precondition_atoms(capability_id: &str) -> Option<Vec<Value>> {
         ]),
         "primers list-reports" => Some(vec![]),
         "primers show-report" => Some(vec![
-            json!({"fact": "report.exists", "subject": {"arg": "REPORT_ID"}, "equals": "primer_design"}),
+            json!({"fact": "report.exists", "subject": {"arg": "REPORT_ID"}}),
         ]),
         "primers export-report" => Some(vec![
-            json!({"fact": "report.exists", "subject": {"arg": "REPORT_ID"}, "equals": "primer_design"}),
+            json!({"fact": "report.exists", "subject": {"arg": "REPORT_ID"}}),
         ]),
         "primers design-qpcr" => Some(vec![
             json!({"fact": "sequence.exists", "subject": {"arg": "TEMPLATE_SEQ_ID"}}),
         ]),
-        "primers test-cdna-pcr" | "primers test-cdna-qpcr" | "TestCdnaPcr" | "TestCdnaQpcr" => {
-            Some(vec![
-                json!({"fact": "sequence.exists", "subject": {"arg": "SEQ_ID"}}),
-            ])
+        "SearchPrimerBank" | "primers primerbank search" | "primers primerbank show" => {
+            Some(vec![])
         }
+        "primers primerbank test-cdna"
+        | "primers test-cdna-pcr"
+        | "primers test-cdna-qpcr"
+        | "TestCdnaPcr"
+        | "TestCdnaQpcr" => Some(vec![
+            json!({"fact": "sequence.exists", "subject": {"arg": "SEQ_ID"}}),
+        ]),
         "primers test-cdna-qpcr-fasta" | "TestCdnaQpcrFasta" => Some(vec![]),
         "primers list-qpcr-reports" => Some(vec![]),
         "primers show-qpcr-report" => Some(vec![
@@ -26398,6 +26933,12 @@ fn capability_precondition_atoms(capability_id: &str) -> Option<Vec<Value>> {
             json!({"fact": "report.exists", "subject": {"arg": "REPORT_ID"}, "equals": "qpcr_design"}),
         ]),
         "primers design-transcript-assay-panel" | "DesignTranscriptAssayPanel" => Some(vec![
+            json!({"fact": "sequence.exists", "subject": {"arg": "SEQ_ID"}}),
+        ]),
+        "primers experimental-handoff" | "BuildExperimentalAssayHandoff" => Some(vec![
+            json!({"fact": "report.exists", "subject": {"arg": "PANEL_REPORT_ID"}, "equals": "transcript_assay_panel"}),
+        ]),
+        "primers import-external-pairs" | "ImportExternalPrimerPairs" => Some(vec![
             json!({"fact": "sequence.exists", "subject": {"arg": "SEQ_ID"}}),
         ]),
         "primers list-transcript-assay-panels" => Some(vec![]),
@@ -28574,9 +29115,10 @@ fn validate_protein_expression_requirements(
                     .to_string(),
             );
         }
-        if scale_purification.target_purity_percent.is_some_and(|value| {
-            !value.is_finite() || !(0.0..=100.0).contains(&value)
-        }) {
+        if scale_purification
+            .target_purity_percent
+            .is_some_and(|value| !value.is_finite() || !(0.0..=100.0).contains(&value))
+        {
             return Err(
                 "Protein-expression scale_purification.target_purity_percent must be between 0 and 100"
                     .to_string(),
@@ -42986,7 +43528,10 @@ fn execute_agent_suggested_commands(
             }
         };
         if trigger == Some("allow_auto_exec")
-            && matches!(parsed, ShellCommand::HistoryUndo | ShellCommand::HistoryRedo)
+            && matches!(
+                parsed,
+                ShellCommand::HistoryUndo | ShellCommand::HistoryRedo
+            )
         {
             rows.push(AgentSuggestedExecutionReport {
                 index: index_1based,
@@ -43887,8 +44432,10 @@ fn execute_agent_meta_command(
             output: introspection_capabilities_payload(kind_filter.as_deref()),
         }),
         ShellCommand::IntrospectRuntime => {
-            let (output, state_changed) =
-                runtime_status_payload_with_observed_activities(engine, RuntimeStatusTrigger::Shell)?;
+            let (output, state_changed) = runtime_status_payload_with_observed_activities(
+                engine,
+                RuntimeStatusTrigger::Shell,
+            )?;
             Ok(ShellRunResult {
                 state_changed,
                 output,
@@ -50331,6 +50878,26 @@ fn forward_shell_progress(
     Ok((guard)(progress))
 }
 
+fn primerbank_target_sequence_species(dna: &DNAsequence, feature_id: usize) -> Option<String> {
+    let selected = dna.features().get(feature_id);
+    selected
+        .into_iter()
+        .chain(
+            dna.features()
+                .iter()
+                .filter(|feature| feature.kind.to_string().eq_ignore_ascii_case("source")),
+        )
+        .chain(dna.features().iter())
+        .flat_map(|feature| {
+            feature
+                .qualifier_values("organism")
+                .chain(feature.qualifier_values("translation_context_organism"))
+        })
+        .map(str::trim)
+        .find(|value| !value.is_empty())
+        .map(str::to_string)
+}
+
 fn execute_primers_command(
     engine: &mut GentleEngine,
     command: &ShellCommand,
@@ -50487,6 +51054,167 @@ fn execute_primers_command(
     }
 
     match command {
+        ShellCommand::PrimersPrimerBankSearch {
+            request,
+            source_html_path,
+            path,
+        } => {
+            let op_result = engine
+                .apply(Operation::SearchPrimerBank {
+                    request: request.clone(),
+                    source_html_path: source_html_path.clone(),
+                    path: path.clone(),
+                })
+                .map_err(|error| error.to_string())?;
+            let report = op_result.primerbank_search_report.ok_or_else(|| {
+                "PrimerBank search operation did not return its typed report".to_string()
+            })?;
+            Ok(ShellRunResult {
+                state_changed: false,
+                output: serde_json::to_value(report)
+                    .map_err(|error| format!("Could not serialize PrimerBank report: {error}"))?,
+            })
+        }
+        ShellCommand::PrimersPrimerBankTestCdna {
+            seq_id,
+            feature_id,
+            primerbank_id,
+            expected_species,
+            source_html_path,
+            transcript_id,
+            min_amplicon_bp,
+            max_amplicon_bp,
+            max_mismatches,
+            require_3prime_exact_bases,
+            transcript_order,
+            transcript_map_coordinate_mode,
+            path,
+            svg_path,
+        } => {
+            let target_sequence_species = engine
+                .state()
+                .sequences
+                .get(seq_id)
+                .ok_or_else(|| format!("Sequence '{seq_id}' not found"))
+                .map(|dna| primerbank_target_sequence_species(dna, *feature_id))?;
+            let target_sequence_species_match_status =
+                expected_species.match_observed_label(target_sequence_species.as_deref());
+            if target_sequence_species_match_status == PrimerBankSpeciesMatchStatus::Mismatch {
+                return Err(format!(
+                    "PrimerBank target-sequence species cross-check failed for sequence '{}': expected '{}', annotated organism '{}', status='mismatch'",
+                    seq_id,
+                    expected_species.as_str(),
+                    target_sequence_species.as_deref().unwrap_or("unresolved")
+                ));
+            }
+            let lookup_request = PrimerBankSearchRequest {
+                query: primerbank_id.clone(),
+                query_kind: PrimerBankQueryKind::PrimerbankId,
+                species: *expected_species,
+            };
+            let lookup = engine
+                .apply(Operation::SearchPrimerBank {
+                    request: lookup_request,
+                    source_html_path: source_html_path.clone(),
+                    path: None,
+                })
+                .map_err(|error| error.to_string())?
+                .primerbank_search_report
+                .ok_or_else(|| {
+                    "PrimerBank search operation did not return its typed report".to_string()
+                })?;
+            let (gene, pair) = lookup.gene_and_pair_by_id(primerbank_id).ok_or_else(|| {
+                format!(
+                    "PrimerBank response did not contain requested pair '{}' (returned ids: {})",
+                    primerbank_id,
+                    lookup
+                        .primer_pairs()
+                        .map(|pair| pair.primerbank_id.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            })?;
+            if gene.species_match_status != crate::primerbank::PrimerBankSpeciesMatchStatus::Matched
+            {
+                return Err(format!(
+                    "PrimerBank pair '{}' species cross-check failed: expected '{}', observed '{}', status='{:?}'",
+                    primerbank_id,
+                    expected_species.as_str(),
+                    gene.species.as_deref().unwrap_or("unresolved"),
+                    gene.species_match_status
+                ));
+            }
+            let pair = pair.clone();
+            let primerbank_species = gene.species.clone();
+            let species_match_status = gene.species_match_status;
+            let mut warnings = Vec::new();
+            if target_sequence_species_match_status == PrimerBankSpeciesMatchStatus::Unresolved {
+                warnings.push(format!(
+                    "Target sequence '{}' has no recognized organism annotation; GENtle used the explicit expected species '{}' but could not independently confirm the target sequence species.",
+                    seq_id,
+                    expected_species.as_str()
+                ));
+            }
+            let cdna_run = execute_primers_command(
+                engine,
+                &ShellCommand::PrimersTestCdnaPcr {
+                    seq_id: seq_id.clone(),
+                    feature_id: *feature_id,
+                    forward_primer: pair.forward.sequence_5_to_3.clone(),
+                    reverse_primer: pair.reverse.sequence_5_to_3.clone(),
+                    transcript_id: transcript_id.clone(),
+                    min_amplicon_bp: *min_amplicon_bp,
+                    max_amplicon_bp: *max_amplicon_bp,
+                    max_mismatches: *max_mismatches,
+                    require_3prime_exact_bases: *require_3prime_exact_bases,
+                    transcript_order: *transcript_order,
+                    transcript_map_coordinate_mode: *transcript_map_coordinate_mode,
+                    path: None,
+                    svg_path: svg_path.clone(),
+                    materialize_products: false,
+                    product_output_prefix: None,
+                    product_gel_svg_path: None,
+                    product_gel_ladders: None,
+                },
+                options,
+            )?;
+            let report = PrimerBankCdnaTestReport {
+                schema: PRIMERBANK_CDNA_TEST_REPORT_SCHEMA.to_string(),
+                primerbank_query: lookup.query,
+                primerbank_source_url: lookup.source_url,
+                primerbank_usage_policy_url: PRIMERBANK_USAGE_POLICY_URL.to_string(),
+                primerbank_pair: pair,
+                expected_species: *expected_species,
+                primerbank_species,
+                species_match_status,
+                target_sequence_species,
+                target_sequence_species_match_status,
+                warnings,
+                interpretation: "PrimerBank catalog evidence was forwarded into GENtle's transcript-aware cDNA PCR test; this does not establish whole-genome specificity or experimental validation."
+                    .to_string(),
+                cdna_test: cdna_run.output,
+            };
+            if let Some(path) = path
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+            {
+                let file = std::fs::File::create(path).map_err(|error| {
+                    format!("Could not create PrimerBank cDNA test report '{path}': {error}")
+                })?;
+                serde_json::to_writer_pretty(std::io::BufWriter::new(file), &report).map_err(
+                    |error| {
+                        format!("Could not serialize PrimerBank cDNA test report '{path}': {error}")
+                    },
+                )?;
+            }
+            Ok(ShellRunResult {
+                state_changed: cdna_run.state_changed,
+                output: serde_json::to_value(report).map_err(|error| {
+                    format!("Could not serialize PrimerBank cDNA test report: {error}")
+                })?,
+            })
+        }
         ShellCommand::PrimersSeedFromFeature { seq_id, feature_id } => {
             let dna = engine
                 .state()
@@ -50923,34 +51651,40 @@ fn execute_primers_command(
             cache_dir,
             path,
         } => {
-            let report = engine
-                .assess_primer_pair_specificity(
-                    primer_report_id.as_deref(),
-                    *pair_rank,
-                    *pair_index,
-                    forward_primer.as_deref(),
-                    reverse_primer.as_deref(),
-                    target_genome_id,
-                    policy.clone(),
-                    catalog_path.as_deref(),
-                    cache_dir.as_deref(),
-                )
-                .map_err(|e| e.to_string())?;
-            if let Some(path) = path
+            let before = engine
+                .state()
+                .metadata
+                .get(PRIMER_DESIGN_REPORTS_METADATA_KEY)
+                .cloned();
+            let op_result = engine
+                .apply(Operation::AssessPrimerPairSpecificity {
+                    primer_report_id: primer_report_id.clone(),
+                    pair_rank: *pair_rank,
+                    pair_index: *pair_index,
+                    forward_primer: forward_primer.clone(),
+                    reverse_primer: reverse_primer.clone(),
+                    target_genome_id: target_genome_id.clone(),
+                    policy: policy.clone(),
+                    catalog_path: catalog_path.clone(),
+                    cache_dir: cache_dir.clone(),
+                    path: path.clone(),
+                })
+                .map_err(|error| error.to_string())?;
+            let report = op_result
+                .primer_specificity_report
                 .as_deref()
-                .map(str::trim)
-                .filter(|value| !value.is_empty())
-            {
-                let json_text = serde_json::to_string_pretty(&report)
-                    .map_err(|e| format!("Could not serialize primer specificity report: {e}"))?;
-                fs::write(path, json_text).map_err(|e| {
-                    format!("Could not write primer specificity report to '{path}': {e}")
-                })?;
-            }
+                .cloned()
+                .ok_or_else(|| "Primer specificity operation returned no report".to_string())?;
+            let after = engine
+                .state()
+                .metadata
+                .get(PRIMER_DESIGN_REPORTS_METADATA_KEY)
+                .cloned();
             Ok(ShellRunResult {
-                state_changed: false,
+                state_changed: before != after,
                 output: json!({
                     "schema": "gentle.primer_specificity_command.v1",
+                    "result": op_result,
                     "report": report,
                     "path": path,
                 }),
@@ -50997,6 +51731,11 @@ fn execute_primers_command(
             })
         }
         ShellCommand::PrimersSpecificityImport { handoff_path, path } => {
+            let before = engine
+                .state()
+                .metadata
+                .get(PRIMER_DESIGN_REPORTS_METADATA_KEY)
+                .cloned();
             let op_result = engine
                 .apply(Operation::ImportPrimerPairSpecificityHandoff {
                     handoff_path: handoff_path.clone(),
@@ -51009,8 +51748,13 @@ fn execute_primers_command(
                 .ok_or_else(|| {
                     "Primer specificity handoff import operation returned no report".to_string()
                 })?;
+            let after = engine
+                .state()
+                .metadata
+                .get(PRIMER_DESIGN_REPORTS_METADATA_KEY)
+                .cloned();
             Ok(ShellRunResult {
-                state_changed: false,
+                state_changed: before != after,
                 output: json!({
                     "schema": "gentle.primer_specificity_import_command.v1",
                     "report": report,
@@ -51070,6 +51814,102 @@ fn execute_primers_command(
                     "schema": "gentle.transcript_assay_panel_specificity_finalize_command.v1",
                     "acceptance": acceptance,
                     "path": path,
+                }),
+            })
+        }
+        ShellCommand::PrimersImportExternalPairs {
+            input_path,
+            input_format,
+            seq_id,
+            feature_id,
+            report_id,
+            transcript_id,
+            min_amplicon_bp,
+            max_amplicon_bp,
+            max_mismatches,
+            require_3prime_exact_bases,
+            transcript_order,
+            transcript_map_coordinate_mode,
+            specificity_target_genome_id,
+            specificity_catalog_path,
+            specificity_cache_dir,
+            artifact_output_dir,
+            materialize_products,
+            product_gel_ladders,
+            path,
+        } => {
+            let (batch, input_provenance) =
+                GentleEngine::load_external_primer_pair_batch(input_path, input_format.as_deref())
+                    .map_err(|error| error.to_string())?;
+            let specificity = specificity_target_genome_id.as_ref().map(|genome_id| {
+                let mut policy = PrimerSpecificityPolicy::default();
+                policy.specificity_check = PrimerSpecificityCheckMode::ReportOnly;
+                policy.specificity_target_genome_id = Some(genome_id.clone());
+                ExternalPrimerPairSpecificityRequest {
+                    target_genome_id: genome_id.clone(),
+                    policy,
+                    catalog_path: specificity_catalog_path.clone(),
+                    cache_dir: specificity_cache_dir.clone(),
+                }
+            });
+            let op_result = engine
+                .apply(Operation::ImportExternalPrimerPairs {
+                    request: ExternalPrimerPairImportRequest {
+                        report_id: report_id.clone().unwrap_or_default(),
+                        seq_id: seq_id.clone(),
+                        source_feature_id: *feature_id,
+                        transcript_id: transcript_id.clone(),
+                        min_amplicon_bp: *min_amplicon_bp,
+                        max_amplicon_bp: *max_amplicon_bp,
+                        max_mismatches: *max_mismatches,
+                        require_3prime_exact_bases: *require_3prime_exact_bases,
+                        transcript_order: transcript_order.unwrap_or_default(),
+                        transcript_map_coordinate_mode: transcript_map_coordinate_mode
+                            .unwrap_or_default(),
+                        specificity,
+                        artifact_output_dir: artifact_output_dir.clone(),
+                        materialize_products: *materialize_products,
+                        product_gel_ladders: product_gel_ladders.clone(),
+                        batch,
+                        input_provenance,
+                    },
+                    path: path.clone(),
+                })
+                .map_err(|error| error.to_string())?;
+            let report = op_result
+                .external_primer_pair_import_report
+                .as_ref()
+                .map(|report| (**report).clone())
+                .ok_or_else(|| {
+                    "External primer-pair import operation returned no report".to_string()
+                })?;
+            let preferred_artifacts = report
+                .pairs
+                .iter()
+                .flat_map(|pair| {
+                    [
+                        pair.artifacts.product_gel_svg_path.as_ref().map(
+                            |path| json!({"path": path, "kind": "external primer product gel"}),
+                        ),
+                        pair.artifacts.transcript_map_svg_path.as_ref().map(
+                            |path| json!({"path": path, "kind": "external primer transcript map"}),
+                        ),
+                        pair.artifacts.cdna_report_json_path.as_ref().map(
+                            |path| json!({"path": path, "kind": "external primer cDNA report"}),
+                        ),
+                    ]
+                    .into_iter()
+                    .flatten()
+                })
+                .collect::<Vec<_>>();
+            Ok(ShellRunResult {
+                state_changed: true,
+                output: json!({
+                    "schema": "gentle.external_primer_pair_import_command.v1",
+                    "report": report,
+                    "path": path,
+                    "preferred_artifacts": preferred_artifacts,
+                    "result": op_result,
                 }),
             })
         }
@@ -51737,41 +52577,73 @@ fn execute_primers_command(
         }
         ShellCommand::PrimersListReports => {
             let reports = engine.list_primer_design_reports();
+            let specificity_reports = engine.list_primer_specificity_reports();
             Ok(ShellRunResult {
                 state_changed: false,
                 output: json!({
                     "schema": "gentle.primer_design_report_list.v1",
                     "report_count": reports.len(),
                     "reports": reports,
+                    "specificity_report_count": specificity_reports.len(),
+                    "specificity_reports": specificity_reports,
                 }),
             })
         }
         ShellCommand::PrimersShowReport { report_id } => {
-            let report = engine
-                .get_primer_design_report(report_id)
-                .map_err(|e| e.to_string())?;
-            let simple_pcr_pairs = primer_design_simple_pcr_pairs_json(&report);
-            Ok(ShellRunResult {
-                state_changed: false,
-                output: json!({
-                    "report": report,
-                    "simple_pcr_pairs": simple_pcr_pairs,
-                }),
-            })
+            if let Ok(report) = engine.get_primer_design_report(report_id) {
+                let simple_pcr_pairs = primer_design_simple_pcr_pairs_json(&report);
+                Ok(ShellRunResult {
+                    state_changed: false,
+                    output: json!({
+                        "report_kind": "primer_design",
+                        "report": report,
+                        "simple_pcr_pairs": simple_pcr_pairs,
+                    }),
+                })
+            } else {
+                let report = engine
+                    .get_primer_specificity_report(report_id)
+                    .map_err(|error| error.to_string())?;
+                Ok(ShellRunResult {
+                    state_changed: false,
+                    output: json!({
+                        "report_kind": "primer_specificity",
+                        "report": report,
+                        "simple_pcr_pairs": [],
+                    }),
+                })
+            }
         }
         ShellCommand::PrimersExportReport { report_id, path } => {
-            let report = engine
-                .export_primer_design_report(report_id, path)
-                .map_err(|e| e.to_string())?;
-            Ok(ShellRunResult {
-                state_changed: false,
-                output: json!({
-                    "schema": "gentle.primer_design_report_export.v1",
-                    "report_id": report.report_id,
-                    "path": path,
-                    "pair_count": report.pair_count,
-                }),
-            })
+            if let Ok(report) = engine.get_primer_design_report(report_id) {
+                engine
+                    .export_primer_design_report(report_id, path)
+                    .map_err(|error| error.to_string())?;
+                Ok(ShellRunResult {
+                    state_changed: false,
+                    output: json!({
+                        "schema": "gentle.primer_design_report_export.v1",
+                        "report_kind": "primer_design",
+                        "report_id": report.report_id,
+                        "path": path,
+                        "pair_count": report.pair_count,
+                    }),
+                })
+            } else {
+                let report = engine
+                    .export_primer_specificity_report(report_id, path)
+                    .map_err(|error| error.to_string())?;
+                Ok(ShellRunResult {
+                    state_changed: false,
+                    output: json!({
+                        "schema": "gentle.primer_specificity_report_export.v1",
+                        "report_kind": "primer_specificity",
+                        "report_id": report.report_id,
+                        "path": path,
+                        "status": report.summary.status,
+                    }),
+                })
+            }
         }
         ShellCommand::PrimersListQpcrReports => {
             let reports = engine.list_qpcr_design_reports();
@@ -51842,6 +52714,50 @@ fn execute_primers_command(
                     "report_id": report.report_id,
                     "path": path,
                     "selected_assay_count": report.selected_assay_count,
+                }),
+            })
+        }
+        ShellCommand::PrimersExperimentalHandoff {
+            panel_report_id,
+            policy_json,
+            variant_evidence_paths,
+            order_form_id,
+            path,
+            order_table_path,
+        } => {
+            let policy = match policy_json {
+                Some(payload) => {
+                    let text = parse_json_payload(payload)?;
+                    serde_json::from_str::<ExperimentalAssayReadinessPolicy>(&text).map_err(
+                        |error| {
+                            format!("Invalid experimental assay readiness policy JSON: {error}")
+                        },
+                    )?
+                }
+                None => ExperimentalAssayReadinessPolicy::default(),
+            };
+            let op_result = engine
+                .apply(Operation::BuildExperimentalAssayHandoff {
+                    panel_report_id: panel_report_id.clone(),
+                    policy,
+                    variant_evidence_paths: variant_evidence_paths.clone(),
+                    order_form_id: order_form_id.clone(),
+                    path: path.clone(),
+                    order_table_path: order_table_path.clone(),
+                })
+                .map_err(|error| error.to_string())?;
+            let report = op_result
+                .experimental_assay_handoff
+                .as_ref()
+                .ok_or_else(|| {
+                    "Experimental handoff operation returned no handoff report".to_string()
+                })?;
+            Ok(ShellRunResult {
+                state_changed: false,
+                output: json!({
+                    "report": report,
+                    "json_path": path,
+                    "order_table_path": order_table_path,
                 }),
             })
         }
@@ -52160,6 +53076,160 @@ fn execute_feature_scan_command(
     command: &ShellCommand,
 ) -> Result<ShellRunResult, String> {
     match command {
+        ShellCommand::FeaturesEditLocation {
+            seq_id,
+            feature_index,
+            segment_index,
+            start_1based,
+            end_1based_inclusive,
+            dry_run,
+            expected_feature_fingerprint_sha256,
+            path,
+        } => {
+            let new_start_0based = i64::try_from(start_1based.checked_sub(1).ok_or_else(|| {
+                "features edit-location --start-1based must be at least 1".to_string()
+            })?)
+            .map_err(|_| {
+                "features edit-location start exceeds the supported coordinate range".to_string()
+            })?;
+            let new_end_0based_exclusive = i64::try_from(*end_1based_inclusive).map_err(|_| {
+                "features edit-location end exceeds the supported coordinate range".to_string()
+            })?;
+            let request = FeatureLocationEditRequest {
+                seq_id: seq_id.clone(),
+                feature_index: *feature_index,
+                new_start_0based,
+                new_end_0based_exclusive,
+                expected_feature_fingerprint_sha256: expected_feature_fingerprint_sha256.clone(),
+                segment_index: *segment_index,
+            };
+            let operation = if *dry_run {
+                Operation::PreviewFeatureLocationEdit { request }
+            } else {
+                Operation::EditFeatureLocation { request }
+            };
+            let op_result = engine.apply(operation).map_err(|e| e.to_string())?;
+            let report = op_result
+                .feature_location_edit_report
+                .clone()
+                .ok_or_else(|| "Feature-location operation returned no report".to_string())?;
+            if let Some(path) = path.as_deref() {
+                let text = serde_json::to_string_pretty(report.as_ref()).map_err(|e| {
+                    format!("Could not serialize feature-location report for '{path}': {e}")
+                })?;
+                fs::write(path, text).map_err(|e| {
+                    format!("Could not write feature-location report to '{path}': {e}")
+                })?;
+            }
+            Ok(ShellRunResult {
+                state_changed: !dry_run,
+                output: json!({
+                    "result": op_result,
+                    "report": report,
+                    "path": path,
+                }),
+            })
+        }
+        ShellCommand::FeaturesCreate {
+            seq_id,
+            feature_kind,
+            start_1based,
+            end_1based_inclusive,
+            strand,
+            qualifiers,
+            dry_run,
+            expected_annotation_state_fingerprint_sha256,
+            path,
+        } => {
+            let start_0based = i64::try_from(start_1based.checked_sub(1).ok_or_else(|| {
+                "features create --start-1based must be at least 1".to_string()
+            })?)
+            .map_err(|_| {
+                "features create start exceeds the supported coordinate range".to_string()
+            })?;
+            let end_0based_exclusive = i64::try_from(*end_1based_inclusive).map_err(|_| {
+                "features create end exceeds the supported coordinate range".to_string()
+            })?;
+            let request =
+                FeatureRecordCurationRequest::Create(FeatureRecordCreateRequest {
+                    seq_id: seq_id.clone(),
+                    feature_kind: feature_kind.clone(),
+                    start_0based,
+                    end_0based_exclusive,
+                    strand: *strand,
+                    qualifiers: qualifiers.clone(),
+                    expected_annotation_state_fingerprint_sha256:
+                        expected_annotation_state_fingerprint_sha256.clone(),
+                });
+            let operation = if *dry_run {
+                Operation::PreviewFeatureRecordCuration { request }
+            } else {
+                Operation::ApplyFeatureRecordCuration { request }
+            };
+            let op_result = engine.apply(operation).map_err(|e| e.to_string())?;
+            let report = op_result
+                .feature_record_curation_report
+                .clone()
+                .ok_or_else(|| "Feature create operation returned no report".to_string())?;
+            if let Some(path) = path.as_deref() {
+                let text = serde_json::to_string_pretty(report.as_ref()).map_err(|e| {
+                    format!("Could not serialize feature create report for '{path}': {e}")
+                })?;
+                fs::write(path, text)
+                    .map_err(|e| format!("Could not write feature create report to '{path}': {e}"))?;
+            }
+            Ok(ShellRunResult {
+                state_changed: !dry_run,
+                output: json!({
+                    "result": op_result,
+                    "report": report,
+                    "path": path,
+                }),
+            })
+        }
+        ShellCommand::FeaturesDelete {
+            seq_id,
+            feature_index,
+            dry_run,
+            expected_feature_fingerprint_sha256,
+            expected_annotation_state_fingerprint_sha256,
+            path,
+        } => {
+            let request =
+                FeatureRecordCurationRequest::Delete(FeatureRecordDeleteRequest {
+                    seq_id: seq_id.clone(),
+                    feature_index: *feature_index,
+                    expected_feature_fingerprint_sha256:
+                        expected_feature_fingerprint_sha256.clone(),
+                    expected_annotation_state_fingerprint_sha256:
+                        expected_annotation_state_fingerprint_sha256.clone(),
+                });
+            let operation = if *dry_run {
+                Operation::PreviewFeatureRecordCuration { request }
+            } else {
+                Operation::ApplyFeatureRecordCuration { request }
+            };
+            let op_result = engine.apply(operation).map_err(|e| e.to_string())?;
+            let report = op_result
+                .feature_record_curation_report
+                .clone()
+                .ok_or_else(|| "Feature delete operation returned no report".to_string())?;
+            if let Some(path) = path.as_deref() {
+                let text = serde_json::to_string_pretty(report.as_ref()).map_err(|e| {
+                    format!("Could not serialize feature delete report for '{path}': {e}")
+                })?;
+                fs::write(path, text)
+                    .map_err(|e| format!("Could not write feature delete report to '{path}': {e}"))?;
+            }
+            Ok(ShellRunResult {
+                state_changed: !dry_run,
+                output: json!({
+                    "result": op_result,
+                    "report": report,
+                    "path": path,
+                }),
+            })
+        }
         ShellCommand::FeaturesResolveFormula { seq_id, expression } => {
             let dna = engine
                 .state()
@@ -57013,6 +58083,8 @@ fn execute_shell_command_with_options_dispatch_inner(
             | ShellCommand::PrimersSeedFromSplicing { .. }
             | ShellCommand::PrimersSeedQpcrFromFeature { .. }
             | ShellCommand::PrimersSeedQpcrFromSplicing { .. }
+            | ShellCommand::PrimersPrimerBankSearch { .. }
+            | ShellCommand::PrimersPrimerBankTestCdna { .. }
             | ShellCommand::PrimersDesign { .. }
             | ShellCommand::PrimersDesignQpcr { .. }
             | ShellCommand::PrimersSpecificity { .. }
@@ -57020,6 +58092,7 @@ fn execute_shell_command_with_options_dispatch_inner(
             | ShellCommand::PrimersSpecificityImport { .. }
             | ShellCommand::PrimersTranscriptAssaySpecificityPlan { .. }
             | ShellCommand::PrimersTranscriptAssaySpecificityFinalize { .. }
+            | ShellCommand::PrimersImportExternalPairs { .. }
             | ShellCommand::PrimersTestCdnaPcr { .. }
             | ShellCommand::PrimersTestCdnaQpcr { .. }
             | ShellCommand::PrimersTranscriptQpcrPanel { .. }
@@ -57042,6 +58115,7 @@ fn execute_shell_command_with_options_dispatch_inner(
             | ShellCommand::PrimersListTranscriptAssayPanels
             | ShellCommand::PrimersShowTranscriptAssayPanel { .. }
             | ShellCommand::PrimersExportTranscriptAssayPanel { .. }
+            | ShellCommand::PrimersExperimentalHandoff { .. }
             | ShellCommand::PrimersOligoOrderCreate { .. }
             | ShellCommand::PrimersOligoOrderFromPrimerReport { .. }
             | ShellCommand::PrimersOligoOrderFromQpcrReport { .. }
@@ -57072,6 +58146,9 @@ fn execute_shell_command_with_options_dispatch_inner(
     if matches!(
         command,
         ShellCommand::FeaturesResolveFormula { .. }
+            | ShellCommand::FeaturesEditLocation { .. }
+            | ShellCommand::FeaturesCreate { .. }
+            | ShellCommand::FeaturesDelete { .. }
             | ShellCommand::FeaturesQuery { .. }
             | ShellCommand::FeaturesExportBed { .. }
             | ShellCommand::FeaturesTfbsSummary { .. }
@@ -57393,6 +58470,9 @@ fn execute_shell_command_with_options_inner(
             execute_features_restriction_scan_command(engine, command)?
         }
         ShellCommand::FeaturesResolveFormula { .. }
+        | ShellCommand::FeaturesEditLocation { .. }
+        | ShellCommand::FeaturesCreate { .. }
+        | ShellCommand::FeaturesDelete { .. }
         | ShellCommand::FeaturesQuery { .. }
         | ShellCommand::FeaturesExportBed { .. }
         | ShellCommand::FeaturesTfbsSummary { .. }
@@ -58732,6 +59812,8 @@ fn execute_shell_command_with_options_inner(
         | ShellCommand::PrimersSeedFromSplicing { .. }
         | ShellCommand::PrimersSeedQpcrFromFeature { .. }
         | ShellCommand::PrimersSeedQpcrFromSplicing { .. }
+        | ShellCommand::PrimersPrimerBankSearch { .. }
+        | ShellCommand::PrimersPrimerBankTestCdna { .. }
         | ShellCommand::PrimersDesign { .. }
         | ShellCommand::PrimersDesignQpcr { .. }
         | ShellCommand::PrimersSpecificity { .. }
@@ -58739,6 +59821,7 @@ fn execute_shell_command_with_options_inner(
         | ShellCommand::PrimersSpecificityImport { .. }
         | ShellCommand::PrimersTranscriptAssaySpecificityPlan { .. }
         | ShellCommand::PrimersTranscriptAssaySpecificityFinalize { .. }
+        | ShellCommand::PrimersImportExternalPairs { .. }
         | ShellCommand::PrimersTestCdnaPcr { .. }
         | ShellCommand::PrimersTestCdnaQpcr { .. }
         | ShellCommand::PrimersTranscriptQpcrPanel { .. }
@@ -58761,6 +59844,7 @@ fn execute_shell_command_with_options_inner(
         | ShellCommand::PrimersListTranscriptAssayPanels
         | ShellCommand::PrimersShowTranscriptAssayPanel { .. }
         | ShellCommand::PrimersExportTranscriptAssayPanel { .. }
+        | ShellCommand::PrimersExperimentalHandoff { .. }
         | ShellCommand::PrimersOligoOrderCreate { .. }
         | ShellCommand::PrimersOligoOrderFromPrimerReport { .. }
         | ShellCommand::PrimersOligoOrderFromQpcrReport { .. }

@@ -798,7 +798,10 @@ impl GENtleApp {
             }
             if suggestion.execution == AgentExecutionIntent::Auto
                 && parsed_command.as_ref().is_ok_and(|parsed| {
-                    matches!(parsed, ShellCommand::HistoryUndo | ShellCommand::HistoryRedo)
+                    matches!(
+                        parsed,
+                        ShellCommand::HistoryUndo | ShellCommand::HistoryRedo
+                    )
                 })
             {
                 warnings.push(format!(
@@ -1491,7 +1494,10 @@ impl GENtleApp {
             }
         };
         if trigger == "auto"
-            && matches!(command, ShellCommand::HistoryUndo | ShellCommand::HistoryRedo)
+            && matches!(
+                command,
+                ShellCommand::HistoryUndo | ShellCommand::HistoryRedo
+            )
         {
             let summary = AGENT_HISTORY_CONFIRMATION_REQUIRED.to_string();
             self.agent_status = format!("{source_label} rejected: {summary}");
@@ -1526,7 +1532,10 @@ impl GENtleApp {
             });
             return;
         }
-        if matches!(command, ShellCommand::HistoryUndo | ShellCommand::HistoryRedo) {
+        if matches!(
+            command,
+            ShellCommand::HistoryUndo | ShellCommand::HistoryRedo
+        ) {
             let state_changed = match command {
                 ShellCommand::HistoryUndo => self.undo_last_operation(),
                 ShellCommand::HistoryRedo => self.redo_last_operation(),
@@ -1834,6 +1843,7 @@ impl GENtleApp {
             UiIntentTarget::RetrieveGenomeSequence => self.open_reference_genome_retrieve_dialog(),
             UiIntentTarget::BlastGenomeSequence => self.open_reference_genome_blast_dialog(),
             UiIntentTarget::ImportGenomeTrack => self.open_genome_bed_track_dialog(),
+            UiIntentTarget::FeatureLocationEditor => self.open_feature_location_editor(),
             UiIntentTarget::PcrDesign => self.open_pcr_design_dialog(),
             UiIntentTarget::SequencingConfirmation => self.open_sequencing_confirmation_dialog(),
             UiIntentTarget::AgentAssistant => self.open_agent_assistant_dialog(),
@@ -1878,6 +1888,7 @@ impl GENtleApp {
                 self.show_genome_bed_track_dialog = false;
                 was_open
             }
+            UiIntentTarget::FeatureLocationEditor => self.close_feature_location_editor(),
             UiIntentTarget::PcrDesign => {
                 let was_open = self.show_pcr_design_dialog;
                 self.show_pcr_design_dialog = false;
