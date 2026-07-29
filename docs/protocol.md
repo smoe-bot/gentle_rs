@@ -7529,8 +7529,8 @@ Operation progress/cancellation semantics:
 - For saved `PrimerDesignReport` pairs, the recorded
   `non_annealing_5prime_tail_bp` is removed before BLAST. Full oligos and tails
   remain in report provenance.
-- Target scope in v1:
-  - prepared reference genomes only
+- Target scope in v3:
+  - prepared genomic-DNA or transcriptome-cDNA BLAST indexes
   - runs through GENtle's existing BLAST index/preflight machinery
   - local `blastn-short` is used with short-query settings; GENtle validates
     the database sequence count through `blastdbcmd` and sets
@@ -7539,7 +7539,7 @@ Operation progress/cancellation semantics:
   - `max_hits_per_primer` is a post-search review threshold and never becomes
     the BLAST subject cap
 - Report schema:
-  - `gentle.primer_specificity_report.v2`
+  - `gentle.primer_specificity_report.v3`
   - both `AssessPrimerPairSpecificity` and
     `ImportPrimerPairSpecificityHandoff` persist the report in project
     metadata. Its stable, content-derived `report_id` binds the primer pair,
@@ -7556,40 +7556,67 @@ Operation progress/cancellation semantics:
     pair when resolvable. Explicit raw/commercial/literature primer strings do
     not acquire a reconstructed design rationale; their design provenance is
     `not_run`
+  - a cited design pair and the normalized full oligos actually assessed are
+    fingerprinted independently with
+    `sha256_canonical_forward_reverse_full_sequence_json_v1`. Matching digests
+    yield `pass`; content drift yields `fail`; an unresolved citation remains
+    `incomplete`
   - `characterization_dimensions[]` gives independent
     `pass|fail|incomplete|not_run` states for design provenance, oligo-pair QC,
-    genomic specificity, transcriptome specificity, search completeness,
+    genomic specificity, transcriptome specificity, intended isoform coverage,
+    junction/genomic-carryover interpretation, search completeness,
     known-variant screening, and repeat/low-complexity screening. A cited
     design report is not promoted into a freshly rerun oligo-QC pass, and no
     variant/repeat clearance is claimed when those analyses were not run
   - includes BLAST binary preflight, per-primer BLAST invocation provenance,
     BLAST database content identity, input primers, policy, aggregated
     warnings, primer hits, candidate amplicons, and a summary badge
-  - primer hits report identity, coverage, total mismatches, exact 3' terminal
-    mismatch count where prepared subject sequence can be fetched, strand, and
-    1-based subject coordinates; wrapped BLAST identifiers such as
+  - primer hits report identity, coverage, aligned-HSP mismatches, unaligned
+    query bases, their sum as `effective_mismatches`, exact 3' terminal mismatch
+    count where prepared subject sequence can be fetched, strand, and 1-based
+    subject coordinates; wrapped BLAST identifiers such as
     `gb|KI270750.1|` are normalized against the prepared FASTA index while the
     raw identifier remains available
   - `query_coverage_fraction` is computed independently for every HSP from its
     inclusive `qstart..qend` span divided by primer length; BLAST `qcovs`
-    cannot promote a short HSP because that field is aggregated per subject
+    cannot promote a short HSP because that field is aggregated per subject.
+    Unaligned query bases count as effective mismatches when candidate products
+    are ranked and screened
+    and therefore a short otherwise mismatch-free HSP cannot look like a full
+    clean primer match
   - candidate amplicons include forward/reverse products plus Primer-BLAST-style
     forward/forward and reverse/reverse warning products. Genomic left/right
     ordering is derived from subject strand and coordinates rather than primer
     role, so minus-strand targets are paired without swapping assay roles
+  - `intended_target.model = transcript_set` supports assays intended to
+    amplify multiple transcripts. `expected_products[]` records each intended
+    subject and optional exact product range in its `genomic_dna` or
+    `transcriptome_cdna` target space; a transcriptome pass requires exactly
+    one compatible product for every declared transcript
   - intended genomic products are resolved only from an explicit prepared-FASTA
-    subject and genomic binding interval; cDNA amplicon length is retained as
-    provenance but is never used to identify a genomic product
+    subject and computed genomic binding interval; cDNA amplicon length is
+    retained as provenance but is never used to identify a genomic product
   - a junction-spanning RT-PCR primer may legitimately have no contiguous
     intended genomic product; in a genomic-DNA database that case is evaluated
     as carryover/off-target evidence rather than forced into an invented target
-  - unintended compatible products fail when their combined mismatches remain
-    below `min_total_mismatches_to_unintended_target`
+  - unintended compatible products fail when their combined effective
+    mismatches remain below `min_total_mismatches_to_unintended_target`
   - `intended_target`, `genomic_specificity`, and
     `transcriptome_specificity` keep genomic-DNA carryover/off-target evidence
     separate from whole-transcriptome/cDNA cross-amplification. Only the
     assessment matching the inspected BLAST index kind is populated by one run;
     the other remains `not_run`
+  - `intended_target.expected_products[]` records explicit expected subjects,
+    optional one-based ranges or product lengths, transcript ids, and evidence
+    source per BLAST target space. `genomic_target_geometry_known` distinguishes
+    resolved annotation geometry from a missing geometry; GENtle does not infer
+    a genomic product from cDNA length. If a transcript product has neither
+    portable coordinates nor a known length, exactly one compatible product on
+    that named transcript is required
+  - each target-space assessment records expected and observed intended-product
+    counts. Intended isoform coverage is derived from those counts independently
+    of the transcriptome-specificity verdict, so an off-target product can fail
+    specificity without erasing evidence that all intended isoforms were covered
   - `search_completeness` is an enforceable result state containing the
     validated database sequence count, required `-max_target_seqs`, minimum
     observed command limit, command count, and explanatory reason. If
@@ -7613,9 +7640,9 @@ Operation progress/cancellation semantics:
   - transcript-aware policy enums:
     `exon_junction_policy = no_preference|must_span|must_not_span` and
     `intron_separation_policy = no_preference|must_separate_by_intron`
-  - current v1 stores/report-routes these knobs, while hard design-time
-    rejection by genome-wide specificity and binding-site masks remains a
-    follow-up.
+  - the current implementation stores/report-routes these knobs, while hard
+    design-time rejection by genome-wide specificity and binding-site masks
+    remains a follow-up.
 
 External BLAST handoff for wrapper-owned execution:
 
@@ -7686,9 +7713,12 @@ Whole-panel external specificity acceptance:
   process evidence was complete but at least one assay failed GENtle's
   biological policy. `incomplete` covers failed/missing/duplicate execution,
   stale panel or primer state, altered handoffs, and provenance mismatch.
-- Only `pass` sets `accepted = true` and atomically attaches all assay reports
-  plus the acceptance object to the persisted panel. The other states do not
-  partially attach reports. An optional `--path` writes the same acceptance
+- Only `pass` sets `accepted = true`. Every provenance-valid assay assessment
+  produced during finalization is retained on the persisted panel, including
+  explicit `specificity_fail` or `incomplete` evidence, keyed by assay and
+  BLAST target kind. This lets readiness distinguish failed/incomplete evidence
+  from a search that was never run while preserving genomic and transcriptome
+  assessments side by side. An optional `--path` writes the same acceptance
   object returned by the shell command.
 - NCBI e-PCR is not part of this contract. A future provider-neutral
   Primer-BLAST evidence importer may supplement, but must not weaken, the
@@ -8279,8 +8309,13 @@ Primer-design shell command family (implemented):
     `vendor_claims_used_as_biological_evidence` is always false
   - specificity is explicitly `not_run` without
     `--specificity-target-genome`; vendor claims cannot turn that state into a
-    pass. Product materialization and gel rendering remain opt-in because they
-    create first-class project products
+    pass. When specificity is requested, GENtle derives the intended
+    transcript set and product ranges from its computed cDNA assay, then
+    projects genomic target geometry only when the project sequence has a
+    provenance-bearing genome anchor. A complete search can therefore pass on
+    computed geometry, but never on provider claims. Product materialization
+    and gel rendering remain opt-in because they create first-class project
+    products
 - `primers test-cdna-pcr` and `primers test-cdna-qpcr` are non-mutating assay
   checks over transcript-derived cDNA templates and return
   `gentle.cdna_assay_test_report.v1`; `--path` persists that same report and
@@ -8526,8 +8561,10 @@ Primer-design shell command family (implemented):
     backward-compatible report/display identities. `tube_id` is a short human
     label and is not the machine join key.
   - each card embeds the exact policy schema/version and every gate outcome.
-    The shipped v1 default requires critical oligo QC, whole-genome specificity,
-    and annotation provenance. The automatically generated cDNA assay test and
+    The shipped v1 default requires critical oligo QC, annotation provenance,
+    a `genomic_carryover` pass, and a separate `transcriptome_specificity`
+    pass. RT-PCR and qPCR cards therefore cannot become order-ready from a
+    genomic search alone. The automatically generated cDNA assay test and
     optional `gentle.primer_variant_evidence.v1` are surfaced but absence alone
     is non-blocking; an evaluated failure remains a blocker. A linked order
     form retains its existing duplicate-review gate.
@@ -8809,18 +8846,23 @@ Feature-location edit contract (implemented):
 Feature-record curation contract (implemented):
 
 - Schema:
-  - `gentle.feature_record_curation.v1`
+  - `gentle.feature_record_curation.v2`
+  - v1 is the Create/Delete-only predecessor; v2 adds strict Split/Merge
+    request and outcome variants without changing v1 field meanings
 - Shared operations:
   - `PreviewFeatureRecordCuration`
   - `ApplyFeatureRecordCuration`
   - both accept a tagged `FeatureRecordCurationRequest` with
-    `operation_kind=create|delete`.
+    `operation_kind=create|delete|split|merge`.
 - Shared-shell commands:
   - `features create SEQ_ID --kind KIND --start-1based N --end-1based-inclusive M [--strand forward|reverse] [--qualifier KEY[=VALUE] ...] [--dry-run] [--expected-annotation-state-fingerprint-sha256 SHA] [--path OUT.json]`
   - `features delete SEQ_ID FEATURE_INDEX [--dry-run] [--expected-feature-fingerprint-sha256 SHA] [--expected-annotation-state-fingerprint-sha256 SHA] [--path OUT.json]`
+  - `features split SEQ_ID FEATURE_INDEX --split-before-1based N [--dry-run] [--expected-feature-fingerprint-sha256 SHA] [--expected-annotation-state-fingerprint-sha256 SHA] [--path OUT.json]`
+  - `features merge SEQ_ID FIRST_FEATURE_INDEX SECOND_FEATURE_INDEX [--dry-run] [--expected-first-feature-fingerprint-sha256 SHA] [--expected-second-feature-fingerprint-sha256 SHA] [--expected-annotation-state-fingerprint-sha256 SHA] [--path OUT.json]`
   - run `--dry-run` first. Create apply requires the returned annotation-state
     fingerprint; Delete apply requires both that fingerprint and the deleted
-    feature fingerprint.
+    feature fingerprint; Split has the same two-lock rule; Merge requires the
+    annotation-state fingerprint plus both source-feature fingerprints.
 - Create appends one exact `Range` or `Complement(Range)` to the ordered feature
   table. Preview deliberately does not promise the eventual feature index.
   Qualifiers are an ordered list of `{key, value}` records: duplicate keys,
@@ -8830,6 +8872,17 @@ Feature-record curation contract (implemented):
   The report carries a lossless serialized location, human display location,
   exact ordered qualifiers, and the number of later feature indices that shift
   down by one.
+- Split accepts only exact simple `Range` or `Complement(Range)` locations and
+  an internal boundary. It replaces table index `i` with genomic-left and
+  genomic-right records at `[i, i+1]`, retaining the original kind, strand, and
+  exact ordered qualifier vector on both outputs. The report names both output
+  indices and the number of later indices shifted up.
+- Merge accepts only two distinct, exactly touching simple records with equal
+  kind, strand, and exact ordered qualifier vectors. It spans their combined
+  genomic interval, retains the lower source table index, removes the higher
+  index, and reports the resulting index shift. Gaps, overlaps, compound or
+  fuzzy locations, strand differences, and qualifier conflicts are rejected;
+  GENtle does not infer a metadata reconciliation.
 - Annotation-state fingerprints use
   `sha256_sequence_id_length_topology_ordered_gb_io_features_serde_json_v1`.
   They cover sequence id, sequence length, topology, and every complete feature
@@ -8839,9 +8892,9 @@ Feature-record curation contract (implemented):
   INSDC identifiers (`locus_tag`, `gene`, `protein_id`, `transcript_id`) as
   informational evidence only. It never interprets overlap as an error or a
   shared identifier as a dependency, and it never edits another annotation.
-- Both applies are ordinary full-checkpoint mutations with undo/redo. Split,
-  merge, nested-location creation, dependency propagation, and automatic
-  transcript repair are outside v1.
+- All applies are ordinary full-checkpoint mutations with undo/redo.
+  Nested-location creation, dependency propagation, qualifier reconciliation,
+  and automatic transcript repair remain outside v2.
 
 Feature-query shell contract (implemented):
 

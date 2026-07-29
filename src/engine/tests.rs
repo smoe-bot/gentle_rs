@@ -8130,8 +8130,7 @@ fn external_primer_pair_import_preserves_mixed_claims_and_computes_shared_metric
     assert_eq!(pair.duplicate_source_record_count, 1);
     assert_eq!(pair.sources.len(), 2);
     assert_ne!(
-        pair.sources[0].source_record_id,
-        pair.sources[1].source_record_id,
+        pair.sources[0].source_record_id, pair.sources[1].source_record_id,
         "source records with different accessions/claims need distinct provenance identities"
     );
     assert_eq!(
@@ -8142,8 +8141,7 @@ fn external_primer_pair_import_preserves_mixed_claims_and_computes_shared_metric
         BTreeSet::from(["ENST_LITERATURE_CLAIM", "NM_VENDOR_CLAIM"])
     );
     assert!(pair.sources.iter().all(|source| {
-        source.claim_evidence_status
-            == "provenance_only_not_used_for_coverage_or_specificity"
+        source.claim_evidence_status == "provenance_only_not_used_for_coverage_or_specificity"
     }));
     assert_eq!(
         pair.origins,
@@ -8168,10 +8166,7 @@ fn external_primer_pair_import_preserves_mixed_claims_and_computes_shared_metric
         pair.reverse.tm_c,
         GentleEngine::estimate_primer_tm_c(pair.reverse.sequence_5_to_3.as_bytes())
     );
-    assert!(
-        (pair.tm_delta_c - (pair.forward.tm_c - pair.reverse.tm_c).abs()).abs()
-            < f64::EPSILON
-    );
+    assert!((pair.tm_delta_c - (pair.forward.tm_c - pair.reverse.tm_c).abs()).abs() < f64::EPSILON);
     assert!((pair.forward.gc_percent - pair.forward.gc_fraction * 100.0).abs() < f64::EPSILON);
     assert!((pair.reverse.gc_percent - pair.reverse.gc_fraction * 100.0).abs() < f64::EPSILON);
     assert!(!pair.forward.tm_method.is_empty());
@@ -8440,6 +8435,8 @@ fn primer_specificity_test_hit(
         identity_percent: 100.0,
         alignment_length_bp: end_1based.saturating_sub(start_1based).saturating_add(1),
         mismatches,
+        unaligned_query_bases: 0,
+        effective_mismatches: mismatches,
         gap_opens: 0,
         query_start_1based: 1,
         query_end_1based: end_1based.saturating_sub(start_1based).saturating_add(1),
@@ -8533,10 +8530,12 @@ fn primer_specificity_pairs_forward_reverse_and_same_primer_warning_products() {
                 start_1based: 100,
                 end_1based: 239,
             }),
+            genomic_target_geometry_known: true,
             contiguous_genomic_product_expected: true,
             ..PrimerSpecificityIntendedTarget::default()
         },
         &policy,
+        crate::genomes::BlastDatabaseIndexKind::GenomicDna,
     );
     let intended = amplicons
         .iter()
@@ -8593,10 +8592,12 @@ fn primer_specificity_pairs_minus_strand_targets_without_role_order_assumptions(
                 start_1based: 100,
                 end_1based: 239,
             }),
+            genomic_target_geometry_known: true,
             contiguous_genomic_product_expected: true,
             ..PrimerSpecificityIntendedTarget::default()
         },
         &policy,
+        crate::genomes::BlastDatabaseIndexKind::GenomicDna,
     );
     let intended = amplicons
         .iter()
@@ -8628,6 +8629,11 @@ fn primer_specificity_uses_per_hsp_query_coordinates_not_aggregated_qcovs() {
         GentleEngine::primer_specificity_hsp_query_coverage_fraction(20, &hit),
         0.4
     );
+    assert_eq!(
+        GentleEngine::primer_specificity_effective_mismatch_count(20, &hit),
+        12,
+        "the twelve primer bases outside this HSP must count as effective mismatches"
+    );
     let mut reverse_query_coordinates = hit;
     reverse_query_coordinates.query_start = 12;
     reverse_query_coordinates.query_end = 5;
@@ -8637,6 +8643,432 @@ fn primer_specificity_uses_per_hsp_query_coordinates_not_aggregated_qcovs() {
             &reverse_query_coordinates,
         ),
         0.4
+    );
+    reverse_query_coordinates.mismatches = 1;
+    assert_eq!(
+        GentleEngine::primer_specificity_effective_mismatch_count(20, &reverse_query_coordinates),
+        13
+    );
+}
+
+#[test]
+fn primer_specificity_design_citation_binds_the_exact_assessed_pair() {
+    let pair = PrimerDesignPairRecord {
+        rank: 1,
+        forward: PrimerDesignPrimerRecord {
+            sequence: "ACGTACGTACGTACGTACGT".to_string(),
+            ..PrimerDesignPrimerRecord::default()
+        },
+        reverse: PrimerDesignPrimerRecord {
+            sequence: "CCCCCCCCCCCCCCCCCCCC".to_string(),
+            ..PrimerDesignPrimerRecord::default()
+        },
+        ..PrimerDesignPairRecord::default()
+    };
+    let report = PrimerDesignReport {
+        schema: "gentle.primer_design_report.v1".to_string(),
+        report_id: "design_report".to_string(),
+        template: "template".to_string(),
+        generated_at_unix_ms: 42,
+        pairs: vec![pair.clone()],
+        ..PrimerDesignReport::default()
+    };
+    let assessed_forward = PrimerSpecificityInputPrimer {
+        role: PrimerSpecificityPrimerRole::Forward,
+        full_sequence: pair.forward.sequence.clone(),
+        annealing_sequence: pair.forward.sequence.clone(),
+        annealing_length_bp: pair.forward.sequence.len(),
+        ..PrimerSpecificityInputPrimer::default()
+    };
+    let assessed_reverse = PrimerSpecificityInputPrimer {
+        role: PrimerSpecificityPrimerRole::Reverse,
+        full_sequence: pair.reverse.sequence.clone(),
+        annealing_sequence: pair.reverse.sequence.clone(),
+        annealing_length_bp: pair.reverse.sequence.len(),
+        ..PrimerSpecificityInputPrimer::default()
+    };
+    let citation = GentleEngine::primer_specificity_design_provenance_from_report(
+        &report,
+        &pair,
+        Some(1),
+        Some(0),
+        &assessed_forward,
+        &assessed_reverse,
+    )
+    .expect("matching citation");
+    assert_eq!(citation.status, PrimerPairCharacterizationStatus::Pass);
+    assert_eq!(
+        citation.source_pair_content_sha256,
+        citation.assessed_pair_content_sha256
+    );
+    assert_eq!(
+        citation.pair_content_fingerprint_algorithm.as_deref(),
+        Some(PRIMER_DESIGN_PAIR_CONTENT_FINGERPRINT_ALGORITHM)
+    );
+
+    let mut changed_reverse = assessed_reverse.clone();
+    changed_reverse.full_sequence = "AAAAAAAAAAAAAAAAAAAA".to_string();
+    let drifted = GentleEngine::primer_specificity_design_provenance_from_report(
+        &report,
+        &pair,
+        Some(1),
+        Some(0),
+        &assessed_forward,
+        &changed_reverse,
+    )
+    .expect("drifted citation remains reportable");
+    assert_eq!(drifted.status, PrimerPairCharacterizationStatus::Fail);
+    assert_ne!(
+        drifted.source_pair_content_sha256,
+        drifted.assessed_pair_content_sha256
+    );
+
+    let unresolved = GentleEngine::default().primer_specificity_design_provenance_from_reference(
+        Some("missing_report"),
+        Some(1),
+        None,
+        &assessed_forward,
+        &assessed_reverse,
+    );
+    assert_eq!(
+        unresolved.status,
+        PrimerPairCharacterizationStatus::Incomplete
+    );
+    let not_run = GentleEngine::primer_specificity_design_provenance_not_run(
+        "No design report was supplied.",
+    );
+    assert_eq!(not_run.status, PrimerPairCharacterizationStatus::NotRun);
+}
+
+#[test]
+fn primer_specificity_transcript_set_accepts_every_declared_transcript_product() {
+    let policy = PrimerSpecificityPolicy::default();
+    let mut forward_hits = vec![];
+    let mut reverse_hits = vec![];
+    let mut expected_products = vec![];
+    for (index, transcript_id) in ["TX1", "TX2"].into_iter().enumerate() {
+        forward_hits.push(primer_specificity_test_hit(
+            PrimerSpecificityPrimerRole::Forward,
+            index,
+            transcript_id,
+            10,
+            29,
+            "+",
+            0,
+        ));
+        reverse_hits.push(primer_specificity_test_hit(
+            PrimerSpecificityPrimerRole::Reverse,
+            index,
+            transcript_id,
+            80,
+            99,
+            "-",
+            0,
+        ));
+        expected_products.push(PrimerSpecificityExpectedProduct {
+            target_space: crate::genomes::BlastDatabaseIndexKind::TranscriptomeCdna
+                .as_str()
+                .to_string(),
+            subject_id: transcript_id.to_string(),
+            expected_product_range: Some(PrimerSpecificitySubjectRange {
+                start_1based: 10,
+                end_1based: 99,
+            }),
+            source_transcript_id: Some(transcript_id.to_string()),
+        });
+    }
+    let target = PrimerSpecificityIntendedTarget {
+        model: PrimerSpecificityIntendedTargetModel::TranscriptSet,
+        expected_products,
+        genomic_target_geometry_known: true,
+        contiguous_genomic_product_expected: true,
+        source: "synthetic_multi_transcript_assay".to_string(),
+        ..PrimerSpecificityIntendedTarget::default()
+    };
+    let mut amplicons = GentleEngine::primer_specificity_collect_amplicons_for_hits(
+        &forward_hits,
+        &reverse_hits,
+        &policy,
+    );
+    GentleEngine::primer_specificity_finalize_amplicons(
+        &mut amplicons,
+        &target,
+        &policy,
+        crate::genomes::BlastDatabaseIndexKind::TranscriptomeCdna,
+    );
+    let summary = GentleEngine::primer_specificity_summary(
+        &forward_hits,
+        &reverse_hits,
+        &amplicons,
+        &target,
+        crate::genomes::BlastDatabaseIndexKind::TranscriptomeCdna,
+        true,
+    );
+    assert!(summary.specificity_pass);
+    assert_eq!(summary.intended_amplicon_count, 2);
+    assert_eq!(summary.unintended_amplicon_count, 0);
+
+    let mut incomplete_amplicons = GentleEngine::primer_specificity_collect_amplicons_for_hits(
+        &forward_hits[..1],
+        &reverse_hits[..1],
+        &policy,
+    );
+    GentleEngine::primer_specificity_finalize_amplicons(
+        &mut incomplete_amplicons,
+        &target,
+        &policy,
+        crate::genomes::BlastDatabaseIndexKind::TranscriptomeCdna,
+    );
+    let incomplete = GentleEngine::primer_specificity_summary(
+        &forward_hits[..1],
+        &reverse_hits[..1],
+        &incomplete_amplicons,
+        &target,
+        crate::genomes::BlastDatabaseIndexKind::TranscriptomeCdna,
+        true,
+    );
+    assert!(
+        !incomplete.specificity_pass,
+        "a complete search missing one declared transcript product must fail"
+    );
+}
+
+#[test]
+fn primer_specificity_dimensions_keep_isoform_coverage_separate_from_off_targets() {
+    let target = PrimerSpecificityIntendedTarget {
+        model: PrimerSpecificityIntendedTargetModel::TranscriptSet,
+        genomic_target_geometry_known: true,
+        contiguous_genomic_product_expected: false,
+        expected_products: ["TX1", "TX2"]
+            .into_iter()
+            .map(|transcript_id| PrimerSpecificityExpectedProduct {
+                target_space: crate::genomes::BlastDatabaseIndexKind::TranscriptomeCdna
+                    .as_str()
+                    .to_string(),
+                subject_id: transcript_id.to_string(),
+                expected_product_range: None,
+                source_transcript_id: Some(transcript_id.to_string()),
+            })
+            .collect(),
+        source: "transcript_assay_panel:synthetic".to_string(),
+        ..PrimerSpecificityIntendedTarget::default()
+    };
+    let policy = PrimerSpecificityPolicy::default();
+    let dimensions = GentleEngine::primer_specificity_characterization_dimensions(
+        &PrimerDesignProvenanceCitation {
+            status: PrimerPairCharacterizationStatus::Pass,
+            summary: "matched".to_string(),
+            ..PrimerDesignProvenanceCitation::default()
+        },
+        &PrimerSpecificityTargetAssessment {
+            target_space: "genomic_dna".to_string(),
+            status: "not_run".to_string(),
+            summary: "not run".to_string(),
+            ..PrimerSpecificityTargetAssessment::default()
+        },
+        &PrimerSpecificityTargetAssessment {
+            target_space: "transcriptome_cdna".to_string(),
+            status: "fail".to_string(),
+            intended_product_observed: true,
+            expected_intended_product_count: 2,
+            observed_intended_product_count: 2,
+            summary:
+                "all expected products were observed, but an unintended transcript product failed policy"
+                    .to_string(),
+            ..PrimerSpecificityTargetAssessment::default()
+        },
+        &PrimerSpecificitySearchCompleteness {
+            complete: true,
+            status: "complete".to_string(),
+            reason: "complete".to_string(),
+            ..PrimerSpecificitySearchCompleteness::default()
+        },
+        &target,
+        &policy,
+        "Transcriptome",
+    );
+    assert_eq!(
+        dimensions
+            .iter()
+            .find(|row| row.dimension == "intended_isoform_coverage")
+            .map(|row| row.status),
+        Some(PrimerPairCharacterizationStatus::Pass)
+    );
+    assert_eq!(
+        dimensions
+            .iter()
+            .find(|row| row.dimension == "junction_and_genomic_carryover")
+            .map(|row| row.status),
+        Some(PrimerPairCharacterizationStatus::NotRun)
+    );
+
+    let unresolved_target = PrimerSpecificityIntendedTarget {
+        expected_products: vec![],
+        ..target
+    };
+    let unresolved_dimensions = GentleEngine::primer_specificity_characterization_dimensions(
+        &PrimerDesignProvenanceCitation::default(),
+        &PrimerSpecificityTargetAssessment::default(),
+        &PrimerSpecificityTargetAssessment::default(),
+        &PrimerSpecificitySearchCompleteness::default(),
+        &unresolved_target,
+        &policy,
+        "Transcriptome",
+    );
+    assert_eq!(
+        unresolved_dimensions
+            .iter()
+            .find(|row| row.dimension == "intended_isoform_coverage")
+            .map(|row| row.status),
+        Some(PrimerPairCharacterizationStatus::Incomplete)
+    );
+}
+
+#[test]
+fn primer_specificity_derives_transcript_and_genomic_targets_from_cdna_assay() {
+    let mut engine = cdna_assay_nonspecific_test_engine();
+    engine.state_mut().metadata.insert(
+        PROVENANCE_METADATA_KEY.to_string(),
+        serde_json::json!({
+            GENOME_EXTRACTIONS_METADATA_KEY: [
+                {
+                    "seq_id": "cdna_nonspecific",
+                    "genome_id": "SyntheticGenome",
+                    "chromosome": "chr7",
+                    "start_1based": 1001,
+                    "end_1based": 1072,
+                    "anchor_strand": "+",
+                    "anchor_verified": true,
+                    "recorded_at_unix_ms": 1
+                }
+            ]
+        }),
+    );
+    let assay = engine
+        .test_cdna_pcr_assay(
+            "cdna_nonspecific",
+            0,
+            "AAACCC",
+            "CCCAAA",
+            None,
+            Some(10),
+            Some(80),
+            None,
+            Some(4),
+        )
+        .expect("computed multi-transcript cDNA assay");
+    let target = engine
+        .primer_specificity_intended_target_from_cdna_assay(&assay, "synthetic_external_pair");
+    assert_eq!(
+        target.model,
+        PrimerSpecificityIntendedTargetModel::TranscriptSet
+    );
+    assert!(target.genomic_target_geometry_known);
+    assert!(
+        target
+            .expected_products
+            .iter()
+            .any(|expected| expected.target_space == "genomic_dna")
+    );
+    assert_eq!(
+        target
+            .expected_products
+            .iter()
+            .filter(|expected| expected.target_space == "transcriptome_cdna")
+            .map(|expected| expected.subject_id.as_str())
+            .collect::<BTreeSet<_>>(),
+        BTreeSet::from(["TX_LONG", "TX_SHORT"])
+    );
+
+    let genomic_expected = target
+        .expected_products
+        .iter()
+        .filter(|expected| expected.target_space == "genomic_dna")
+        .collect::<Vec<_>>();
+    assert_eq!(genomic_expected.len(), 2);
+    let forward_sites = genomic_expected
+        .iter()
+        .map(|expected| {
+            let range = expected
+                .expected_product_range
+                .as_ref()
+                .expect("derived genomic product range");
+            (
+                expected.subject_id.clone(),
+                range.start_1based,
+                range.start_1based.saturating_add(5),
+            )
+        })
+        .collect::<BTreeSet<_>>();
+    let reverse_sites = genomic_expected
+        .iter()
+        .map(|expected| {
+            let range = expected
+                .expected_product_range
+                .as_ref()
+                .expect("derived genomic product range");
+            (
+                expected.subject_id.clone(),
+                range.end_1based.saturating_sub(5),
+                range.end_1based,
+            )
+        })
+        .collect::<BTreeSet<_>>();
+    assert_eq!(forward_sites.len(), 1);
+    assert_eq!(reverse_sites.len(), 2);
+    let forward_hits = forward_sites
+        .into_iter()
+        .enumerate()
+        .map(|(hit_index, (subject_id, start_1based, end_1based))| {
+            primer_specificity_test_hit(
+                PrimerSpecificityPrimerRole::Forward,
+                hit_index,
+                &subject_id,
+                start_1based,
+                end_1based,
+                "+",
+                0,
+            )
+        })
+        .collect::<Vec<_>>();
+    let reverse_hits = reverse_sites
+        .into_iter()
+        .enumerate()
+        .map(|(hit_index, (subject_id, start_1based, end_1based))| {
+            primer_specificity_test_hit(
+                PrimerSpecificityPrimerRole::Reverse,
+                hit_index,
+                &subject_id,
+                start_1based,
+                end_1based,
+                "-",
+                0,
+            )
+        })
+        .collect::<Vec<_>>();
+    let policy = PrimerSpecificityPolicy::default();
+    let mut amplicons = GentleEngine::primer_specificity_collect_amplicons_for_hits(
+        &forward_hits,
+        &reverse_hits,
+        &policy,
+    );
+    GentleEngine::primer_specificity_finalize_amplicons(
+        &mut amplicons,
+        &target,
+        &policy,
+        crate::genomes::BlastDatabaseIndexKind::GenomicDna,
+    );
+    assert!(
+        GentleEngine::primer_specificity_summary(
+            &forward_hits,
+            &reverse_hits,
+            &amplicons,
+            &target,
+            crate::genomes::BlastDatabaseIndexKind::GenomicDna,
+            true,
+        )
+        .specificity_pass,
+        "a complete clean search against derived imported-pair geometry can pass"
     );
 }
 
@@ -8684,10 +9116,12 @@ fn primer_specificity_empty_amplicon_set_is_a_non_panicking_no_hit_result() {
                 start_1based: 1,
                 end_1based: 120,
             }),
+            genomic_target_geometry_known: true,
             contiguous_genomic_product_expected: true,
             ..PrimerSpecificityIntendedTarget::default()
         },
         &PrimerSpecificityPolicy::default(),
+        crate::genomes::BlastDatabaseIndexKind::GenomicDna,
     );
     assert!(amplicons.is_empty());
 }
@@ -8725,11 +9159,17 @@ fn primer_specificity_intended_genomic_product_uses_coordinates_not_cdna_length(
             start_1based: 100,
             end_1based: 1000,
         }),
+        genomic_target_geometry_known: true,
         contiguous_genomic_product_expected: true,
         source: "synthetic_intron_containing_target".to_string(),
         ..PrimerSpecificityIntendedTarget::default()
     };
-    GentleEngine::primer_specificity_finalize_amplicons(&mut amplicons, &target, &policy);
+    GentleEngine::primer_specificity_finalize_amplicons(
+        &mut amplicons,
+        &target,
+        &policy,
+        crate::genomes::BlastDatabaseIndexKind::GenomicDna,
+    );
     let intended = amplicons
         .iter()
         .find(|amplicon| amplicon.intended)
@@ -8747,12 +9187,18 @@ fn junction_primer_can_pass_genomic_carryover_screen_without_intended_product() 
     let target = PrimerSpecificityIntendedTarget {
         model: PrimerSpecificityIntendedTargetModel::JunctionSpanning,
         subject_id: Some("chr1".to_string()),
+        genomic_target_geometry_known: true,
         contiguous_genomic_product_expected: false,
         source: "synthetic_junction_assay".to_string(),
         ..PrimerSpecificityIntendedTarget::default()
     };
     let mut amplicons = vec![];
-    GentleEngine::primer_specificity_finalize_amplicons(&mut amplicons, &target, &policy);
+    GentleEngine::primer_specificity_finalize_amplicons(
+        &mut amplicons,
+        &target,
+        &policy,
+        crate::genomes::BlastDatabaseIndexKind::GenomicDna,
+    );
     let summary = GentleEngine::primer_specificity_summary(
         &[],
         &[],
@@ -8772,6 +9218,7 @@ fn primer_specificity_withholds_pass_when_search_completeness_is_unproven() {
     let target = PrimerSpecificityIntendedTarget {
         model: PrimerSpecificityIntendedTargetModel::JunctionSpanning,
         subject_id: Some("chr1".to_string()),
+        genomic_target_geometry_known: true,
         contiguous_genomic_product_expected: false,
         source: "synthetic_junction_assay".to_string(),
         ..PrimerSpecificityIntendedTarget::default()
@@ -8794,6 +9241,28 @@ fn primer_specificity_withholds_pass_when_search_completeness_is_unproven() {
 }
 
 #[test]
+fn primer_specificity_withholds_pass_when_genomic_geometry_is_unknown() {
+    let target = PrimerSpecificityIntendedTarget {
+        model: PrimerSpecificityIntendedTargetModel::JunctionSpanning,
+        subject_id: Some("chr1".to_string()),
+        genomic_target_geometry_known: false,
+        contiguous_genomic_product_expected: false,
+        source: "legacy_or_unresolved_target".to_string(),
+        ..PrimerSpecificityIntendedTarget::default()
+    };
+    let summary = GentleEngine::primer_specificity_summary(
+        &[],
+        &[],
+        &[],
+        &target,
+        crate::genomes::BlastDatabaseIndexKind::GenomicDna,
+        true,
+    );
+    assert!(!summary.specificity_pass);
+    assert_eq!(summary.status, "not_assessed");
+}
+
+#[test]
 fn legacy_primer_specificity_reports_default_to_incomplete_search_evidence() {
     let report: PrimerSpecificityReport = serde_json::from_value(serde_json::json!({
         "summary": {
@@ -8804,12 +9273,23 @@ fn legacy_primer_specificity_reports_default_to_incomplete_search_evidence() {
     .expect("deserialize legacy report");
     assert!(!report.search_completeness.complete);
     assert_eq!(report.search_completeness.status, "incomplete");
+    assert!(report.search_completeness.reason.contains("not recorded"));
+    assert!(!report.intended_target.genomic_target_geometry_known);
+    assert!(report.intended_target.expected_products.is_empty());
     assert!(
         report
-            .search_completeness
-            .reason
-            .contains("not recorded")
+            .design_provenance
+            .source_pair_content_sha256
+            .is_none()
     );
+    let legacy_target_json =
+        serde_json::to_value(&report.intended_target).expect("serialize legacy intended target");
+    assert!(
+        legacy_target_json
+            .get("genomic_target_geometry_known")
+            .is_none()
+    );
+    assert!(legacy_target_json.get("expected_products").is_none());
 }
 
 #[test]
@@ -9055,7 +9535,7 @@ fn primer_specificity_handoff_plans_without_running_and_imports_completed_output
         .map(|report| *report)
         .expect("specificity import operation result");
     assert!(report_path.is_file());
-    assert_eq!(report.schema, "gentle.primer_specificity_report.v2");
+    assert_eq!(report.schema, "gentle.primer_specificity_report.v3");
     assert!(report.report_id.starts_with("primer_specificity_"));
     assert!(report.op_id.is_some());
     assert!(report.run_id.is_some());
@@ -10227,28 +10707,35 @@ fn transcript_assay_specificity_execution_manifest(
                         &assay.handoff.intended_target.reverse_binding_ranges
                     }
                 };
-                if target_ranges.len() == 1 {
-                    let range = &target_ranges[0];
-                    let (subject_start, subject_end) = match command.role {
-                        PrimerSpecificityPrimerRole::Forward => {
-                            (range.start_1based, range.end_1based)
-                        }
-                        PrimerSpecificityPrimerRole::Reverse => {
-                            (range.end_1based, range.start_1based)
-                        }
-                    };
-                    format!(
-                        "{}\tchr1\t100\t{}\t0\t0\t1\t{}\t{}\t{}\t1e-20\t80\t100\n",
-                        command.query_label,
-                        command.query_length_bp,
-                        command.query_length_bp,
-                        subject_start,
-                        subject_end,
-                    )
+                let has_contiguous_expected_product = assay
+                    .handoff
+                    .intended_target
+                    .expected_products
+                    .iter()
+                    .any(|product| product.target_space == "genomic_dna");
+                target_ranges
+                    .iter()
+                    .filter(|_| has_contiguous_expected_product || target_ranges.len() == 1)
+                    .map(|range| {
+                        let (subject_start, subject_end) = match command.role {
+                            PrimerSpecificityPrimerRole::Forward => {
+                                (range.start_1based, range.end_1based)
+                            }
+                            PrimerSpecificityPrimerRole::Reverse => {
+                                (range.end_1based, range.start_1based)
+                            }
+                        };
+                        format!(
+                            "{}\tchr1\t100\t{}\t0\t0\t1\t{}\t{}\t{}\t1e-20\t80\t100\n",
+                            command.query_label,
+                            command.query_length_bp,
+                            command.query_length_bp,
+                            subject_start,
+                            subject_end,
+                        )
+                    })
+                    .collect::<String>()
                     .into_bytes()
-                } else {
-                    vec![]
-                }
             } else {
                 vec![]
             };
@@ -10346,6 +10833,29 @@ fn transcript_assay_panel_specificity_finalization_is_atomic_and_distinguishes_o
     );
 
     let mut engine = transcript_qpcr_panel_test_engine();
+    let panel_source_len = engine
+        .state()
+        .sequences
+        .get("panel_src")
+        .expect("panel source sequence")
+        .len();
+    engine.state_mut().metadata.insert(
+        PROVENANCE_METADATA_KEY.to_string(),
+        serde_json::json!({
+            GENOME_EXTRACTIONS_METADATA_KEY: [
+                {
+                    "seq_id": "panel_src",
+                    "genome_id": "ToyGenome",
+                    "chromosome": "chr1",
+                    "start_1based": 1,
+                    "end_1based": panel_source_len,
+                    "anchor_strand": "+",
+                    "anchor_verified": true,
+                    "recorded_at_unix_ms": 1
+                }
+            ]
+        }),
+    );
     engine
         .apply(Operation::PrepareGenome {
             genome_id: "ToyGenome".to_string(),
@@ -10405,6 +10915,40 @@ fn transcript_assay_panel_specificity_finalization_is_atomic_and_distinguishes_o
     assert_eq!(pass_handoff.assays.len(), pass_handoff.selected_assay_count);
     assert_eq!(pass_handoff.policy_schema, PRIMER_SPECIFICITY_POLICY_SCHEMA);
     assert!(Path::new(&pass_handoff.execution_manifest_template_path).is_file());
+    let planned_panel = engine
+        .get_transcript_assay_panel_report("panel_external_pass")
+        .expect("planned source panel");
+    for planned_assay in &pass_handoff.assays {
+        let selected_assay = planned_panel
+            .selected_assays
+            .iter()
+            .find(|assay| assay.assay_id == planned_assay.assay_id)
+            .expect("planned selected assay");
+        let intended_group_ids = selected_assay
+            .single_product_equivalence_group_ids
+            .iter()
+            .collect::<BTreeSet<_>>();
+        let expected_transcript_ids = planned_panel
+            .equivalence_groups
+            .iter()
+            .filter(|group| intended_group_ids.contains(&group.equivalence_group_id))
+            .flat_map(|group| group.members.iter())
+            .map(|member| member.transcript_id.as_str())
+            .collect::<BTreeSet<_>>();
+        let planned_transcript_ids = planned_assay
+            .handoff
+            .intended_target
+            .expected_products
+            .iter()
+            .filter(|product| product.target_space == "transcriptome_cdna")
+            .map(|product| product.subject_id.as_str())
+            .collect::<BTreeSet<_>>();
+        assert_eq!(
+            planned_assay.handoff.intended_target.model,
+            PrimerSpecificityIntendedTargetModel::TranscriptSet
+        );
+        assert_eq!(planned_transcript_ids, expected_transcript_ids);
+    }
     let pass_manifest = transcript_assay_specificity_execution_manifest(&pass_handoff, true);
     let pass_finalize = execute_shell_command(
         &mut engine,
@@ -10423,7 +10967,9 @@ fn transcript_assay_panel_specificity_finalization_is_atomic_and_distinguishes_o
     .expect("parse aggregate acceptance");
     assert_eq!(
         pass.status,
-        TranscriptAssayPanelSpecificityAcceptanceStatus::Pass
+        TranscriptAssayPanelSpecificityAcceptanceStatus::Pass,
+        "{}",
+        serde_json::to_string_pretty(&pass).expect("serialize failed panel acceptance")
     );
     assert!(pass.accepted);
     assert_eq!(pass.assessed_assay_count, pass.expected_assay_count);
@@ -10444,6 +10990,40 @@ fn transcript_assay_panel_specificity_finalization_is_atomic_and_distinguishes_o
     assert!(persisted_pass.selected_assays.iter().all(|assay| {
         assay.primer_pair_summary.whole_genome_specificity_status == "external_blast_pass"
     }));
+    let genomic_only_readiness = engine
+        .apply(Operation::BuildExperimentalAssayHandoff {
+            panel_report_id: "panel_external_pass".to_string(),
+            policy: ExperimentalAssayReadinessPolicy::default(),
+            variant_evidence_paths: vec![],
+            order_form_id: None,
+            path: None,
+            order_table_path: None,
+        })
+        .expect("build readiness handoff from genomic-only specificity evidence")
+        .experimental_assay_handoff
+        .expect("genomic-only readiness handoff");
+    for card in &genomic_only_readiness.cards {
+        assert_eq!(
+            card.gate_outcomes
+                .iter()
+                .find(|gate| gate.gate == "genomic_carryover")
+                .map(|gate| gate.status),
+            Some(ExperimentalAssayGateStatus::Pass)
+        );
+        assert_eq!(
+            card.gate_outcomes
+                .iter()
+                .find(|gate| gate.gate == "transcriptome_specificity")
+                .map(|gate| gate.status),
+            Some(ExperimentalAssayGateStatus::NotEvaluated)
+        );
+        assert!(
+            card.blockers
+                .iter()
+                .any(|blocker| blocker == "transcriptome_specificity"),
+            "genomic specificity alone must not make an RT-PCR/qPCR assay order-ready"
+        );
+    }
 
     let fail_handoff = engine
         .prepare_transcript_assay_panel_specificity_handoff(
@@ -10472,8 +11052,39 @@ fn transcript_assay_panel_specificity_finalization_is_atomic_and_distinguishes_o
     let persisted_fail = engine
         .get_transcript_assay_panel_report("panel_external_fail")
         .expect("persisted biologically failing panel");
-    assert!(persisted_fail.specificity_acceptance.is_none());
-    assert!(persisted_fail.genomic_specificity_assessments.is_empty());
+    assert_eq!(
+        persisted_fail
+            .specificity_acceptance
+            .as_ref()
+            .map(|acceptance| acceptance.status),
+        Some(TranscriptAssayPanelSpecificityAcceptanceStatus::SpecificityFail)
+    );
+    assert_eq!(
+        persisted_fail.genomic_specificity_assessments.len(),
+        specificity_fail.expected_assay_count
+    );
+    let persisted_failing_assay_ids = persisted_fail
+        .genomic_specificity_assessments
+        .iter()
+        .filter(|assessment| assessment.status == "external_blast_fail")
+        .map(|assessment| assessment.assay_id.as_str())
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        persisted_failing_assay_ids,
+        specificity_fail
+            .failing_assay_ids
+            .iter()
+            .map(String::as_str)
+            .collect::<BTreeSet<_>>()
+    );
+    assert!(!persisted_failing_assay_ids.is_empty());
+    assert!(
+        persisted_fail
+            .genomic_specificity_assessments
+            .iter()
+            .any(|assessment| assessment.status == "external_blast_pass"),
+        "an empty complete genomic search remains a pass for the junction-spanning assay"
+    );
 
     let mut tampered_handoff = fail_handoff.clone();
     tampered_handoff.assays[0]
@@ -10682,6 +11293,8 @@ fn experimental_assay_handoff_links_every_selected_pair_and_records_default_gate
     );
     assert!(handoff.policy.require_critical_qc_pass);
     assert!(handoff.policy.require_specificity_pass);
+    assert!(handoff.policy.require_genomic_carryover_pass);
+    assert!(handoff.policy.require_transcriptome_specificity_pass);
     assert!(!handoff.policy.require_assay_test);
     assert!(!handoff.policy.require_variant_evaluation);
 
@@ -10715,20 +11328,31 @@ fn experimental_assay_handoff_links_every_selected_pair_and_records_default_gate
                 && oligo.sequence_sha256.starts_with("sha256:")
                 && oligo.tube_id.starts_with("O-")
         }));
-        let specificity = card
+        let genomic_carryover = card
             .gate_outcomes
             .iter()
-            .find(|gate| gate.gate == "whole_genome_specificity")
-            .expect("specificity gate");
-        assert!(specificity.required);
+            .find(|gate| gate.gate == "genomic_carryover")
+            .expect("genomic carryover gate");
+        assert!(genomic_carryover.required);
         assert_eq!(
-            specificity.status,
+            genomic_carryover.status,
+            ExperimentalAssayGateStatus::NotEvaluated
+        );
+        assert!(card.blockers.iter().any(|code| code == "genomic_carryover"));
+        let transcriptome_specificity = card
+            .gate_outcomes
+            .iter()
+            .find(|gate| gate.gate == "transcriptome_specificity")
+            .expect("transcriptome specificity gate");
+        assert!(transcriptome_specificity.required);
+        assert_eq!(
+            transcriptome_specificity.status,
             ExperimentalAssayGateStatus::NotEvaluated
         );
         assert!(
             card.blockers
                 .iter()
-                .any(|code| code == "whole_genome_specificity")
+                .any(|code| code == "transcriptome_specificity")
         );
         let variants = card
             .gate_outcomes
@@ -50706,9 +51330,7 @@ fn feature_record_curation_create_preview_apply_and_undo_preserve_record() {
                 strand: FeatureLocationEditStrand::Reverse,
                 qualifiers: proposed_feature.qualifiers.clone(),
                 expected_annotation_state_fingerprint_sha256: Some(
-                    report
-                        .before_annotation_state_fingerprint_sha256
-                        .clone(),
+                    report.before_annotation_state_fingerprint_sha256.clone(),
                 ),
             }),
         })
@@ -50805,8 +51427,8 @@ fn feature_record_curation_rejects_missing_and_stale_annotation_lock() {
 #[test]
 fn feature_record_curation_delete_accepts_complex_location_and_is_undoable() {
     let mut engine = feature_location_edit_engine();
-    let complex_location = gb_io::seq::Location::Complement(Box::new(
-        gb_io::seq::Location::Join(vec![
+    let complex_location =
+        gb_io::seq::Location::Complement(Box::new(gb_io::seq::Location::Join(vec![
             gb_io::seq::Location::Range(
                 (10, gb_io::seq::Before(true)),
                 (20, gb_io::seq::After(false)),
@@ -50815,8 +51437,7 @@ fn feature_record_curation_delete_accepts_complex_location_and_is_undoable() {
                 gb_io::seq::Location::simple_range(30, 40),
                 gb_io::seq::Location::simple_range(50, 60),
             ]),
-        ]),
-    ));
+        ])));
     engine
         .state
         .sequences
@@ -50847,7 +51468,10 @@ fn feature_record_curation_delete_accepts_complex_location_and_is_undoable() {
     };
     assert_eq!(*deleted_feature_index, 1);
     assert_eq!(*shifted_feature_count, 1);
-    assert_eq!(deleted_feature.location_display, complex_location.to_string());
+    assert_eq!(
+        deleted_feature.location_display,
+        complex_location.to_string()
+    );
     assert_eq!(
         engine.state().sequences["seq"].features(),
         &original_features
@@ -50865,7 +51489,11 @@ fn feature_record_curation_delete_accepts_complex_location_and_is_undoable() {
             }),
         })
         .expect_err("stale feature lock rejected");
-    assert!(stale_feature_error.message.contains("changed after preview"));
+    assert!(
+        stale_feature_error
+            .message
+            .contains("changed after preview")
+    );
 
     let applied = engine
         .apply(Operation::ApplyFeatureRecordCuration {
@@ -50899,6 +51527,212 @@ fn feature_record_curation_delete_accepts_complex_location_and_is_undoable() {
         engine.state().sequences["seq"].features()[1],
         original_features[2]
     );
+}
+
+#[test]
+fn feature_record_curation_split_then_merge_is_preview_locked_and_undoable() {
+    let mut engine = feature_location_edit_engine();
+    let original_features = engine.state().sequences["seq"].features().clone();
+    let split_preview = engine
+        .apply(Operation::PreviewFeatureRecordCuration {
+            request: FeatureRecordCurationRequest::Split(FeatureRecordSplitRequest {
+                seq_id: "seq".to_string(),
+                feature_index: 0,
+                split_at_0based: 20,
+                expected_feature_fingerprint_sha256: None,
+                expected_annotation_state_fingerprint_sha256: None,
+            }),
+        })
+        .expect("split preview");
+    let split_report = split_preview
+        .feature_record_curation_report
+        .expect("split report");
+    assert_eq!(split_report.schema, FEATURE_RECORD_CURATION_SCHEMA);
+    assert_eq!(
+        split_report.operation_kind,
+        FeatureRecordCurationKind::Split
+    );
+    let FeatureRecordCurationOutcome::Split {
+        original_feature,
+        genomic_left_feature,
+        genomic_right_feature,
+        resulting_feature_indices,
+        shifted_feature_count,
+        ..
+    } = &split_report.outcome
+    else {
+        panic!("split outcome");
+    };
+    assert_eq!(*resulting_feature_indices, [0, 1]);
+    assert_eq!(*shifted_feature_count, 2);
+    assert_eq!(genomic_left_feature.bounding_start_0based, Some(10));
+    assert_eq!(genomic_left_feature.bounding_end_0based_exclusive, Some(20));
+    assert_eq!(genomic_right_feature.bounding_start_0based, Some(20));
+    assert_eq!(
+        genomic_right_feature.bounding_end_0based_exclusive,
+        Some(30)
+    );
+    assert_eq!(genomic_left_feature.qualifiers, original_feature.qualifiers);
+    assert_eq!(
+        genomic_right_feature.qualifiers,
+        original_feature.qualifiers
+    );
+
+    let split_apply = engine
+        .apply(Operation::ApplyFeatureRecordCuration {
+            request: FeatureRecordCurationRequest::Split(FeatureRecordSplitRequest {
+                seq_id: "seq".to_string(),
+                feature_index: 0,
+                split_at_0based: 20,
+                expected_feature_fingerprint_sha256: Some(
+                    original_feature.feature_fingerprint_sha256.clone(),
+                ),
+                expected_annotation_state_fingerprint_sha256: Some(
+                    split_report
+                        .before_annotation_state_fingerprint_sha256
+                        .clone(),
+                ),
+            }),
+        })
+        .expect("split apply");
+    assert_eq!(split_apply.changed_seq_ids, vec!["seq"]);
+    assert_eq!(engine.state().sequences["seq"].features().len(), 4);
+    assert_eq!(
+        engine.state().sequences["seq"].features()[0].location,
+        gb_io::seq::Location::simple_range(10, 20)
+    );
+    assert_eq!(
+        engine.state().sequences["seq"].features()[1].location,
+        gb_io::seq::Location::simple_range(20, 30)
+    );
+    engine.undo_last_operation().expect("undo split");
+    assert_eq!(
+        engine.state().sequences["seq"].features(),
+        &original_features
+    );
+    engine.redo_last_operation().expect("redo split");
+
+    let merge_preview = engine
+        .apply(Operation::PreviewFeatureRecordCuration {
+            request: FeatureRecordCurationRequest::Merge(FeatureRecordMergeRequest {
+                seq_id: "seq".to_string(),
+                first_feature_index: 0,
+                second_feature_index: 1,
+                expected_first_feature_fingerprint_sha256: None,
+                expected_second_feature_fingerprint_sha256: None,
+                expected_annotation_state_fingerprint_sha256: None,
+            }),
+        })
+        .expect("merge preview");
+    let merge_report = merge_preview
+        .feature_record_curation_report
+        .expect("merge report");
+    let FeatureRecordCurationOutcome::Merge {
+        source_feature_indices,
+        source_features,
+        merged_feature,
+        resulting_feature_index,
+        removed_feature_index,
+        shifted_feature_count,
+    } = &merge_report.outcome
+    else {
+        panic!("merge outcome");
+    };
+    assert_eq!(*source_feature_indices, [0, 1]);
+    assert_eq!(*resulting_feature_index, 0);
+    assert_eq!(*removed_feature_index, 1);
+    assert_eq!(*shifted_feature_count, 2);
+    assert_eq!(merged_feature.location_display, "11..30");
+
+    engine
+        .apply(Operation::ApplyFeatureRecordCuration {
+            request: FeatureRecordCurationRequest::Merge(FeatureRecordMergeRequest {
+                seq_id: "seq".to_string(),
+                first_feature_index: 0,
+                second_feature_index: 1,
+                expected_first_feature_fingerprint_sha256: Some(
+                    source_features[0].feature_fingerprint_sha256.clone(),
+                ),
+                expected_second_feature_fingerprint_sha256: Some(
+                    source_features[1].feature_fingerprint_sha256.clone(),
+                ),
+                expected_annotation_state_fingerprint_sha256: Some(
+                    merge_report
+                        .before_annotation_state_fingerprint_sha256
+                        .clone(),
+                ),
+            }),
+        })
+        .expect("merge apply");
+    assert_eq!(
+        engine.state().sequences["seq"].features(),
+        &original_features
+    );
+    engine.undo_last_operation().expect("undo merge");
+    assert_eq!(engine.state().sequences["seq"].features().len(), 4);
+    engine.redo_last_operation().expect("redo merge");
+    assert_eq!(
+        engine.state().sequences["seq"].features(),
+        &original_features
+    );
+}
+
+#[test]
+fn feature_record_curation_split_and_merge_reject_ambiguous_semantics() {
+    let mut engine = feature_location_edit_engine();
+    let edge_error = engine
+        .apply(Operation::PreviewFeatureRecordCuration {
+            request: FeatureRecordCurationRequest::Split(FeatureRecordSplitRequest {
+                seq_id: "seq".to_string(),
+                feature_index: 0,
+                split_at_0based: 10,
+                expected_feature_fingerprint_sha256: None,
+                expected_annotation_state_fingerprint_sha256: None,
+            }),
+        })
+        .expect_err("edge split rejected");
+    assert!(edge_error.message.contains("strictly inside"));
+
+    let kind_error = engine
+        .apply(Operation::PreviewFeatureRecordCuration {
+            request: FeatureRecordCurationRequest::Merge(FeatureRecordMergeRequest {
+                seq_id: "seq".to_string(),
+                first_feature_index: 0,
+                second_feature_index: 1,
+                expected_first_feature_fingerprint_sha256: None,
+                expected_second_feature_fingerprint_sha256: None,
+                expected_annotation_state_fingerprint_sha256: None,
+            }),
+        })
+        .expect_err("kind mismatch rejected");
+    assert!(kind_error.message.contains("matching kinds"));
+
+    let missing_lock_error = engine
+        .apply(Operation::ApplyFeatureRecordCuration {
+            request: FeatureRecordCurationRequest::Split(FeatureRecordSplitRequest {
+                seq_id: "seq".to_string(),
+                feature_index: 0,
+                split_at_0based: 20,
+                expected_feature_fingerprint_sha256: None,
+                expected_annotation_state_fingerprint_sha256: None,
+            }),
+        })
+        .expect_err("split without preview locks rejected");
+    assert!(missing_lock_error.message.contains("feature fingerprint"));
+
+    let same_index_error = engine
+        .apply(Operation::PreviewFeatureRecordCuration {
+            request: FeatureRecordCurationRequest::Merge(FeatureRecordMergeRequest {
+                seq_id: "seq".to_string(),
+                first_feature_index: 0,
+                second_feature_index: 0,
+                expected_first_feature_fingerprint_sha256: None,
+                expected_second_feature_fingerprint_sha256: None,
+                expected_annotation_state_fingerprint_sha256: None,
+            }),
+        })
+        .expect_err("same-index merge rejected");
+    assert!(same_index_error.message.contains("two distinct"));
 }
 
 #[test]
