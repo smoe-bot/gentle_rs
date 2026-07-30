@@ -1026,7 +1026,10 @@ Implemented collection-lifting baseline:
   copy of the source `contexts[]` registry and `default_context_id`.
 - Domain reports that embed their source resolution by value, such as
   `GeneSetPromoterCohortReport`, inherit the registry through that embedded
-  resolution and do not duplicate a second domain-level registry.
+  resolution and do not duplicate a second domain-level registry. Derivation
+  preserves an existing source resolution `op_id` / `run_id`; only an
+  anonymous inline resolution receives the deriving operation's identity when
+  it is first persisted.
 - Derived members are additional `per_member_status` rows. Their
   `parent_member_id` points to the source member, while
   `produced_report_ids` links both source and descendants to the domain report.
@@ -1544,7 +1547,14 @@ Behavior notes:
   `--r-library-path PATH`. A direct R invocation
   records input path, size, and modification time; execution through
   `arrays run-probe-region-backend` enriches the finalized provenance with
-  Rust-computed SHA-256 input fingerprints.
+  Rust-computed SHA-256 input fingerprints. The selected pdInfo package is
+  installed outside GENtle and normally bundles its own
+  `extdata/<package-name>.sqlite` database. The helper resolves that
+  package-specific database, accepts a differently named file only when it is
+  the sole package-local SQLite candidate, and refuses probeset output when no
+  unambiguous database is available. Transcript-cluster-only output may
+  continue from `netaffxTranscript.rda`, but emits an explicit warning instead
+  of silently implying that probeset coordinates were loaded.
 - `scripts/probe_regions_affy.R` is the matching explicit R/`affy` helper for
   legacy 3' IVT/CDF arrays. It consumes explicit CEL paths, a local CDF package
   or CDF name, optional metadata, optional Bioconductor annotation package, and
@@ -7630,13 +7640,14 @@ Operation progress/cancellation semantics:
   - `pair_constraints` default:
     `{"require_roi_flanking":false,"required_amplicon_motifs":[],"forbidden_amplicon_motifs":[],"fixed_amplicon_start_0based":null,"fixed_amplicon_end_0based_exclusive":null,"rejected_near_miss_limit":null}`
   - `pair_constraints.rejected_near_miss_limit` retains a bounded,
-    deterministic subset of evaluated pair-level rejections:
+    deterministic subset of evaluated rejections:
     - omitted/`null`: `20`
     - `0`: disabled
     - maximum: `100`
-    - supported by `DesignPrimerPairs` and `DesignInsertionPrimerPairs`;
-      `DesignQpcrAssays` rejects a non-null value because its separate qPCR
-      report does not yet carry pair-selection near misses
+    - `DesignPrimerPairs` and `DesignInsertionPrimerPairs` retain pair-level
+      rows
+    - `DesignQpcrAssays` retains evaluated pair/probe assay-level rows; probe
+      candidate-generation failures remain aggregate-only
 - Side constraints (`forward`, `reverse`, and qPCR `probe`) accept optional
   sequence-level filters:
   - `non_annealing_5prime_tail` (added to the final oligo but excluded from
@@ -7720,11 +7731,18 @@ Operation progress/cancellation semantics:
       pair intervals become `ContextEvidence` with report/op/run provenance
     - the graph fingerprint binds the exact primer-design report content, so
       report drift makes graph freshness stale
-    - generic construct-graph refresh never rewrites this report-bound graph;
-      a stale selection graph is refreshed by rerunning `DesignPrimerPairs`
-    - existing `ConstructReasoningOverlay::from_graph()` projects those
-      evidence rows into the linear DNA map; no separate primer-exclusion track
-      or GUI-local scoring is used
+  - region-level biological exclusion sources are not consulted by this
+    selector slice. In particular, no repeat, common-variant, or
+    paralogue-shared interval evidence is emitted, and absence must not be read
+    as checked and clear. Homopolymer diagnostics remain candidate score terms,
+    not a merged excluded-region track.
+    New reports record `excluded_region_analysis_status: not_run` and an
+    explanatory `excluded_region_analysis_reason`; legacy reports omit both.
+  - generic construct-graph refresh never rewrites this report-bound graph; a
+    stale selection graph is refreshed by rerunning `DesignPrimerPairs`.
+  - existing `ConstructReasoningOverlay::from_graph()` projects the evaluated
+    near-miss evidence rows into the linear DNA map; no separate
+    primer-exclusion track or GUI-local scoring is used.
   - mutating artifact materialization per accepted pair:
     - one forward-primer sequence (`..._fwd`)
     - one reverse-primer sequence (`..._rev`)
@@ -8292,6 +8310,34 @@ Simple PCR constraint handoff:
   - `gentle.qpcr_design_report.v1`
   - includes ranked `assays[]` with forward/reverse/probe oligos, amplicon
     window, and rule flags.
+  - each retained assay includes exact additive `score_terms[]` under
+    `score_model = gentle_qpcr_assay_rank_v1` and
+    `score_direction = higher_is_better`:
+    - all inherited primer-pair ranking terms
+    - `probe_tm_offset_from_preferred`, the absolute distance from the
+      preferred probe-minus-primer-mean Tm offset
+    - `probe_amplicon_midpoint_distance`, the absolute probe/amplicon midpoint
+      distance in bases
+    - zero-weight observational terms for probe self-complementarity,
+      probe/primer complementarity, and 3'-anchored probe/primer
+      complementarity; v1 records these diagnostics without changing the
+      established score
+  - `score_decomposition_status` is `pass` when a retained assay has exact
+    terms and `not_run` when no assay was retained.
+  - bounded selection provenance includes:
+    - `rejected_near_misses[]` for evaluated pair/probe combinations rejected
+      by probe placement or Tm checks
+    - `near_miss_capture` with status, scope, requested/effective limit, and
+      eligible/retained/omitted deterministic work counts
+    - a parallel `QpcrDesignRejectionReason` vocabulary with
+      `count_for_reason` reconciliation against the nested primer/probe census
+    - `incomplete` status for Primer3-hidden pair rejection space, internal
+      pair-evaluation truncation, and transcript-local rejections that cannot
+      be projected to source coordinates
+  - `construct_reasoning_graph_id` links the report to a
+    report-content-fingerprinted graph. Retained assays become weighted-rule
+    decisions and bounded coordinate-bearing rejected assays become
+    non-verdict `ContextEvidence`; report drift makes the graph stale.
   - when transcript-aware targeting is active, persisted reports also include:
     - report-level `transcript_targeting`
     - report-level `transcript_targeting_result`
@@ -8318,6 +8364,11 @@ Simple PCR constraint handoff:
     shell/CLI/GUI reopen flows can inspect one compact persisted explanation of
     the current top retained assay without re-deriving it locally.
   - includes qPCR rejection summary with pair-level and probe-level counters.
+  - region-level repeat, variant, and paralogue exclusion evidence remains
+    absent because those sources are not consulted during qPCR selection;
+    absence is `not_run`, never an implied clear result. New reports record
+    `excluded_region_analysis_status: not_run` plus an explanatory
+    `excluded_region_analysis_reason`; legacy reports omit both.
 
 `TestCdnaPcr` / `TestCdnaQpcr` / `TestCdnaQpcrFasta` contract (implemented baseline):
 
@@ -10258,6 +10309,7 @@ RNA-read interpretation contract (Nanopore cDNA phase-1 baseline):
   - `rna-reads export-abundance-tsv REPORT_ID OUTPUT.tsv [--selection all|seed_passed|aligned] [--record-indices i,j,k] [--subset-spec TEXT]`
   - `rna-reads export-dexseq-annotation-gff REPORT_ID OUTPUT.gff`
   - `rna-reads export-dexseq-counts-tsv REPORT_ID OUTPUT.tsv [--selection all|seed_passed|aligned] [--record-indices i,j,k] [--subset-spec TEXT]`
+  - `rna-reads verify-dexseq REPORT_ID OUTPUT.gff OUTPUT.tsv [--selection all|seed_passed|aligned] [--record-indices i,j,k] [--subset-spec TEXT] [--r-library-path PATH ...]`
   - `rna-reads export-score-density-svg REPORT_ID OUTPUT.svg [--scale linear|log] [--variant all_scored|composite_seed_gate]`
   - `rna-reads export-alignments-tsv REPORT_ID OUTPUT.tsv [--selection all|seed_passed|aligned] [--limit N] [--record-indices i,j,k] [--subset-spec TEXT]`
   - `rna-reads export-alignment-dotplot-svg REPORT_ID OUTPUT.svg [--selection all|seed_passed|aligned] [--max-points N]`
@@ -10494,6 +10546,16 @@ RNA-read interpretation contract (Nanopore cDNA phase-1 baseline):
   - special-row diagnostics are independently observed and may overlap
   - use the per-sample count files and shared flattened GFF with
     `DEXSeqDataSetFromHTSeq(countfiles, sampleData, design, flattenedfile)`
+- `VerifyRnaReadDexseqExports` / `rna-reads verify-dexseq` call both existing
+  exporters, then preflight `Rscript` and the Bioconductor `DEXSeq` package
+  without installing anything. When both are present, the bounded
+  `scripts/rna_read_dexseq_verify.R` helper constructs a real
+  `DEXSeqDataSetFromHTSeq()` from the two files. Result schema
+  `gentle.rna_read_dexseq_verification.v1` carries both export summaries,
+  dependency rows, requested/effective R library paths, the reproducible
+  verifier command, `verifier_status`, and an optional `DEXSEQ_OK` stdout
+  summary. Missing dependencies and timeouts remain structured inspection
+  outcomes rather than being mistaken for an accepted DEXSeq pair.
 - cDNA/direct-RNA normalization controls in `seed_filter`:
   - `cdna_poly_t_flip_enabled` (default `true`)
   - `poly_t_prefix_min_bp` (default `18`): minimum T support used by the

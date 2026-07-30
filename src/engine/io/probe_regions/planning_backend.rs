@@ -34,7 +34,7 @@ for (package in packages) {
 "#;
 
 #[derive(Debug)]
-enum ProbeRegionBoundedCommandError {
+pub(crate) enum ProbeRegionBoundedCommandError {
     Spawn {
         kind: std::io::ErrorKind,
         message: String,
@@ -44,9 +44,9 @@ enum ProbeRegionBoundedCommandError {
 }
 
 #[derive(Default)]
-struct ProbeRegionRPackageProbe {
-    dependencies: Vec<ProbeRegionDependencyCheck>,
-    library_paths_checked: Vec<String>,
+pub(crate) struct ProbeRegionRPackageProbe {
+    pub(crate) dependencies: Vec<ProbeRegionDependencyCheck>,
+    pub(crate) library_paths_checked: Vec<String>,
 }
 
 impl GentleEngine {
@@ -2501,7 +2501,7 @@ impl GentleEngine {
         })
     }
 
-    fn probe_region_bounded_command_output(
+    pub(crate) fn probe_region_bounded_command_output(
         program: &str,
         args: &[String],
         timeout: std::time::Duration,
@@ -2575,15 +2575,29 @@ impl GentleEngine {
         required: bool,
         version_args: &[&str],
     ) -> ProbeRegionDependencyCheck {
+        Self::probe_region_command_dependency_with_program(
+            name,
+            name,
+            kind,
+            required,
+            version_args,
+            PROBE_REGION_DEPENDENCY_PROBE_TIMEOUT,
+        )
+    }
+
+    pub(crate) fn probe_region_command_dependency_with_program(
+        name: &str,
+        program: &str,
+        kind: &str,
+        required: bool,
+        version_args: &[&str],
+        timeout: std::time::Duration,
+    ) -> ProbeRegionDependencyCheck {
         let args = version_args
             .iter()
             .map(|arg| (*arg).to_string())
             .collect::<Vec<_>>();
-        match Self::probe_region_bounded_command_output(
-            name,
-            &args,
-            PROBE_REGION_DEPENDENCY_PROBE_TIMEOUT,
-        ) {
+        match Self::probe_region_bounded_command_output(program, &args, timeout) {
             Ok(output) => {
                 let text = if !output.stdout.is_empty() {
                     String::from_utf8_lossy(&output.stdout).to_string()
@@ -2700,7 +2714,7 @@ impl GentleEngine {
         )
     }
 
-    fn probe_region_r_package_dependencies_with_program(
+    pub(crate) fn probe_region_r_package_dependencies_with_program(
         packages: &[(String, bool)],
         rscript_available: bool,
         r_library_paths: &[String],
@@ -2898,6 +2912,43 @@ mod tests {
                 .iter()
                 .map(|package| (*package).to_string())
                 .collect()
+        );
+    }
+
+    #[test]
+    fn probe_region_oligo_resolves_selected_platform_sqlite_before_reading_cel_files() {
+        let script = include_str!("../../../../scripts/probe_regions_oligo.R");
+        assert!(
+            script.contains("expected_name <- paste0(pd_package, \".sqlite\")"),
+            "the selected pdInfo package must determine the expected SQLite filename"
+        );
+        assert!(
+            script.contains("length(sqlite_candidates) == 1"),
+            "one unambiguous package-local SQLite fallback should remain usable"
+        );
+        assert!(
+            script.contains("if (isTRUE(require_probeset))"),
+            "missing probeset annotations must fail when probeset output was requested"
+        );
+        assert!(
+            script.contains("require_probeset = \"probeset\" %in% args$targets"),
+            "the requested output targets must control whether annotations are mandatory"
+        );
+        assert!(
+            !script.contains(
+                "system.file(\"extdata\", \"pd.clariom.d.human.sqlite\", package = pd_package)"
+            ),
+            "the generic helper must not hard-code the Clariom D Human database"
+        );
+        let annotation_check = script
+            .find("annotations <- load_platform_annotations(")
+            .expect("platform annotation preflight");
+        let cel_read = script
+            .find("raw <- oligo::read.celfiles(")
+            .expect("oligo CEL reader");
+        assert!(
+            annotation_check < cel_read,
+            "annotation failure should occur before CEL loading and normalization"
         );
     }
 

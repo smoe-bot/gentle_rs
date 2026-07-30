@@ -468,6 +468,9 @@ fn smoke_command_override(path: &str) -> Option<&'static str> {
         "gene-sets promoter-cohort" => {
             Some("gene-sets promoter-cohort ToyGenome --group yamanaka_factors")
         }
+        "collections run primer-specificity" => Some(
+            "collections run primer-specificity --seq-ids demo --pair-rank 1 --target-genome demo",
+        ),
         "seq-confirm run" => Some("seq-confirm run expected --reads read1"),
         "seq-primer suggest" => Some("seq-primer suggest expected --primers primer1"),
         "rna-reads allele-hash-screen" => Some(
@@ -530,6 +533,7 @@ fn skip_glossary_flag_parse(path: &str, flag: &str) -> bool {
                     "gene-sets promoter-cohort",
                     "--resolution" | "--gene-set-resolution"
                 )
+                | ("collections run primer-specificity", "--pair-index")
                 | (
                     "features tfbs-score-tracks-svg",
                     "--end" | "--output" | "--sequence-text" | "--start"
@@ -38706,6 +38710,29 @@ fn parse_rna_reads_commands() {
                 && selection == RnaReadHitSelection::Aligned
                 && selected_record_indices == vec![6, 8]
                 && subset_spec.as_deref() == Some("filtered_tp53")
+    ));
+
+    let verify_dexseq = parse_shell_line(
+        "rna-reads verify-dexseq tp73_reads dexseq.gff dexseq.tsv --selection aligned --record-indices 6,8 --subset-spec filtered_tp53 --r-library-path .r-lib --r-library-path /opt/R/library",
+    )
+    .expect("parse rna-reads verify-dexseq");
+    assert!(matches!(
+        verify_dexseq,
+        ShellCommand::RnaReadsVerifyDexseq {
+            report_id,
+            gff_path,
+            counts_path,
+            selection,
+            selected_record_indices,
+            subset_spec,
+            r_library_paths,
+        } if report_id == "tp73_reads"
+            && gff_path == "dexseq.gff"
+            && counts_path == "dexseq.tsv"
+            && selection == RnaReadHitSelection::Aligned
+            && selected_record_indices == vec![6, 8]
+            && subset_spec.as_deref() == Some("filtered_tp53")
+            && r_library_paths == vec![".r-lib", "/opt/R/library"]
     ));
 
     let export_score_density = parse_shell_line(

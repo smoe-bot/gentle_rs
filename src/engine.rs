@@ -778,6 +778,7 @@ const RNA_READ_DEXSEQ_ANNOTATION_GFF_EXPORT_SCHEMA: &str =
     "gentle.rna_read_dexseq_annotation_gff_export.v1";
 const RNA_READ_DEXSEQ_COUNTS_TSV_EXPORT_SCHEMA: &str =
     "gentle.rna_read_dexseq_counts_tsv_export.v1";
+const RNA_READ_DEXSEQ_VERIFICATION_SCHEMA: &str = "gentle.rna_read_dexseq_verification.v1";
 const RNA_READ_GENE_SUPPORT_SUMMARY_SCHEMA: &str = "gentle.rna_read_gene_support_summary.v1";
 const RNA_READ_GENE_SUPPORT_AUDIT_SCHEMA: &str = "gentle.rna_read_gene_support_audit.v1";
 const RNA_READ_TARGET_QUALITY_COMPARISON_BUNDLE_SCHEMA: &str =
@@ -843,6 +844,7 @@ const PRIMER_DESIGN_MAX_REJECTED_NEAR_MISS_LIMIT: usize = 100;
 const PRIMER_DESIGN_SCORE_MODEL: &str = "gentle_primer_pair_rank_v1";
 const PRIMER_DESIGN_SCORE_DIRECTION: &str = "higher_is_better";
 const PRIMER_DESIGN_SCORE_SUM_TOLERANCE: f64 = 1.0e-9;
+const QPCR_ASSAY_SCORE_MODEL: &str = "gentle_qpcr_assay_rank_v1";
 const QPCR_PREFERRED_PROBE_TM_OFFSET_C: f64 = 7.5;
 const FEATURE_QUERY_RESULT_SCHEMA: &str = "gentle.sequence_feature_query_result.v1";
 const FEATURE_BED_EXPORT_REPORT_SCHEMA: &str = "gentle.sequence_feature_bed_export.v1";
@@ -5181,6 +5183,19 @@ pub enum Operation {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         subset_spec: Option<String>,
     },
+    VerifyRnaReadDexseqExports {
+        report_id: String,
+        gff_path: String,
+        counts_path: String,
+        #[serde(default)]
+        selection: RnaReadHitSelection,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        selected_record_indices: Vec<usize>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        subset_spec: Option<String>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        r_library_paths: Vec<String>,
+    },
     ExportRnaReadScoreDensitySvg {
         report_id: String,
         path: String,
@@ -5812,6 +5827,23 @@ struct PrimerDesignPairSearchOutcome {
     pairs: Vec<PrimerDesignPairRecord>,
     rejection_summary: PrimerDesignRejectionSummary,
     rejected_near_misses: Vec<PrimerDesignRejectedCandidate>,
+    near_miss_capture: PrimerDesignNearMissCapture,
+}
+
+#[derive(Debug, Default)]
+struct QpcrDesignNearMissCollector {
+    requested_limit: usize,
+    effective_limit: usize,
+    eligible_candidate_count: usize,
+    candidate_comparison_count: usize,
+    rows: Vec<QpcrDesignRejectedCandidate>,
+}
+
+#[derive(Debug, Default)]
+struct QpcrAssaySearchOutcome {
+    assays: Vec<QpcrAssayRecord>,
+    rejection_summary: QpcrDesignRejectionSummary,
+    rejected_near_misses: Vec<QpcrDesignRejectedCandidate>,
     near_miss_capture: PrimerDesignNearMissCapture,
 }
 
@@ -9153,6 +9185,7 @@ impl GentleEngine {
                 | Operation::ExportRnaReadExonAbundanceTsv { .. }
                 | Operation::ExportRnaReadDexseqAnnotationGff { .. }
                 | Operation::ExportRnaReadDexseqCountsTsv { .. }
+                | Operation::VerifyRnaReadDexseqExports { .. }
                 | Operation::ExportRnaReadScoreDensitySvg { .. }
                 | Operation::ExportRnaReadAlignmentsTsv { .. }
                 | Operation::ExportRnaReadIsoformTriageTsv { .. }
@@ -19648,6 +19681,12 @@ impl GentleEngine {
         Ok(sha256_prefixed_str(&report_snapshot))
     }
 
+    fn qpcr_design_report_content_sha256(report: &QpcrDesignReport) -> Result<String, EngineError> {
+        let report_snapshot =
+            Self::construct_reasoning_canonical_json(report, "qPCR-design report")?;
+        Ok(sha256_prefixed_str(&report_snapshot))
+    }
+
     fn construct_reasoning_graph_snapshot_status_for_objective(
         &self,
         graph: &ConstructReasoningGraph,
@@ -19724,28 +19763,50 @@ impl GentleEngine {
                     ],
                 };
             };
-            if source_kind != "primer_design_report" {
-                return ConstructReasoningGraphSnapshotStatus {
-                    freshness: ConstructReasoningGraphFreshness::Unknown,
-                    reasons: vec![format!(
-                        "Graph source-artifact kind '{source_kind}' is not supported for freshness verification."
-                    )],
-                };
-            }
             let report_store = self.read_primer_design_store();
-            let Some(report) = report_store.reports.get(source_id) else {
-                reasons.push(format!(
-                    "Source primer-design report '{source_id}' is no longer stored."
-                ));
-                return ConstructReasoningGraphSnapshotStatus {
-                    freshness: ConstructReasoningGraphFreshness::Stale,
-                    reasons,
-                };
+            let current_sha256 = match source_kind {
+                "primer_design_report" => {
+                    let Some(report) = report_store.reports.get(source_id) else {
+                        reasons.push(format!(
+                            "Source primer-design report '{source_id}' is no longer stored."
+                        ));
+                        return ConstructReasoningGraphSnapshotStatus {
+                            freshness: ConstructReasoningGraphFreshness::Stale,
+                            reasons,
+                        };
+                    };
+                    Self::primer_design_report_content_sha256(report)
+                }
+                "qpcr_design_report" => {
+                    let Some(report) = report_store.qpcr_reports.get(source_id) else {
+                        reasons.push(format!(
+                            "Source qPCR-design report '{source_id}' is no longer stored."
+                        ));
+                        return ConstructReasoningGraphSnapshotStatus {
+                            freshness: ConstructReasoningGraphFreshness::Stale,
+                            reasons,
+                        };
+                    };
+                    Self::qpcr_design_report_content_sha256(report)
+                }
+                _ => {
+                    return ConstructReasoningGraphSnapshotStatus {
+                        freshness: ConstructReasoningGraphFreshness::Unknown,
+                        reasons: vec![format!(
+                            "Graph source-artifact kind '{source_kind}' is not supported for freshness verification."
+                        )],
+                    };
+                }
             };
-            match Self::primer_design_report_content_sha256(report) {
+            match current_sha256 {
                 Ok(current_sha256) if current_sha256 != source_sha256 => {
+                    let source_label = match source_kind {
+                        "primer_design_report" => "primer-design report",
+                        "qpcr_design_report" => "qPCR-design report",
+                        _ => "source artifact",
+                    };
                     reasons.push(format!(
-                        "Source primer-design report '{source_id}' changed after graph generation."
+                        "Source {source_label} '{source_id}' changed after graph generation."
                     ));
                 }
                 Ok(_) => {}
@@ -20038,11 +20099,13 @@ impl GentleEngine {
             target,
         );
         if let Some(graph) = existing.as_ref()
-            && graph
-                .input_fingerprint
-                .as_ref()
-                .and_then(|fingerprint| fingerprint.source_artifact_kind.as_deref())
-                == Some("primer_design_report")
+            && matches!(
+                graph
+                    .input_fingerprint
+                    .as_ref()
+                    .and_then(|fingerprint| fingerprint.source_artifact_kind.as_deref()),
+                Some("primer_design_report" | "qpcr_design_report")
+            )
         {
             let status = self.construct_reasoning_graph_snapshot_status(graph);
             if status.freshness == ConstructReasoningGraphFreshness::Current {
@@ -20051,7 +20114,7 @@ impl GentleEngine {
             return Err(EngineError {
                 code: ErrorCode::InvalidInput,
                 message: format!(
-                    "Primer-selection reasoning graph '{}' is {} and cannot be rebuilt as a generic construct graph; rerun DesignPrimerPairs to refresh its report-bound evidence{}",
+                    "Report-bound primer-selection reasoning graph '{}' is {} and cannot be rebuilt as a generic construct graph; rerun DesignPrimerPairs or DesignQpcrAssays to refresh its report-bound evidence{}",
                     graph.graph_id,
                     status.freshness.as_str(),
                     if status.reasons.is_empty() {

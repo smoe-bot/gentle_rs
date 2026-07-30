@@ -1140,6 +1140,7 @@ fn handle_imported_sequencing_trace_result_selects_trace_and_appends_to_run() {
         rna_read_target_quality_export: None,
         rna_read_batch_map_report: None,
         rna_read_isoform_preflight: None,
+        rna_read_dexseq_verification: None,
         tfbs_region_summary: None,
         tfbs_score_tracks: None,
         tfbs_track_similarity: None,
@@ -4957,6 +4958,7 @@ fn handle_operation_success_captures_protocol_cartoon_preview_payload() {
             rna_read_target_quality_export: None,
             rna_read_batch_map_report: None,
             rna_read_isoform_preflight: None,
+            rna_read_dexseq_verification: None,
             tfbs_region_summary: None,
             tfbs_score_tracks: None,
             tfbs_track_similarity: None,
@@ -6355,6 +6357,7 @@ fn qpcr_preview_geometry_from_assay_tracks_top_assay_lengths() {
         assays: vec![crate::engine::QpcrAssayRecord {
             rank: 1,
             score: 97.2,
+            score_terms: vec![],
             forward: crate::engine::PrimerDesignPrimerRecord {
                 start_0based: 8,
                 end_0based_exclusive: 28,
@@ -6422,6 +6425,110 @@ fn selected_qpcr_assay_rank_defaults_to_first_for_invalid_rank() {
 
     assert_eq!(rank, 1);
     assert_eq!(area.qpcr_design_ui.selected_assay_rank_1based, "1");
+}
+
+#[test]
+fn primer_designer_report_cache_reuses_preview_and_explicit_reopen_refreshes_revision() {
+    let dna = DNAsequence::from_sequence(&"ACGT".repeat(40)).expect("dna");
+    let mut state = ProjectState::default();
+    state.sequences.insert("tpl".to_string(), dna.clone());
+    let primer_report = crate::engine::PrimerDesignReport {
+        schema: "gentle.primer_design_report.v1".to_string(),
+        report_id: "primer_cache".to_string(),
+        template: "tpl".to_string(),
+        generated_at_unix_ms: 11,
+        ..Default::default()
+    };
+    let qpcr_report = crate::engine::QpcrDesignReport {
+        schema: "gentle.qpcr_design_report.v1".to_string(),
+        report_id: "qpcr_cache".to_string(),
+        template: "tpl".to_string(),
+        generated_at_unix_ms: 21,
+        ..Default::default()
+    };
+    state.metadata.insert(
+        crate::engine::PRIMER_DESIGN_REPORTS_METADATA_KEY.to_string(),
+        serde_json::json!({
+            "schema": "gentle.primer_design_reports.v1",
+            "reports": {
+                "primer_cache": primer_report,
+            },
+            "qpcr_reports": {
+                "qpcr_cache": qpcr_report,
+            },
+        }),
+    );
+    let engine = GentleEngine::from_state(state);
+    let engine = Arc::new(RwLock::new(engine));
+    let mut area = MainAreaDna::new(dna, Some("tpl".to_string()), Some(Arc::clone(&engine)));
+
+    assert_eq!(
+        area.load_primer_design_report("primer_cache")
+            .expect("load primer report")
+            .generated_at_unix_ms,
+        11
+    );
+    assert_eq!(
+        area.load_qpcr_design_report("qpcr_cache")
+            .expect("load qPCR report")
+            .generated_at_unix_ms,
+        21
+    );
+    assert_eq!(
+        area.cached_primer_design_report.as_deref().map(|report| (
+            report.schema.as_str(),
+            report.report_id.as_str(),
+            report.generated_at_unix_ms,
+        )),
+        Some(("gentle.primer_design_report.v1", "primer_cache", 11))
+    );
+    assert_eq!(
+        area.cached_qpcr_design_report.as_deref().map(|report| (
+            report.schema.as_str(),
+            report.report_id.as_str(),
+            report.generated_at_unix_ms,
+        )),
+        Some(("gentle.qpcr_design_report.v1", "qpcr_cache", 21))
+    );
+
+    {
+        let mut engine = engine.write().expect("engine write");
+        let store = engine
+            .state_mut()
+            .metadata
+            .get_mut(crate::engine::PRIMER_DESIGN_REPORTS_METADATA_KEY)
+            .expect("primer-design metadata");
+        store["reports"]["primer_cache"]["generated_at_unix_ms"] = serde_json::json!(12);
+        store["qpcr_reports"]["qpcr_cache"]["generated_at_unix_ms"] = serde_json::json!(22);
+    }
+
+    assert_eq!(
+        area.load_primer_design_report("primer_cache")
+            .expect("reuse cached primer report")
+            .generated_at_unix_ms,
+        11
+    );
+    assert_eq!(
+        area.load_qpcr_design_report("qpcr_cache")
+            .expect("reuse cached qPCR report")
+            .generated_at_unix_ms,
+        21
+    );
+
+    area.show_primer_design_report("primer_cache");
+    area.show_qpcr_design_report("qpcr_cache");
+    assert_eq!(
+        area.cached_primer_design_report
+            .as_deref()
+            .map(|report| report.generated_at_unix_ms),
+        Some(12)
+    );
+    assert_eq!(
+        area.cached_qpcr_design_report
+            .as_deref()
+            .map(|report| report.generated_at_unix_ms),
+        Some(22)
+    );
 }
 
 #[test]

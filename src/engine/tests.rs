@@ -7670,6 +7670,15 @@ fn primer_selection_provenance_is_bounded_visible_and_report_fingerprinted() {
     );
     assert_eq!(report.score_model, PRIMER_DESIGN_SCORE_MODEL);
     assert_eq!(report.score_direction, PRIMER_DESIGN_SCORE_DIRECTION);
+    assert_eq!(
+        report.excluded_region_analysis_status,
+        Some(PrimerPairCharacterizationStatus::NotRun)
+    );
+    assert!(
+        report
+            .excluded_region_analysis_reason
+            .contains("did not consult")
+    );
     assert!(report.pairs.iter().all(|pair| {
         let sum = pair
             .score_terms
@@ -7757,6 +7766,7 @@ fn primer_selection_provenance_is_bounded_visible_and_report_fingerprinted() {
         row.context_tags
             .iter()
             .any(|tag| tag == "rejected_near_miss")
+            && !row.context_tags.iter().any(|tag| tag == "excluded_region")
     }));
     assert_eq!(
         engine
@@ -7816,6 +7826,8 @@ fn old_primer_design_report_payload_defaults_selection_provenance_fields() {
     assert!(report.score_direction.is_empty());
     assert!(report.rejected_near_misses.is_empty());
     assert!(report.near_miss_capture.is_none());
+    assert!(report.excluded_region_analysis_status.is_none());
+    assert!(report.excluded_region_analysis_reason.is_empty());
     assert!(report.construct_reasoning_graph_id.is_none());
 
     let serialized = serde_json::to_value(report).expect("serialize legacy report");
@@ -7826,6 +7838,8 @@ fn old_primer_design_report_payload_defaults_selection_provenance_fields() {
         "score_direction",
         "rejected_near_misses",
         "near_miss_capture",
+        "excluded_region_analysis_status",
+        "excluded_region_analysis_reason",
         "construct_reasoning_graph_id",
     ] {
         assert!(
@@ -7835,36 +7849,284 @@ fn old_primer_design_report_payload_defaults_selection_provenance_fields() {
     }
 }
 
-#[test]
-fn qpcr_design_rejects_primer_report_near_miss_capture_option() {
+fn qpcr_selection_provenance_engine() -> GentleEngine {
     let mut state = ProjectState::default();
-    state
-        .sequences
-        .insert("qpcr_near_miss_tpl".to_string(), seq(&"ACGT".repeat(40)));
+    state.sequences.insert(
+        "qpcr_near_miss_tpl".to_string(),
+        seq(
+            "ACGTTGCATGTCAGTACGATCGTACGTAGCTAGTCGATCGTACGATCGTAGCTAGCATCGATGCTAGCTAGTACGTAGCATCGATCGTAGCTAGCATGCTAGCTAGTCGATCGATCGTACGATCG",
+        ),
+    );
     let mut engine = GentleEngine::from_state(state);
-    let error = engine
-        .apply(Operation::DesignQpcrAssays {
-            template: "qpcr_near_miss_tpl".to_string(),
-            roi_start_0based: 40,
-            roi_end_0based: 80,
-            forward: PrimerDesignSideConstraint::default(),
-            reverse: PrimerDesignSideConstraint::default(),
-            probe: PrimerDesignSideConstraint::default(),
-            pair_constraints: PrimerDesignPairConstraint {
-                rejected_near_miss_limit: Some(5),
-                ..PrimerDesignPairConstraint::default()
-            },
-            min_amplicon_bp: 40,
-            max_amplicon_bp: 120,
-            max_tm_delta_c: None,
-            max_probe_tm_delta_c: None,
-            max_assays: None,
-            transcript_targeting: None,
-            report_id: Some("unsupported_qpcr_near_miss".to_string()),
-        })
-        .expect_err("qPCR report does not carry primer-pair near misses");
-    assert_eq!(error.code, ErrorCode::InvalidInput);
-    assert!(error.message.contains("not DesignQpcrAssays"));
+    engine.state_mut().parameters.primer_design_backend = PrimerDesignBackend::Internal;
+    engine
+}
+
+fn qpcr_selection_provenance_operation(
+    report_id: &str,
+    rejected_near_miss_limit: usize,
+) -> Operation {
+    let side = PrimerDesignSideConstraint {
+        min_length: 20,
+        max_length: 20,
+        min_tm_c: 0.0,
+        max_tm_c: 100.0,
+        min_gc_fraction: 0.0,
+        max_gc_fraction: 1.0,
+        max_anneal_hits: 1000,
+        ..PrimerDesignSideConstraint::default()
+    };
+    Operation::DesignQpcrAssays {
+        template: "qpcr_near_miss_tpl".to_string(),
+        roi_start_0based: 40,
+        roi_end_0based: 80,
+        forward: PrimerDesignSideConstraint {
+            location_0based: Some(5),
+            ..side.clone()
+        },
+        reverse: PrimerDesignSideConstraint {
+            location_0based: Some(90),
+            ..side.clone()
+        },
+        probe: side,
+        pair_constraints: PrimerDesignPairConstraint {
+            rejected_near_miss_limit: Some(rejected_near_miss_limit),
+            ..PrimerDesignPairConstraint::default()
+        },
+        min_amplicon_bp: 40,
+        max_amplicon_bp: 150,
+        max_tm_delta_c: Some(100.0),
+        max_probe_tm_delta_c: Some(100.0),
+        max_assays: Some(10),
+        transcript_targeting: None,
+        report_id: Some(report_id.to_string()),
+    }
+}
+
+#[test]
+fn qpcr_selection_provenance_is_additive_bounded_and_report_fingerprinted() {
+    let mut without_capture = qpcr_selection_provenance_engine();
+    without_capture
+        .apply(qpcr_selection_provenance_operation(
+            "qpcr_provenance_disabled",
+            0,
+        ))
+        .expect("qPCR design without rejected-candidate capture");
+    let without_capture_report = without_capture
+        .get_qpcr_design_report("qpcr_provenance_disabled")
+        .expect("qPCR report without capture");
+    assert!(without_capture_report.rejected_near_misses.is_empty());
+    assert_eq!(
+        without_capture_report
+            .near_miss_capture
+            .as_ref()
+            .expect("disabled qPCR capture metadata")
+            .status,
+        PrimerPairCharacterizationStatus::NotRun
+    );
+
+    let mut engine = qpcr_selection_provenance_engine();
+    let result = engine
+        .apply(qpcr_selection_provenance_operation(
+            "qpcr_provenance_captured",
+            5,
+        ))
+        .expect("qPCR design with rejected-candidate capture");
+    let report = engine
+        .get_qpcr_design_report("qpcr_provenance_captured")
+        .expect("captured qPCR report");
+
+    assert!(!report.assays.is_empty());
+    assert_eq!(
+        serde_json::to_value(&report.assays).unwrap(),
+        serde_json::to_value(&without_capture_report.assays).unwrap(),
+        "qPCR near-miss capture must not affect selected assay ranks or scores"
+    );
+    assert_eq!(
+        report.score_decomposition_status,
+        PrimerPairCharacterizationStatus::Pass
+    );
+    assert_eq!(report.score_model, QPCR_ASSAY_SCORE_MODEL);
+    assert_eq!(report.score_direction, PRIMER_DESIGN_SCORE_DIRECTION);
+    assert_eq!(
+        report.excluded_region_analysis_status,
+        Some(PrimerPairCharacterizationStatus::NotRun)
+    );
+    assert!(
+        report
+            .excluded_region_analysis_reason
+            .contains("did not consult")
+    );
+    assert!(report.assays.iter().all(|assay| {
+        let sum = assay
+            .score_terms
+            .iter()
+            .map(|term| term.contribution)
+            .sum::<f64>();
+        !assay.score_terms.is_empty()
+            && (assay.score - sum).abs()
+                <= PRIMER_DESIGN_SCORE_SUM_TOLERANCE * assay.score.abs().max(1.0)
+    }));
+    for required_term in [
+        "probe_tm_offset_from_preferred",
+        "probe_amplicon_midpoint_distance",
+        "probe_self_complementarity_observed",
+        "probe_primer_complementarity_observed",
+        "probe_primer_three_prime_complementarity_observed",
+    ] {
+        assert!(
+            report.assays[0]
+                .score_terms
+                .iter()
+                .any(|term| term.term == required_term),
+            "missing qPCR score term {required_term}"
+        );
+    }
+    assert!(report.assays[0].score_terms.iter().any(|term| {
+        term.term == "probe_primer_complementarity_observed"
+            && term.weight == 0.0
+            && term.contribution == 0.0
+    }));
+
+    let capture = report
+        .near_miss_capture
+        .as_ref()
+        .expect("qPCR capture metadata");
+    assert_eq!(capture.status, PrimerPairCharacterizationStatus::Pass);
+    assert_eq!(capture.effective_limit, 5);
+    assert_eq!(capture.retained_candidate_count, 5);
+    assert!(capture.eligible_candidate_count > capture.retained_candidate_count);
+    assert_eq!(
+        capture.omitted_candidate_count,
+        capture
+            .eligible_candidate_count
+            .saturating_sub(capture.retained_candidate_count)
+    );
+    assert_eq!(report.rejected_near_misses.len(), 5);
+    for reason in [
+        QpcrDesignRejectionReason::PrimerOutOfWindow,
+        QpcrDesignRejectionReason::PrimerGcOrTmOutOfBounds,
+        QpcrDesignRejectionReason::PrimerNonUniqueAnneal,
+        QpcrDesignRejectionReason::PrimerAmpliconOrRoiFailure,
+        QpcrDesignRejectionReason::PrimerConstraintFailure,
+        QpcrDesignRejectionReason::PrimerPairConstraintFailure,
+        QpcrDesignRejectionReason::PrimerPairEvaluationLimitSkipped,
+        QpcrDesignRejectionReason::ProbeOutOfWindow,
+        QpcrDesignRejectionReason::ProbeGcOrTmOutOfBounds,
+        QpcrDesignRejectionReason::ProbeNonUniqueAnneal,
+        QpcrDesignRejectionReason::ProbeOrAssayFailure,
+    ] {
+        let retained_for_reason = report
+            .rejected_near_misses
+            .iter()
+            .filter(|row| row.reasons.contains(&reason))
+            .count();
+        assert!(
+            report.rejection_summary.count_for_reason(reason) >= retained_for_reason,
+            "retained qPCR rows cannot exceed the authoritative rejection census"
+        );
+    }
+
+    let graph = result
+        .construct_reasoning_graph
+        .as_deref()
+        .expect("qPCR operation result reasoning graph");
+    assert_eq!(
+        report.construct_reasoning_graph_id.as_deref(),
+        Some(graph.graph_id.as_str())
+    );
+    assert_eq!(graph.decisions.len(), report.assays.len());
+    assert_eq!(
+        graph.annotation_candidates.len(),
+        report.rejected_near_misses.len()
+    );
+    let overlay = crate::dna_display::ConstructReasoningOverlay::from_graph(graph);
+    assert_eq!(overlay.evidence.len(), report.rejected_near_misses.len());
+    assert!(overlay.evidence.iter().all(|row| {
+        row.context_tags
+            .iter()
+            .any(|tag| tag == "rejected_near_miss")
+            && !row.context_tags.iter().any(|tag| tag == "excluded_region")
+    }));
+    assert!(graph.decisions.iter().all(|decision| {
+        decision.parameters_json["score_model"].as_str() == Some(QPCR_ASSAY_SCORE_MODEL)
+            && decision.parameters_json["score_terms"].is_array()
+            && decision.parameters_json["excluded_region_analysis_status"].as_str()
+                == Some("not_run")
+    }));
+    assert_eq!(
+        engine
+            .construct_reasoning_graph_snapshot_status(graph)
+            .freshness,
+        ConstructReasoningGraphFreshness::Current
+    );
+
+    let mut store = engine.read_primer_design_store();
+    store
+        .qpcr_reports
+        .get_mut("qpcr_provenance_captured")
+        .expect("mutable qPCR source report")
+        .assays[0]
+        .score += 0.25;
+    engine
+        .write_primer_design_store(store)
+        .expect("mutate qPCR source report");
+    let stale = engine.construct_reasoning_graph_snapshot_status(graph);
+    assert_eq!(stale.freshness, ConstructReasoningGraphFreshness::Stale);
+    assert!(
+        stale
+            .reasons
+            .iter()
+            .any(|reason| reason.contains("qPCR-design report") && reason.contains("changed"))
+    );
+    let refresh_error = engine
+        .refresh_construct_reasoning_graph_for_seq_id("qpcr_near_miss_tpl")
+        .expect_err("stale qPCR report-bound graph must not become a generic graph");
+    assert!(refresh_error.message.contains("DesignQpcrAssays"));
+}
+
+#[test]
+fn old_qpcr_design_report_payload_defaults_selection_provenance_fields() {
+    let old_payload = json!({
+        "schema": QPCR_DESIGN_REPORT_SCHEMA,
+        "report_id": "legacy_qpcr_report",
+        "template": "legacy_template",
+        "assay_count": 0,
+        "assays": [],
+        "rejection_summary": {}
+    });
+    let report: QpcrDesignReport =
+        serde_json::from_value(old_payload).expect("deserialize legacy qPCR report");
+    assert_eq!(
+        report.score_decomposition_status,
+        PrimerPairCharacterizationStatus::NotRun
+    );
+    assert!(report.score_decomposition_reason.is_empty());
+    assert!(report.score_model.is_empty());
+    assert!(report.score_direction.is_empty());
+    assert!(report.rejected_near_misses.is_empty());
+    assert!(report.near_miss_capture.is_none());
+    assert!(report.excluded_region_analysis_status.is_none());
+    assert!(report.excluded_region_analysis_reason.is_empty());
+    assert!(report.construct_reasoning_graph_id.is_none());
+
+    let serialized = serde_json::to_value(report).expect("serialize legacy qPCR report");
+    for absent in [
+        "score_decomposition_status",
+        "score_decomposition_reason",
+        "score_model",
+        "score_direction",
+        "rejected_near_misses",
+        "near_miss_capture",
+        "excluded_region_analysis_status",
+        "excluded_region_analysis_reason",
+        "construct_reasoning_graph_id",
+    ] {
+        assert!(
+            serialized.get(absent).is_none(),
+            "default additive qPCR field '{absent}' should stay absent"
+        );
+    }
 }
 
 #[test]
@@ -13062,6 +13324,26 @@ fn transcript_assay_panel_groups_only_byte_identical_cdna_and_persists_matrix() 
             && assay.probe.is_some()
             && assay.assay.is_some()
     }));
+    assert!(report.selected_assays.iter().all(|selected| {
+        selected.assay.as_ref().is_some_and(|assay| {
+            let score_from_terms = assay
+                .score_terms
+                .iter()
+                .map(|term| term.contribution)
+                .sum::<f64>();
+            !assay.score_terms.is_empty()
+                && (assay.score - score_from_terms).abs()
+                    <= PRIMER_DESIGN_SCORE_SUM_TOLERANCE * assay.score.abs().max(1.0)
+                && assay
+                    .score_terms
+                    .iter()
+                    .any(|term| term.term == "probe_tm_offset_from_preferred")
+                && assay
+                    .score_terms
+                    .iter()
+                    .any(|term| term.term == "probe_amplicon_midpoint_distance")
+        })
+    }));
     assert!(
         report
             .backend_runs
@@ -15232,6 +15514,13 @@ fn test_design_qpcr_assays_transcript_aware_either_falls_back_to_unique_exon_cha
         targeting_result.realized_specificity_evidence,
         Some(QpcrTranscriptSpecificityEvidence::UniqueExonOrChain)
     );
+    let capture = report
+        .near_miss_capture
+        .as_ref()
+        .expect("transcript-aware qPCR capture metadata");
+    assert_eq!(capture.status, PrimerPairCharacterizationStatus::Incomplete);
+    assert!(capture.reason.contains("transcript-local"));
+    assert!(report.rejected_near_misses.is_empty());
     assert!(!report.assays.is_empty());
     assert!(report.assays.iter().all(|assay| {
         assay.transcript_context.as_ref().is_some_and(|context| {
@@ -37291,7 +37580,7 @@ fn test_build_lineage_svg_graph_projects_gene_set_artifacts() {
         .clone()
         .expect("gene-set resolution");
 
-    engine
+    let promoter_result = engine
         .apply(Operation::BuildGeneSetPromoterCohort {
             genome_id: "ToyGenome".to_string(),
             source: None,
@@ -37307,12 +37596,38 @@ fn test_build_lineage_svg_graph_projects_gene_set_artifacts() {
             path: None,
         })
         .expect("build lineage promoter cohort");
+    let promoter_cohort = promoter_result
+        .gene_set_promoter_cohort
+        .as_ref()
+        .expect("promoter cohort report");
+    assert_eq!(
+        promoter_cohort.gene_set_resolution.op_id,
+        resolution.op_id,
+        "derivation must retain the persisted source report identity"
+    );
+    assert_ne!(
+        promoter_cohort.gene_set_resolution.op_id.as_deref(),
+        Some(promoter_result.op_id.as_str()),
+        "the derived operation must not replace an existing source report identity"
+    );
 
     let (nodes, edges) = build_lineage_svg_graph(engine.state(), engine.operation_log());
+    let source_gene_set_node_id = format!(
+        "gene_set:{}",
+        GentleEngine::gene_set_resolution_artifact_id(&resolution)
+    );
     let gene_set_node = nodes
         .iter()
-        .find(|node| node.kind == LineageSvgNodeKind::GeneSet)
+        .find(|node| node.node_id == source_gene_set_node_id)
         .expect("gene-set lineage node");
+    assert_eq!(
+        nodes
+            .iter()
+            .filter(|node| node.kind == LineageSvgNodeKind::GeneSet)
+            .count(),
+        1,
+        "one persisted gene set must project to one lineage node"
+    );
     assert_ne!(gene_set_node.kind, LineageSvgNodeKind::Sequence);
     assert_eq!(gene_set_node.title, "Lineage panel");
     assert!(gene_set_node.subtitle.contains("members=2"));
@@ -37347,7 +37662,7 @@ fn test_build_lineage_svg_graph_projects_gene_set_artifacts() {
     let (reloaded_nodes, reloaded_edges) = build_lineage_svg_graph(&reloaded_state, &[]);
     let reloaded_gene_set_node = reloaded_nodes
         .iter()
-        .find(|node| node.kind == LineageSvgNodeKind::GeneSet)
+        .find(|node| node.node_id == source_gene_set_node_id)
         .expect("reloaded gene-set node");
     assert_eq!(reloaded_gene_set_node.title, "Lineage panel");
     assert!(reloaded_edges.iter().any(|edge| {
@@ -42030,6 +42345,292 @@ fn test_export_rna_read_exon_abundance_skips_intra_exon_bin_edges() {
     assert!(abundance_text.contains("\texon\t16\t"));
     assert!(abundance_text.contains("\ttransition\t\t15\t16\t"));
     assert!(!abundance_text.contains("\ttransition\t\t13\t15\t"));
+}
+
+fn rna_read_dexseq_verification_test_engine() -> GentleEngine {
+    let mut engine = GentleEngine::default();
+    engine
+        .upsert_rna_read_report(RnaReadInterpretationReport {
+            schema: "gentle.rna_read_report.v1".to_string(),
+            report_id: "dexseq_verification_test".to_string(),
+            seq_id: "dexseq_verification_seq".to_string(),
+            exonic_part_bins: vec![
+                RnaReadExonicPartBin {
+                    global_ordinal: 1,
+                    gene_id: "GENE1".to_string(),
+                    exonic_part_number: 1,
+                    start_1based: 10,
+                    end_1based: 20,
+                    strand: "+".to_string(),
+                    transcripts: vec!["TX1".to_string()],
+                    constitutive: true,
+                },
+                RnaReadExonicPartBin {
+                    global_ordinal: 2,
+                    gene_id: "GENE1".to_string(),
+                    exonic_part_number: 2,
+                    start_1based: 30,
+                    end_1based: 40,
+                    strand: "+".to_string(),
+                    transcripts: vec!["TX1".to_string()],
+                    constitutive: true,
+                },
+            ],
+            hits: vec![RnaReadInterpretationHit {
+                record_index: 0,
+                header_id: "read_both_parts".to_string(),
+                passed_seed_filter: true,
+                exon_path: "1:2".to_string(),
+                best_mapping: Some(RnaReadMappingHit::default()),
+                ..RnaReadInterpretationHit::default()
+            }],
+            ..RnaReadInterpretationReport::default()
+        })
+        .expect("persist synthetic DEXSeq verification report");
+    engine
+}
+
+#[cfg(unix)]
+fn write_fake_dexseq_rscript(dir: &Path, body: &str) -> PathBuf {
+    let path = dir.join("Rscript");
+    fs::write(&path, format!("#!/bin/sh\n{body}\n")).expect("write fake DEXSeq Rscript");
+    let mut permissions = fs::metadata(&path)
+        .expect("fake DEXSeq Rscript metadata")
+        .permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(&path, permissions).expect("enable fake DEXSeq Rscript");
+    path
+}
+
+fn declared_r_packages(script: &str) -> BTreeSet<String> {
+    let line = script
+        .lines()
+        .find(|line| line.trim_start().starts_with("required_packages <- c("))
+        .expect("required_packages declaration");
+    let mut packages = BTreeSet::new();
+    let mut rest = line;
+    while let Some(start) = rest.find('"') {
+        rest = &rest[start + 1..];
+        let end = rest.find('"').expect("closing package quote");
+        packages.insert(rest[..end].to_string());
+        rest = &rest[end + 1..];
+    }
+    packages
+}
+
+#[test]
+fn test_rna_read_dexseq_verifier_r_package_contract_matches_helper() {
+    let declared = declared_r_packages(include_str!("../../scripts/rna_read_dexseq_verify.R"));
+    assert_eq!(
+        declared,
+        crate::engine::rna_reads::RNA_READ_DEXSEQ_VERIFY_REQUIRED_R_PACKAGES
+            .iter()
+            .map(|package| (*package).to_string())
+            .collect()
+    );
+}
+
+#[test]
+fn test_rna_read_dexseq_verification_operation_round_trips() {
+    let operation = Operation::VerifyRnaReadDexseqExports {
+        report_id: "reads".to_string(),
+        gff_path: "out.gff".to_string(),
+        counts_path: "out.tsv".to_string(),
+        selection: RnaReadHitSelection::Aligned,
+        selected_record_indices: vec![3, 5],
+        subset_spec: Some("reviewed subset".to_string()),
+        r_library_paths: vec![".r-lib".to_string(), "/opt/R/library".to_string()],
+    };
+    let encoded = serde_json::to_value(&operation).expect("serialize DEXSeq verification op");
+    let decoded: Operation =
+        serde_json::from_value(encoded).expect("deserialize DEXSeq verification op");
+
+    assert!(matches!(
+        decoded,
+        Operation::VerifyRnaReadDexseqExports {
+            report_id,
+            gff_path,
+            counts_path,
+            selection,
+            selected_record_indices,
+            subset_spec,
+            r_library_paths,
+        } if report_id == "reads"
+            && gff_path == "out.gff"
+            && counts_path == "out.tsv"
+            && selection == RnaReadHitSelection::Aligned
+            && selected_record_indices == vec![3, 5]
+            && subset_spec.as_deref() == Some("reviewed subset")
+            && r_library_paths == vec![".r-lib", "/opt/R/library"]
+    ));
+}
+
+#[cfg(unix)]
+#[test]
+fn test_rna_read_dexseq_verifier_uses_fake_rscript_and_returns_summary() {
+    let engine = rna_read_dexseq_verification_test_engine();
+    let td = tempdir().expect("tempdir");
+    let r_library = td.path().join("r-library");
+    fs::create_dir(&r_library).expect("create R library");
+    let rscript = write_fake_dexseq_rscript(
+        td.path(),
+        &format!(
+            "if [ \"$1\" = \"--version\" ]; then\n  echo 'Rscript (R) version 4.4.1'\nelif [ \"$1\" = \"--vanilla\" ]; then\n  printf 'LIBPATH\\t{}\\nPACKAGE\\tDEXSeq\\t1.52.0\\n'\nelse\n  echo 'DEXSEQ_OK genes=1 exonic_parts=2 total_counts=2'\nfi",
+            r_library.display()
+        ),
+    );
+    let gff_path = td.path().join("verified.gff");
+    let counts_path = td.path().join("verified.tsv");
+
+    let verification = engine
+        .verify_rna_read_dexseq_exports_with_program(
+            "dexseq_verification_test",
+            gff_path.to_str().expect("GFF path"),
+            counts_path.to_str().expect("counts path"),
+            RnaReadHitSelection::All,
+            &[],
+            Some("all synthetic reads"),
+            &[r_library.display().to_string()],
+            rscript.to_str().expect("Rscript path"),
+            Duration::from_secs(10),
+            Duration::from_secs(10),
+        )
+        .expect("verify DEXSeq exports");
+
+    assert_eq!(
+        verification.schema,
+        "gentle.rna_read_dexseq_verification.v1"
+    );
+    assert_eq!(verification.verifier_status, "verified");
+    assert_eq!(
+        verification.verifier_stdout_summary.as_deref(),
+        Some("DEXSEQ_OK genes=1 exonic_parts=2 total_counts=2")
+    );
+    assert_eq!(
+        verification
+            .dependency_checks
+            .iter()
+            .map(|row| (row.name.as_str(), row.status.as_str()))
+            .collect::<Vec<_>>(),
+        vec![("Rscript", "present"), ("DEXSeq", "present")]
+    );
+    assert!(
+        verification
+            .command
+            .contains("Rscript scripts/rna_read_dexseq_verify.R")
+    );
+    assert!(
+        verification
+            .command
+            .contains(&r_library.display().to_string())
+    );
+    assert!(gff_path.is_file());
+    assert!(counts_path.is_file());
+}
+
+#[cfg(unix)]
+#[test]
+fn test_rna_read_dexseq_verifier_reports_missing_package_without_running_helper() {
+    let engine = rna_read_dexseq_verification_test_engine();
+    let td = tempdir().expect("tempdir");
+    let rscript = write_fake_dexseq_rscript(
+        td.path(),
+        "if [ \"$1\" = \"--version\" ]; then\n  echo 'Rscript (R) version 4.4.1'\nelif [ \"$1\" = \"--vanilla\" ]; then\n  printf 'PACKAGE\\tDEXSeq\\tMISSING\\n'\nelse\n  echo 'verifier must not run' >&2\n  exit 97\nfi",
+    );
+
+    let verification = engine
+        .verify_rna_read_dexseq_exports_with_program(
+            "dexseq_verification_test",
+            td.path().join("missing.gff").to_str().expect("GFF path"),
+            td.path().join("missing.tsv").to_str().expect("counts path"),
+            RnaReadHitSelection::All,
+            &[],
+            None,
+            &[],
+            rscript.to_str().expect("Rscript path"),
+            Duration::from_secs(10),
+            Duration::from_secs(10),
+        )
+        .expect("inspect missing DEXSeq dependency");
+
+    assert_eq!(verification.verifier_status, "dependency_missing");
+    let dexseq = verification
+        .dependency_checks
+        .iter()
+        .find(|row| row.name == "DEXSeq")
+        .expect("DEXSeq dependency row");
+    assert_eq!(dexseq.status, "missing");
+    assert!(verification.verifier_stdout_summary.is_none());
+}
+
+#[cfg(unix)]
+#[test]
+fn test_rna_read_dexseq_verifier_execution_is_bounded() {
+    let engine = rna_read_dexseq_verification_test_engine();
+    let td = tempdir().expect("tempdir");
+    let rscript = write_fake_dexseq_rscript(
+        td.path(),
+        "if [ \"$1\" = \"--version\" ]; then\n  echo 'Rscript (R) version 4.4.1'\nelif [ \"$1\" = \"--vanilla\" ]; then\n  printf 'PACKAGE\\tDEXSeq\\t1.52.0\\n'\nelse\n  while :; do :; done\nfi",
+    );
+
+    let verification = engine
+        .verify_rna_read_dexseq_exports_with_program(
+            "dexseq_verification_test",
+            td.path().join("timeout.gff").to_str().expect("GFF path"),
+            td.path().join("timeout.tsv").to_str().expect("counts path"),
+            RnaReadHitSelection::All,
+            &[],
+            None,
+            &[],
+            rscript.to_str().expect("Rscript path"),
+            Duration::from_secs(10),
+            Duration::from_millis(250),
+        )
+        .expect("bound DEXSeq verifier");
+
+    assert_eq!(verification.verifier_status, "verification_timed_out");
+    assert!(
+        verification
+            .dependency_checks
+            .iter()
+            .all(|row| row.status == "present")
+    );
+    assert!(
+        verification
+            .command
+            .contains("Rscript scripts/rna_read_dexseq_verify.R")
+    );
+    assert!(
+        verification
+            .verifier_detail
+            .as_deref()
+            .is_some_and(|detail| detail.contains("timed out"))
+    );
+}
+
+#[test]
+#[ignore = "requires a local R installation with the Bioconductor DEXSeq package"]
+fn test_rna_read_dexseq_verifier_with_real_rscript() {
+    let engine = rna_read_dexseq_verification_test_engine();
+    let td = tempdir().expect("tempdir");
+    let verification = engine
+        .verify_rna_read_dexseq_exports(
+            "dexseq_verification_test",
+            td.path().join("real.gff").to_str().expect("GFF path"),
+            td.path().join("real.tsv").to_str().expect("counts path"),
+            RnaReadHitSelection::All,
+            &[],
+            Some("all synthetic reads"),
+            &[],
+        )
+        .expect("run real DEXSeq verification");
+
+    assert_eq!(
+        verification.verifier_status,
+        "verified",
+        "{}",
+        verification.verifier_detail.as_deref().unwrap_or_default()
+    );
 }
 
 #[test]

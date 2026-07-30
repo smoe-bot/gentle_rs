@@ -810,6 +810,7 @@ RNA-read interpretation capability status (Nanopore cDNA phase-1):
   - `rna-reads export-abundance-tsv`
   - `rna-reads export-dexseq-annotation-gff`
   - `rna-reads export-dexseq-counts-tsv`
+  - `rna-reads verify-dexseq`
   - `rna-reads export-score-density-svg`
   - `rna-reads export-alignments-tsv`
   - `rna-reads export-isoform-triage-tsv`
@@ -823,6 +824,7 @@ RNA-read interpretation capability status (Nanopore cDNA phase-1):
   `ExportRnaReadTargetQuality`,
   `ExportRnaReadExonPathsTsv`, `ExportRnaReadExonAbundanceTsv`,
   `ExportRnaReadDexseqAnnotationGff`, `ExportRnaReadDexseqCountsTsv`,
+  `VerifyRnaReadDexseqExports`,
   `ExportRnaReadScoreDensitySvg`,
   `ExportRnaReadAlignmentsTsv`, `ExportRnaReadIsoformTriageTsv`, and
   `ExportRnaReadAlignmentDotplotSvg`, plus
@@ -2310,6 +2312,7 @@ Shared shell command:
         `rna-reads export-abundance-tsv`,
         `rna-reads export-dexseq-annotation-gff`,
         `rna-reads export-dexseq-counts-tsv`,
+        `rna-reads verify-dexseq`,
         `rna-reads export-score-density-svg`,
         `rna-reads export-alignments-tsv`,
         `rna-reads export-isoform-triage-tsv`, and
@@ -2323,6 +2326,7 @@ Shared shell command:
         `ExportRnaReadHitsFasta`, `ExportRnaReadTargetQuality`,
         `ExportRnaReadExonPathsTsv`, `ExportRnaReadExonAbundanceTsv`,
         `ExportRnaReadDexseqAnnotationGff`, `ExportRnaReadDexseqCountsTsv`,
+        `VerifyRnaReadDexseqExports`,
         `ExportRnaReadScoreDensitySvg`, `ExportRnaReadAlignmentsTsv`,
         `ExportRnaReadIsoformTriageTsv`, and
         `ExportRnaReadAlignmentDotplotSvg` expose the same model for
@@ -3191,6 +3195,7 @@ Shared shell command:
     - `rna-reads export-abundance-tsv REPORT_ID OUTPUT.tsv [--selection all|seed_passed|aligned] [--record-indices i,j,k] [--subset-spec TEXT]`
     - `rna-reads export-dexseq-annotation-gff REPORT_ID OUTPUT.gff`
     - `rna-reads export-dexseq-counts-tsv REPORT_ID OUTPUT.tsv [--selection all|seed_passed|aligned] [--record-indices i,j,k] [--subset-spec TEXT]`
+    - `rna-reads verify-dexseq REPORT_ID OUTPUT.gff OUTPUT.tsv [--selection all|seed_passed|aligned] [--record-indices i,j,k] [--subset-spec TEXT] [--r-library-path PATH ...]`
     - `rna-reads export-score-density-svg REPORT_ID OUTPUT.svg [--scale linear|log] [--variant all_scored|composite_seed_gate]`
     - `rna-reads export-alignments-tsv REPORT_ID OUTPUT.tsv [--selection all|seed_passed|aligned] [--limit N] [--record-indices i,j,k] [--subset-spec TEXT]`
     - `rna-reads export-isoform-triage-tsv REPORT_ID OUTPUT.tsv [--selection all|seed_passed|aligned] [--limit N] [--record-indices i,j,k] [--subset-spec TEXT] [--min-identity F] [--min-query-coverage F] [--min-confirmed-transition-fraction F] [--max-secondary-mappings N]`
@@ -3371,6 +3376,11 @@ Shared shell command:
         export time
       - pass the per-sample count files and shared GFF to R as
         `DEXSeqDataSetFromHTSeq(countfiles, sampleData, design, flattenedfile)`
+      - `rna-reads verify-dexseq` writes both artifacts and constructs a real
+        `DEXSeqDataSetFromHTSeq()` with two pseudo-samples to verify that the
+        GFF and count keys join. It never installs R packages; its JSON result
+        reports `Rscript`/`DEXSeq` readiness, effective R library paths, the
+        generated command, and a `DEXSEQ_OK` summary when verification runs.
     - `rna-reads export-isoform-triage-tsv` writes a conservative read-level
       TSV with bins `known_isoform_confirmed`, `known_isoform_ambiguous`,
       `gene_supported_no_isoform_call`, and `off_target_or_bad_seed`; recurrent
@@ -3505,19 +3515,33 @@ Shared shell command:
         `require_roi_flanking`, amplicon motif filters, and fixed amplicon
         start/end coordinates.
       - `pair_constraints.rejected_near_miss_limit` controls deterministic
-        evaluated pair-level rejection retention (`null`/omitted = `20`,
+        evaluated rejection retention (`null`/omitted = `20`,
         `0` = disabled, maximum `100`). This does not change candidate
-        selection, rank, or score. It applies to primer-pair and
-        insertion-primer design; qPCR design rejects a non-null value rather
-        than silently ignoring it.
+        selection, rank, or score. Primer-pair and insertion-primer reports
+        retain evaluated pair-level rows; qPCR reports retain evaluated
+        pair/probe assay-level rows.
       - retained pairs from both the internal and Primer3 proposal paths use
         the same additive `gentle_primer_pair_rank_v1` score decomposition.
         Primer3 near-miss capture is explicitly `incomplete`: GENtle can retain
         only Primer3-returned pairs that its post-filters reject, not Primer3's
         hidden internal rejection space.
-      - every design report links a report-content-fingerprinted
+      - retained qPCR assays use additive model
+        `gentle_qpcr_assay_rank_v1` (`higher_is_better`): the primer-pair terms
+        plus probe Tm-offset and amplicon-midpoint contributions. Probe
+        self/primer complementarity diagnostics are first-class zero-weight
+        observational terms in v1, so provenance records them without changing
+        the established rank score.
+      - transcript-aware qPCR capture is explicitly `incomplete`: aggregate
+        transcript-local rejections are retained in the census, but rejected
+        coordinates are not projected back to the source sequence.
+      - every primer-pair or qPCR design report links a report-content-fingerprinted
         construct-reasoning graph. Its bounded rejected intervals reach the
         existing linear-map overlay as non-verdict `ContextEvidence`.
+      - design does not currently consult repeat, variant, or
+        paralogue-similarity tracks for region-level exclusion. Their absence
+        from a graph means `not_run`, not checked and clear. New reports carry
+        that omission explicitly as `excluded_region_analysis_status` and
+        `excluded_region_analysis_reason`; legacy reports omit both.
     - Primer ROI seed helper notes (`primers seed-from-feature` / `primers seed-from-splicing`):
       - returns non-mutating schema `gentle.primer_seed_request.v1`
       - includes `template`, source metadata, `roi_start_0based`,
@@ -5015,6 +5039,11 @@ Tutorial companion:
     `--allow-all-features` is used intentionally.
   - Requires R/Bioconductor packages `oligo`, `limma`, `Biobase`, `DBI`,
     `RSQLite`, and the platform design package such as `pd.clariom.d.human`.
+    The platform package is installed externally and normally contains its own
+    `extdata/<package-name>.sqlite`; this database is not a separate GENtle
+    input. Probeset output stops with a diagnostic if the selected package has
+    no unambiguous SQLite database. Transcript-cluster-only output can continue
+    from `netaffxTranscript.rda` with an explicit warning.
   - `--r-library-path PATH` is repeatable. It prepends explicit agent-local,
     user, or system package roots to R's `.libPaths()` for both preflight and
     execution. With no explicit flag, an existing workspace `.r-lib` remains

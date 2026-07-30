@@ -12,8 +12,25 @@ Maintenance rule:
   document names, schemas, or feature names only when they help a reader
 understand what changed.
 
+## 2026-07-31
+
+- Preserved an existing gene-set resolution's operation/run identity when
+  deriving a promoter cohort, preventing one logical source set from appearing
+  as duplicate lineage nodes. Anonymous inline resolutions still receive a
+  stable identity when first persisted.
+- Fixed generic `r_oligo` platform annotation discovery: the helper now
+  resolves the selected pdInfo package's bundled SQLite database instead of
+  hard-coding Clariom D Human, allows only an unambiguous package-local
+  fallback, and refuses probeset runs that would otherwise emit coordinate
+  columns without annotations.
+
 ## 2026-07-30
 
+- Added `rna-reads verify-dexseq` and
+  `gentle.rna_read_dexseq_verification.v1`: GENtle now exports a matched
+  flattened GFF/count pair, performs bounded non-downloading R/DEXSeq
+  preflight, and can prove the pair loads through the real
+  `DEXSeqDataSetFromHTSeq()` contract.
 - Hardened preserved ortholog ambiguity reports: species-only mappings now
   retain organism context without fabricating a genome id, candidate labels
   expose provider source when available, and the closed-policy v1
@@ -52,6 +69,12 @@ understand what changed.
   exact additive score terms, bounded deterministic evaluated near misses with
   explicit capture completeness, and report-fingerprinted construct-reasoning
   decisions whose rejected intervals reuse the existing linear-map overlay.
+- Extended the same descriptive provenance to
+  `gentle.qpcr_design_report.v1`: exact primer/probe score terms, bounded
+  evaluated assay near misses, report-bound reasoning graphs, and cached
+  score/capture inspection in the existing PCR Designer. Region-level repeat,
+  variant, and paralogue exclusions remain explicitly unconsulted and are
+  recorded as `not_run` rather than implied clear.
 - Added engine-owned collection `map` execution for primer specificity through
   `AssessPrimerPairSpecificityCollection` and
   `collections run primer-specificity`. Persisted gene sets use explicit
