@@ -5,6 +5,8 @@
 //! The first extracted slice is intentionally small: stable identifier aliases,
 //! shared analysis enums, and the portable engine error payload.
 
+pub mod biological_context;
+pub mod collection_subjects;
 pub mod construct_reasoning;
 pub mod dna_ladder;
 pub mod feature_location_edit;
@@ -24,6 +26,20 @@ use std::{
     sync::LazyLock,
 };
 
+pub use biological_context::{
+    BiologicalContext, BiologicalContextRegistry, BiologicalContextResolutionError,
+    DEFAULT_BIOLOGICAL_CONTEXT_ID, LEGACY_BIOLOGICAL_CONTEXT_ID,
+};
+pub use collection_subjects::{
+    COLLECTION_LIFT_POLICY_REGISTRY_SCHEMA, COLLECTION_MEMBERSHIP_FINGERPRINT_ALGORITHM,
+    COLLECTION_OPERATION_REPORT_SCHEMA, CollectionCapabilityLiftPolicy,
+    CollectionContextRequirement, CollectionContextValidationError, CollectionLiftPolicyRegistry,
+    CollectionLiftRejectionReason, CollectionLiftSupport, CollectionLiftingMode,
+    CollectionMemberOutcome, CollectionMemberRef, CollectionMemberStatusRow,
+    CollectionOperationReport, CollectionSubjectKind, CollectionSubjectLiftPolicy,
+    CollectionSubjectRef, canonical_collection_membership_json,
+    homogeneous_collection_biological_context, validate_collection_context_target_genome,
+};
 pub use construct_reasoning::{
     ANNOTATION_CANDIDATE_SCHEMA, ANNOTATION_CANDIDATE_SUMMARY_SCHEMA,
     ANNOTATION_CANDIDATE_WRITEBACK_SCHEMA, AdapterCaptureProtectionMode, AdapterCaptureStyle,
@@ -87,27 +103,30 @@ pub use gene_sets::{
 pub use isoform_evidence::{
     CDNA_EST_EVIDENCE_RESOURCE_SCHEMA, CdnaEstEvidenceKind, CdnaEstEvidenceRecord,
     CdnaEstEvidenceResource, GENE_ISOFORM_EVIDENCE_INSTRUCTION, GENE_ISOFORM_EVIDENCE_SCHEMA,
-    GENE_LOCUS_EVIDENCE_DISPLAY_INSTRUCTION, GENE_LOCUS_EVIDENCE_DISPLAY_SCHEMA,
-    GENE_LOCUS_OCCUPANCY_LAYOUT_SCHEMA, GeneIsoformAssayCandidate, GeneIsoformEvidenceComponent,
-    GeneIsoformEvidenceComponents, GeneIsoformEvidenceItem, GeneIsoformEvidenceProvenanceSource,
+    GENE_ISOFORM_EVIDENCE_SCHEMA_V1, GENE_LOCUS_EVIDENCE_DISPLAY_INSTRUCTION,
+    GENE_LOCUS_EVIDENCE_DISPLAY_SCHEMA, GENE_LOCUS_OCCUPANCY_LAYOUT_SCHEMA,
+    GeneIsoformAssayCandidate, GeneIsoformEvidenceComponent, GeneIsoformEvidenceComponents,
+    GeneIsoformEvidenceItem, GeneIsoformEvidenceMeasurement, GeneIsoformEvidenceProvenanceSource,
     GeneIsoformEvidenceReport, GeneIsoformEvidenceRequest, GeneIsoformExonFamilyRow,
     GeneIsoformFamilyRow, GeneIsoformJunctionRow, GeneIsoformOccupancyInterval,
-    GeneIsoformOccupancyLane, GeneIsoformTranscriptRow, GeneLocusAssayOverlay, GeneLocusCodonKind,
-    GeneLocusCodonMarker, GeneLocusEvidenceDisplayReport, GeneLocusEvidenceDisplayRequest,
-    GeneLocusMotifHit, GeneLocusMotifTrack, GeneLocusOccupancyGroup,
-    GeneLocusOccupancyGroupRequest, GeneLocusOccupancyLane, GeneLocusOccupancyLaneRequest,
-    GeneLocusOccupancyLaneRole, GeneLocusOccupancyLayout, GeneLocusOccupancyScaleMode,
-    GeneLocusProbeClass, GeneLocusProbeEffectContrast, GeneLocusProbeEffectOverlay,
-    GeneLocusProbeEffectValue, GeneLocusTranscriptMetrics, IsoformEvidenceAssessmentStatus,
-    IsoformEvidenceSourceKind,
+    GeneIsoformOccupancyLane, GeneIsoformRecommendation, GeneIsoformRecommendationTier,
+    GeneIsoformTranscriptRow, GeneLocusAssayOverlay, GeneLocusCodonKind, GeneLocusCodonMarker,
+    GeneLocusEvidenceDisplayReport, GeneLocusEvidenceDisplayRequest, GeneLocusMotifHit,
+    GeneLocusMotifTrack, GeneLocusOccupancyGroup, GeneLocusOccupancyGroupRequest,
+    GeneLocusOccupancyLane, GeneLocusOccupancyLaneRequest, GeneLocusOccupancyLaneRole,
+    GeneLocusOccupancyLayout, GeneLocusOccupancyScaleMode, GeneLocusProbeClass,
+    GeneLocusProbeEffectContrast, GeneLocusProbeEffectOverlay, GeneLocusProbeEffectValue,
+    GeneLocusTranscriptMetrics, IsoformEvidenceAssessmentStatus, IsoformEvidenceSourceKind,
 };
 pub use orthologs::{
     ORTHOLOG_PROMOTER_COHORT_SCHEMA, ORTHOLOG_PROMOTER_COMPARISON_SCHEMA, ORTHOLOG_RESOURCE_SCHEMA,
-    OrthologAmbiguityPolicy, OrthologCutRunSupportRow, OrthologCutRunSupportStatus,
+    OrthologAmbiguityCandidate, OrthologAmbiguityPolicy, OrthologConfidence,
+    OrthologConfidenceLevel, OrthologCutRunSupportRow, OrthologCutRunSupportStatus,
     OrthologExpressionAssignment, OrthologMappingRow, OrthologPairwiseTfbsSimilarity,
     OrthologPromoterCohortReport, OrthologPromoterCohortRequest, OrthologPromoterComparisonReport,
     OrthologPromoterRole, OrthologPromoterRow, OrthologResource, OrthologSequenceSimilarityRow,
     OrthologSpeciesAlias, OrthologTfbsPeakSummary, OrthologTfbsSummaryRow, OrthologUnresolvedRow,
+    OrthologyCardinality, OrthologyType,
 };
 pub use reporter::{
     PortBindingStatus, REPORTER_CATALOG_REPORT_SCHEMA, REPORTER_CATALOG_SCHEMA,
@@ -492,6 +511,8 @@ pub struct ExternalServiceInlinePayload {
 pub type NodeId = String;
 /// Stable identifier for one wet-lab-style container record.
 pub type ContainerId = String;
+/// Stable identifier for one ordered arrangement record.
+pub type ArrangementId = String;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 /// Sequence SVG render layout requested by shell/CLI/export adapters.
@@ -3982,7 +4003,7 @@ pub enum ErrorCode {
     Internal,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 /// Shared structured error payload returned by engine operations/adapters.
 pub struct EngineError {
     pub code: ErrorCode,
@@ -5052,6 +5073,9 @@ pub struct CapabilityDescriptor {
     pub inline_operand_ok: Option<bool>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub engine_operations: Vec<String>,
+    /// Curated, subject-specific collection lifting behavior.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub collection_lift_policies: Vec<CollectionSubjectLiftPolicy>,
     pub source: CapabilitySource,
 }
 
@@ -5214,6 +5238,7 @@ const PUBLIC_ENGINE_OPERATION_NAMES: &[&str] = &[
     "ShowCutRunReadReport",
     "ExportCutRunReadCoverage",
     "InspectCutRunRegulatorySupport",
+    "BuildGeneSetPromoterCohort",
     "ImportIsoformPanel",
     "ImportUniprotSwissProt",
     "FetchUniprotSwissProt",
@@ -5254,12 +5279,14 @@ const PUBLIC_ENGINE_OPERATION_NAMES: &[&str] = &[
     "DesignInsertionPrimerPairs",
     "ExportPrimerDesignReport",
     "AssessPrimerPairSpecificity",
+    "AssessPrimerPairSpecificityCollection",
     "PreparePrimerPairSpecificityHandoff",
     "ImportPrimerPairSpecificityHandoff",
     "PrepareRestrictionCloningPcrHandoff",
     "PcrOverlapExtensionMutagenesis",
     "DesignQpcrAssays",
     "DesignTranscriptAssayPanel",
+    "ComposeGeneTranscriptAssayRoutine",
     "BuildExperimentalAssayHandoff",
     "SearchPrimerBank",
     "ImportExternalPrimerPairs",
@@ -5638,6 +5665,8 @@ static SHELL_ALIAS_REGISTRY: LazyLock<Vec<ShellAliasDescriptor>> =
     LazyLock::new(build_shell_alias_registry);
 static PARITY_MATRIX_OVERRIDES: LazyLock<Vec<ParityMatrixOverride>> =
     LazyLock::new(load_parity_matrix_overrides);
+static COLLECTION_LIFT_POLICY_REGISTRY: LazyLock<CollectionLiftPolicyRegistry> =
+    LazyLock::new(load_collection_lift_policy_registry);
 
 const CAPABILITY_PARITY_ADAPTERS: [CapabilityAdapter; 6] = [
     CapabilityAdapter::Gui,
@@ -5661,6 +5690,28 @@ pub fn capability_registry() -> &'static [CapabilityDescriptor] {
 /// GENtle-local slash aliases accepted by the shared shell parser.
 pub fn shell_alias_registry() -> &'static [ShellAliasDescriptor] {
     &SHELL_ALIAS_REGISTRY
+}
+
+/// Curated operation-lifting declarations for collection-visible capabilities.
+pub fn collection_lift_policy_registry() -> &'static [CollectionCapabilityLiftPolicy] {
+    &COLLECTION_LIFT_POLICY_REGISTRY.policies
+}
+
+/// Return the policy for one capability and collection subject kind.
+pub fn collection_lift_policy(
+    source: CapabilitySource,
+    name: &str,
+    subject_kind: CollectionSubjectKind,
+) -> Option<&'static CollectionSubjectLiftPolicy> {
+    collection_lift_policy_registry()
+        .iter()
+        .find(|entry| entry.source == source && entry.name == name)
+        .and_then(|entry| {
+            entry
+                .subjects
+                .iter()
+                .find(|policy| policy.subject_kind == subject_kind)
+        })
 }
 
 /// Return one GENtle-local slash alias descriptor by stable alias key.
@@ -5724,6 +5775,51 @@ fn load_parity_matrix_overrides() -> Vec<ParityMatrixOverride> {
         );
     }
     overrides.overrides
+}
+
+fn load_collection_lift_policy_registry() -> CollectionLiftPolicyRegistry {
+    let registry: CollectionLiftPolicyRegistry =
+        serde_json::from_str(include_str!("../../../docs/collection_lift_policies.json"))
+            .expect("docs/collection_lift_policies.json must parse");
+    assert_eq!(
+        registry.schema, COLLECTION_LIFT_POLICY_REGISTRY_SCHEMA,
+        "collection lift policy registry schema"
+    );
+    let mut capability_keys = BTreeSet::new();
+    for entry in &registry.policies {
+        assert!(
+            !entry.name.trim().is_empty(),
+            "collection lift policy capability name must not be empty"
+        );
+        assert!(
+            capability_keys.insert((entry.source, entry.name.clone())),
+            "duplicate collection lift capability policy for {:?} `{}`",
+            entry.source,
+            entry.name
+        );
+        let mut subject_kinds = BTreeSet::new();
+        for policy in &entry.subjects {
+            assert!(
+                subject_kinds.insert(policy.subject_kind),
+                "duplicate collection subject policy for {:?} `{}` and {:?}",
+                entry.source,
+                entry.name,
+                policy.subject_kind
+            );
+        }
+    }
+    registry
+}
+
+fn collection_lift_policies_for(
+    source: CapabilitySource,
+    name: &str,
+) -> Vec<CollectionSubjectLiftPolicy> {
+    collection_lift_policy_registry()
+        .iter()
+        .find(|entry| entry.source == source && entry.name == name)
+        .map(|entry| entry.subjects.clone())
+        .unwrap_or_default()
 }
 
 fn not_applicable_override_reason(
@@ -6394,6 +6490,10 @@ fn glossary_command_descriptor(
         ),
         inline_operand_ok: inline_operand_ok_for_operations(&command.engine_operations),
         engine_operations: command.engine_operations.clone(),
+        collection_lift_policies: collection_lift_policies_for(
+            CapabilitySource::GlossaryCommand,
+            &command.path,
+        ),
         source: CapabilitySource::GlossaryCommand,
     }
 }
@@ -6440,6 +6540,10 @@ fn engine_operation_descriptor(
         ),
         inline_operand_ok: inline_operand_ok_for_operation(op_name),
         engine_operations: vec![op_name.to_string()],
+        collection_lift_policies: collection_lift_policies_for(
+            CapabilitySource::EngineOperation,
+            op_name,
+        ),
         source: CapabilitySource::EngineOperation,
     }
 }
@@ -6473,6 +6577,7 @@ fn mcp_tool_descriptor(
         surfacing_justifications: surfacing_justifications_for_mcp_tool(&surfacing, name),
         inline_operand_ok: None,
         engine_operations: vec![],
+        collection_lift_policies: collection_lift_policies_for(CapabilitySource::McpTool, name),
         source: CapabilitySource::McpTool,
     }
 }

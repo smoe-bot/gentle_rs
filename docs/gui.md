@@ -440,6 +440,19 @@ The project main window (lineage page) supports two views:
   the GUI should collect the collection operand, show per-member and aggregate
   readiness/errors/results, and call the same named operation or shell route
   that CLI/MCP/agent surfaces can invoke.
+- `Genome > Gene Set Inspector...` exposes the first binding-aware collection
+  action, primer specificity:
+  - select one persisted gene-set resolution
+  - bind every logical member to one exact persisted primer-design report
+  - choose a one-based pair rank and a prepared local BLAST target
+  - run the shared `collections run primer-specificity` route in a background
+    engine snapshot
+  - inspect per-member execution outcomes separately from each child
+    specificity report's biological pass/fail verdict
+- The inspector never infers an assay from a gene symbol. Missing bindings,
+  unavailable pair ranks, stale detached results, and member-level execution
+  failures remain explicit. The portable collection report can be copied as
+  JSON, and persisted child reports can be opened in PCR Designer.
 - Detailed implementation plan:
   [`gui_gene_set_collection_operations_plan.md`](gui_gene_set_collection_operations_plan.md).
 - Operations offered for a collection should expose the engine-declared lifting
@@ -954,14 +967,17 @@ Feature tree grouping:
   - choose an imported isoform panel and optionally supply annotation-release
     text, persisted RNA-read/qPCR report ids, probe-evidence JSON, cDNA/EST
     resource JSON, an expression TSV, and projected occupancy track names
-  - `Inspect evidence` caches the shared `gentle.gene_isoform_evidence.v1`
+  - `Inspect evidence` caches the shared `gentle.gene_isoform_evidence.v2`
     report for the current splice group; opening a different group clears that
     cached result
   - transcript rows show biological 5'->3' exon order beside genomic-ascending
     order, while junction rows show stable assembly-local ids and
     transcript-oriented donor/acceptor coordinates
   - specificity, abundance, responsiveness, and assayability remain separate;
-    the evidence ledger and provenance can be expanded for audit
+    the evidence ledger and provenance can be expanded for audit. Repeated
+    contrast/source measurements remain individually inspectable; incompatible
+    units are not collapsed. Recommendation tiers are rule-based guidance, not
+    weighted evidence scores
   - selected BED/BigWig occupancy tracks are summarized as source-specific
     lanes and rendered beneath transcript models in the shared SVG with one
     common score scale; `*` selects every projected track in the gene span.
@@ -3300,7 +3316,12 @@ The `Help` menu now includes:
   `arrays probe-regions` as a read-only preflight for arbitrary CEL files or
   publication-resource datasets. The JSON plan reports CEL, metadata,
   condition-contrast, annotation/library, platform, backend-candidate, local
-  dependency, output, and cache-readiness checks. The `r_oligo` candidate
+  dependency, output, and cache-readiness checks. Users can add repeatable
+  `--r-library-path PATH` flags in that shared command surface when packages
+  live in an agent sandbox, user library, or system-specific tree. The plan
+  reports both the requested roots and R's effective library paths; dependency
+  errors repeat those paths and ask the user to verify the flag when GENtle's
+  result differs from an interactive R session. The `r_oligo` candidate
   advertises the generic `scripts/probe_regions_oligo.R` helper and includes
   an advisory command for explicit RMA/CEL requests; the panel can run that
   selected backend only through the shared

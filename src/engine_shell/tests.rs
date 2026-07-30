@@ -6535,6 +6535,88 @@ fn parse_primers_specificity_saved_report_and_explicit_pair() {
 }
 
 #[test]
+fn parse_collections_run_primer_specificity_for_gene_set_and_project_sequences() {
+    let gene_set = parse_shell_line(
+        "collections run primer-specificity resolution:cofactors \
+         --member-report gene_id:ensg1=primer_report_1 \
+         --member-report gene_id:ensg2=primer_report_2 \
+         --pair-rank 2 --target-genome GRCh38.p14 --path collection.json",
+    )
+    .expect("parse gene-set collection specificity");
+    match gene_set {
+        ShellCommand::CollectionsRunPrimerSpecificity {
+            collection_subject: CollectionSubjectRef::GeneSetResolution { report_id },
+            member_bindings,
+            pair_rank,
+            pair_index,
+            target_genome_id,
+            path,
+            ..
+        } => {
+            assert_eq!(report_id, "resolution:cofactors");
+            assert_eq!(
+                member_bindings,
+                vec![
+                    PrimerSpecificityCollectionMemberBinding {
+                        stable_member_id: "gene_id:ensg1".to_string(),
+                        primer_report_id: "primer_report_1".to_string(),
+                    },
+                    PrimerSpecificityCollectionMemberBinding {
+                        stable_member_id: "gene_id:ensg2".to_string(),
+                        primer_report_id: "primer_report_2".to_string(),
+                    },
+                ]
+            );
+            assert_eq!(pair_rank, Some(2));
+            assert_eq!(pair_index, None);
+            assert_eq!(target_genome_id, "GRCh38.p14");
+            assert_eq!(path.as_deref(), Some("collection.json"));
+        }
+        other => panic!("unexpected command: {other:?}"),
+    }
+
+    let project_sequences = parse_shell_line(
+        "collections run primer-specificity --seq-ids seq_b,seq_a \
+         --pair-index 0 --target-genome ToyGenome",
+    )
+    .expect("parse project-sequence collection specificity");
+    assert!(matches!(
+        project_sequences,
+        ShellCommand::CollectionsRunPrimerSpecificity {
+            collection_subject: CollectionSubjectRef::ProjectSequences { seq_ids },
+            pair_rank: None,
+            pair_index: Some(0),
+            target_genome_id,
+            ..
+        } if seq_ids == ["seq_b", "seq_a"] && target_genome_id == "ToyGenome"
+    ));
+}
+
+#[test]
+fn parse_collections_run_primer_specificity_rejects_ambiguous_subjects_and_pairs() {
+    let ambiguous_subject = parse_shell_line(
+        "collections run primer-specificity resolution:set \
+         --seq-id seq_a --pair-rank 1 --target-genome ToyGenome",
+    )
+    .expect_err("gene-set and project-sequence subjects are mutually exclusive");
+    assert!(ambiguous_subject.contains("either GENE_SET_REPORT_ID or --seq-ids"));
+
+    let ambiguous_pair = parse_shell_line(
+        "collections run primer-specificity resolution:set \
+         --pair-rank 1 --pair-index 0 --target-genome ToyGenome",
+    )
+    .expect_err("pair rank and pair index are mutually exclusive");
+    assert!(ambiguous_pair.contains("exactly one of --pair-rank N or --pair-index N"));
+
+    let malformed_binding = parse_shell_line(
+        "collections run primer-specificity resolution:set \
+         --member-report missing_separator --pair-rank 1 --target-genome ToyGenome",
+    )
+    .expect_err("member binding requires an explicit member/report separator");
+    assert!(malformed_binding.contains("MEMBER_ID=PRIMER_REPORT_ID"));
+}
+
+#[test]
 fn parse_primers_specificity_plan_and_import() {
     let plan = parse_shell_line(
         "primers specificity-plan --forward ACGTACGTACGTACGTAC --reverse TTTTCCCCAAAAGGGGTT --target-genome GRCh38.p14 --output-dir specificity_run --max-hits-per-primer 75",
@@ -7014,6 +7096,17 @@ fn parse_primers_seed_from_feature_and_splicing() {
             .expect("parse transcript panel export"),
         ShellCommand::PrimersExportTranscriptAssayPanel { report_id, path }
             if report_id == "panel_v2" && path == "panel.json"
+    ));
+    let routine = parse_shell_line(
+        r#"primers compose-gene-assay-routine '{"label":"PATZ1 validation","isoform_evidence_path":"patz1_isoforms.json","expected_isoform_evidence_sha256":"sha256:abc","transcript_assay_panel_report_ids":["common","junction","endpoint"]}' --path routine.json"#,
+    )
+    .expect("parse gene transcript-assay routine");
+    assert!(matches!(
+        routine,
+        ShellCommand::PrimersComposeGeneTranscriptAssayRoutine { request_json, path }
+            if request_json.contains("PATZ1 validation")
+                && request_json.contains("sha256:abc")
+                && path.as_deref() == Some("routine.json")
     ));
 
     let ordered_cdna = parse_shell_line(
@@ -8224,7 +8317,7 @@ fn parse_arrays_microarray_track_commands() {
 #[test]
 fn parse_arrays_probe_regions_command() {
     let cmd = parse_shell_line(
-        "arrays probe-regions --cel sample1.CEL --cel sample2.CEL --metadata samples.tsv --gene PATZ1 --genes TP73,FUS --locus chr1:100-200 --transcript-cluster-id TC010 --probeset-ids PSR1,PSR2 --platform Clariom_D_Human --annotation-library libdir --condition-column condition --sample-column file --block-column batch --paired-by-replicate-suffix --plot --normalization rma --output analysis/probe_regions --cache-dir analysis/cache --dry-run",
+        "arrays probe-regions --cel sample1.CEL --cel sample2.CEL --metadata samples.tsv --gene PATZ1 --genes TP73,FUS --locus chr1:100-200 --transcript-cluster-id TC010 --probeset-ids PSR1,PSR2 --platform Clariom_D_Human --annotation-library libdir --r-library-path .r-lib --r-library-path /opt/R/site-library --condition-column condition --sample-column file --block-column batch --paired-by-replicate-suffix --plot --normalization rma --output analysis/probe_regions --cache-dir analysis/cache --dry-run",
     )
     .expect("parse probe-regions");
     match cmd {
@@ -8238,6 +8331,7 @@ fn parse_arrays_probe_regions_command() {
             probeset_ids,
             platform,
             annotation_library_path,
+            r_library_paths,
             condition_column,
             sample_column,
             block_column,
@@ -8263,6 +8357,10 @@ fn parse_arrays_probe_regions_command() {
             assert_eq!(probeset_ids, vec!["PSR1".to_string(), "PSR2".to_string()]);
             assert_eq!(platform.as_deref(), Some("Clariom_D_Human"));
             assert_eq!(annotation_library_path.as_deref(), Some("libdir"));
+            assert_eq!(
+                r_library_paths,
+                vec![".r-lib".to_string(), "/opt/R/site-library".to_string()]
+            );
             assert_eq!(condition_column.as_deref(), Some("condition"));
             assert_eq!(sample_column.as_deref(), Some("file"));
             assert_eq!(block_column.as_deref(), Some("batch"));
@@ -8424,6 +8522,7 @@ fn assert_arrays_probe_region_command_eq(
                 probeset_ids,
                 platform,
                 annotation_library_path,
+                r_library_paths,
                 condition_column,
                 sample_column,
                 block_column,
@@ -8444,6 +8543,7 @@ fn assert_arrays_probe_region_command_eq(
                 probeset_ids: expected_probeset_ids,
                 platform: expected_platform,
                 annotation_library_path: expected_annotation_library_path,
+                r_library_paths: expected_r_library_paths,
                 condition_column: expected_condition_column,
                 sample_column: expected_sample_column,
                 block_column: expected_block_column,
@@ -8471,6 +8571,10 @@ fn assert_arrays_probe_region_command_eq(
             assert_eq!(platform, expected_platform, "rendered line: {line}");
             assert_eq!(
                 annotation_library_path, expected_annotation_library_path,
+                "rendered line: {line}"
+            );
+            assert_eq!(
+                r_library_paths, expected_r_library_paths,
                 "rendered line: {line}"
             );
             assert_eq!(
@@ -8552,6 +8656,7 @@ fn arrays_probe_region_shell_lines_round_trip() {
             probeset_ids: vec!["PSR1".to_string(), "PSR2".to_string()],
             platform: Some("Clariom D Human".to_string()),
             annotation_library_path: Some("annotation libraries/NetAffx".to_string()),
+            r_library_paths: vec!["R libraries/agent".to_string()],
             condition_column: Some("condition".to_string()),
             sample_column: Some("file name".to_string()),
             block_column: Some("batch".to_string()),
@@ -8572,6 +8677,7 @@ fn arrays_probe_region_shell_lines_round_trip() {
             probeset_ids: vec![],
             platform: Some("Clariom_D_Human".to_string()),
             annotation_library_path: None,
+            r_library_paths: vec![],
             condition_column: None,
             sample_column: None,
             block_column: None,
@@ -8683,6 +8789,7 @@ fn execute_arrays_probe_regions_returns_plan() {
             probeset_ids: vec![],
             platform: Some("Clariom_D_Human".to_string()),
             annotation_library_path: Some(annotation_dir.to_string_lossy().to_string()),
+            r_library_paths: vec![],
             condition_column: Some("condition".to_string()),
             sample_column: Some("file".to_string()),
             block_column: Some("batch".to_string()),
@@ -8773,10 +8880,16 @@ fn execute_arrays_probe_regions_rma_suggests_oligo_helper_command() {
     let cel = temp.path().join("sample1.CEL");
     let metadata = temp.path().join("samples.tsv");
     let annotation_dir = temp.path().join("annotation");
+    let r_library_dir = temp.path().join("agent_r_library");
     let output_dir = temp.path().join("out");
     fs::write(&cel, "synthetic CEL placeholder\n").expect("write cel");
     fs::write(&metadata, "file\tcondition\nsample1.CEL\tAdGFP\n").expect("write metadata");
     fs::create_dir(&annotation_dir).expect("annotation dir");
+    fs::create_dir(&r_library_dir).expect("R library dir");
+    let canonical_r_library_dir = fs::canonicalize(&r_library_dir)
+        .expect("canonical R library dir")
+        .to_string_lossy()
+        .to_string();
 
     let mut engine = GentleEngine::default();
     let run = execute_shell_command(
@@ -8791,6 +8904,7 @@ fn execute_arrays_probe_regions_rma_suggests_oligo_helper_command() {
             probeset_ids: vec![],
             platform: Some("Clariom_D_Human".to_string()),
             annotation_library_path: Some(annotation_dir.to_string_lossy().to_string()),
+            r_library_paths: vec![r_library_dir.to_string_lossy().to_string()],
             condition_column: Some("condition".to_string()),
             sample_column: Some("file".to_string()),
             block_column: None,
@@ -8811,6 +8925,7 @@ fn execute_arrays_probe_regions_rma_suggests_oligo_helper_command() {
     assert!(command.contains("--normalization rma"));
     assert!(command.contains("--platform-package pd.clariom.d.human"));
     assert!(command.contains("--gene PATZ1"));
+    assert!(command.contains(&format!("--r-library-path {}", canonical_r_library_dir)));
 
     let plan_path = run.output["plan_path"]
         .as_str()
@@ -8832,6 +8947,10 @@ fn execute_arrays_probe_regions_rma_suggests_oligo_helper_command() {
     assert_eq!(
         persisted.backend_candidates[0].suggested_command.as_deref(),
         Some(command)
+    );
+    assert_eq!(
+        persisted.request.r_library_paths,
+        vec![canonical_r_library_dir]
     );
     assert!(
         persisted
@@ -8923,6 +9042,7 @@ fn execute_arrays_probe_regions_reports_clariom_vendor_support_paths() {
             probeset_ids: vec![],
             platform: Some("Clariom_D_Human".to_string()),
             annotation_library_path: None,
+            r_library_paths: vec![],
             condition_column: None,
             sample_column: None,
             block_column: None,
@@ -8985,6 +9105,7 @@ fn execute_arrays_probe_regions_discovers_publication_dataset_files() {
             probeset_ids: vec![],
             platform: Some("Clariom_D_Human".to_string()),
             annotation_library_path: None,
+            r_library_paths: vec![],
             condition_column: None,
             sample_column: None,
             block_column: None,
@@ -9115,10 +9236,28 @@ fn write_probe_region_output_fixture(out: &Path) {
         r#"{
   "schema": "gentle.probe_region_backend_provenance.v1",
   "backend": "r_oligo",
+  "r_version": "R version 4.6.0 (synthetic)",
+  "package_versions": {
+    "oligo": "1.74.0",
+    "limma": "3.66.0",
+    "pd.clariom.d.human": "3.14.1"
+  },
+  "r_library_paths_requested": ["/workspace/.r-lib"],
+  "r_library_paths_checked": ["/workspace/.r-lib", "/usr/lib/R/library"],
+  "analysis_method_version": "probe_regions_oligo_rma_v1",
   "platform_package": "pd.clariom.d.human",
   "coordinate_system": "hg38",
   "genome_build": "GRCh38",
   "normalization": "rma",
+  "input_fingerprints": [{
+    "path": "AdGFP_1.CEL",
+    "role": "cel",
+    "exists": true,
+    "is_file": true,
+    "size_bytes": 123,
+    "modified_unix_seconds": 456,
+    "sha256": "sha256:synthetic"
+  }],
   "artifacts": ["region_intensity_chrom_order.csv"]
 }"#,
     )
@@ -9159,6 +9298,30 @@ fn execute_arrays_inspect_probe_region_output_summarizes_helper_outputs() {
     assert_eq!(
         run.output["inspection"]["backend"].as_str(),
         Some("r_oligo")
+    );
+    assert_eq!(
+        run.output["inspection"]["r_version"].as_str(),
+        Some("R version 4.6.0 (synthetic)")
+    );
+    assert_eq!(
+        run.output["inspection"]["package_versions"]["oligo"].as_str(),
+        Some("1.74.0")
+    );
+    assert_eq!(
+        run.output["inspection"]["r_library_paths_requested"][0].as_str(),
+        Some("/workspace/.r-lib")
+    );
+    assert_eq!(
+        run.output["inspection"]["r_library_paths_checked"][1].as_str(),
+        Some("/usr/lib/R/library")
+    );
+    assert_eq!(
+        run.output["inspection"]["analysis_method_version"].as_str(),
+        Some("probe_regions_oligo_rma_v1")
+    );
+    assert_eq!(
+        run.output["inspection"]["input_fingerprints"][0]["sha256"].as_str(),
+        Some("sha256:synthetic")
     );
     assert_eq!(
         run.output["inspection"]["coordinate_system"].as_str(),
@@ -31845,6 +32008,23 @@ fn parse_orthologs_resolve_promoter_cohort_and_comparison() {
         }
         other => panic!("unexpected command: {other:?}"),
     }
+
+    let preserve = parse_shell_line(
+        r#"orthologs resolve-promoter-cohort --anchor-species human --anchor-genome HumanToy --anchor-gene TP73 --target-species mouse --orthologs orthologs.json --ambiguity-policy preserve"#,
+    )
+    .expect("parse representation-preserving ambiguity policy");
+    assert!(matches!(
+        preserve,
+        ShellCommand::OrthologsResolvePromoterCohort {
+            ambiguity_policy: OrthologAmbiguityPolicy::Preserve,
+            ..
+        }
+    ));
+    let invalid_policy = parse_shell_line(
+        r#"orthologs resolve-promoter-cohort --anchor-species human --anchor-genome HumanToy --anchor-gene TP73 --target-species mouse --orthologs orthologs.json --ambiguity-policy guess"#,
+    )
+    .expect_err("reject unknown ambiguity policy");
+    assert!(invalid_policy.contains("expected reject, first, or preserve"));
 
     let compare = parse_shell_line(
         r#"orthologs promoter-comparison --cohort cohort.json --motif TP73 --motifs SP1,BACH2 --score-kind llr_background_tail_log10 --allow-negative --relationship anti-co-regulated --expression-json '{"gene_label":"TP73","condition":"case","value":7.5,"unit":"TPM"}' --source-label rna_demo --cutrun-dataset-id cutrun_demo --path comparison.json"#,

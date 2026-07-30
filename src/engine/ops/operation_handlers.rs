@@ -2116,25 +2116,41 @@ impl GentleEngine {
         }
     }
 
-    fn estimate_protein_molecular_weight_kda(sequence: &str) -> f32 {
-        const WATER_MASS_DA: f32 = 18.015_28;
-        let residues = sequence
-            .trim()
-            .chars()
-            .filter_map(|aa| {
-                let aa = aa.to_ascii_uppercase();
-                if aa == STOP_CODON {
-                    return None;
-                }
-                Some(AMINO_ACIDS.get(aa).map(|entry| entry.mw).unwrap_or(110.0))
-            })
-            .collect::<Vec<_>>();
-        if residues.is_empty() {
-            return 0.0;
+    fn estimate_protein_molecular_weight_kda(sequence: &str) -> Option<f32> {
+        AMINO_ACIDS
+            .protein_molecular_weight_kda(sequence)
+            .molecular_weight_kda
+            .map(|value| value as f32)
+    }
+
+    fn require_protein_molecular_weight_kda(
+        sequence: &str,
+        subject: &str,
+    ) -> Result<f32, EngineError> {
+        let estimate = AMINO_ACIDS.protein_molecular_weight_kda(sequence);
+        if let Some(value) = estimate.molecular_weight_kda {
+            return Ok(value as f32);
         }
-        let total_da = residues.iter().sum::<f32>()
-            - WATER_MASS_DA * (residues.len().saturating_sub(1) as f32);
-        (total_da / 1_000.0).max(0.0)
+        let reason = if !estimate.unknown_residues.is_empty() {
+            format!(
+                "ambiguous or unsupported amino-acid residue(s): {}",
+                estimate
+                    .unknown_residues
+                    .iter()
+                    .map(char::to_string)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+        } else if estimate.residue_count == 0 {
+            "sequence contains no supported amino-acid residues".to_string()
+        } else {
+            "molecular-weight estimate is unavailable".to_string()
+        };
+        Err(EngineError {
+            code: ErrorCode::InvalidInput,
+            message: format!("Could not estimate molecular weight for {subject}: {reason}"),
+            cause_chain: vec![],
+        })
     }
 
     fn estimate_protein_isoelectric_point(sequence: &str) -> Option<f32> {
@@ -5133,18 +5149,10 @@ impl GentleEngine {
                 });
             }
             let sequence = protein.get_forward_string();
-            let molecular_weight_kda = Self::estimate_protein_molecular_weight_kda(&sequence);
-            if molecular_weight_kda <= 0.0 {
-                return Err(EngineError {
-                    code: ErrorCode::InvalidInput,
-                    message: format!(
-                        "Could not estimate molecular weight for protein '{}'",
-                        row.protein_seq_id
-                    ),
-
-                    cause_chain: vec![],
-                });
-            }
+            let molecular_weight_kda = Self::require_protein_molecular_weight_kda(
+                &sequence,
+                &format!("protein '{}'", row.protein_seq_id),
+            )?;
             let (name, detail) = Self::protein_derivation_gel_label(row, protein);
             samples.push(ProteinGelSample {
                 name,
@@ -11178,6 +11186,474 @@ impl GentleEngine {
         )
     }
 
+    fn primer_specificity_collection_subject_members(
+        &self,
+        subject: &CollectionSubjectRef,
+    ) -> Result<
+        (
+            CollectionSubjectRef,
+            Vec<CollectionMemberRef>,
+            Vec<GeneSetProvenanceRow>,
+            BiologicalContextRegistry,
+        ),
+        EngineError,
+    > {
+        match subject {
+            CollectionSubjectRef::ProjectSequences { seq_ids } => {
+                let normalized_ids = seq_ids
+                    .iter()
+                    .map(|seq_id| seq_id.trim())
+                    .filter(|seq_id| !seq_id.is_empty())
+                    .map(str::to_string)
+                    .collect::<BTreeSet<_>>();
+                if normalized_ids.is_empty() {
+                    return Err(EngineError {
+                        code: ErrorCode::InvalidInput,
+                        message:
+                            "Project-sequence primer specificity requires at least one sequence id"
+                                .to_string(),
+                        cause_chain: vec![],
+                    });
+                }
+                let seq_ids = normalized_ids.into_iter().collect::<Vec<_>>();
+                let members = seq_ids
+                    .iter()
+                    .map(|seq_id| CollectionMemberRef {
+                        stable_member_id: seq_id.clone(),
+                        seq_id: Some(seq_id.clone()),
+                        ..CollectionMemberRef::default()
+                    })
+                    .collect();
+                Ok((
+                    CollectionSubjectRef::ProjectSequences { seq_ids },
+                    members,
+                    vec![],
+                    BiologicalContextRegistry::default(),
+                ))
+            }
+            CollectionSubjectRef::GeneSetResolution { report_id } => {
+                let resolution = self.get_gene_set_resolution_artifact(report_id)?;
+                if resolution.resolved_members.is_empty() {
+                    return Err(EngineError {
+                        code: ErrorCode::InvalidInput,
+                        message: format!(
+                            "Gene-set resolution '{}' contains no resolved members",
+                            report_id.trim()
+                        ),
+                        cause_chain: vec![],
+                    });
+                }
+                let canonical_report_id = Self::gene_set_resolution_artifact_id(&resolution);
+                let members = resolution
+                    .resolved_members
+                    .iter()
+                    .enumerate()
+                    .map(|(index, member)| CollectionMemberRef {
+                        stable_member_id: member.dedup_key.clone(),
+                        gene_symbol: Some(member.symbol.clone()),
+                        gene_id: member.gene_id.clone(),
+                        context_id: member.context_id.clone(),
+                        ordering_index: Some(index),
+                        source_provenance: member.provenance.clone(),
+                        ..CollectionMemberRef::default()
+                    })
+                    .collect();
+                Ok((
+                    CollectionSubjectRef::GeneSetResolution {
+                        report_id: canonical_report_id,
+                    },
+                    members,
+                    resolution.provenance,
+                    resolution.biological_contexts,
+                ))
+            }
+            CollectionSubjectRef::Container { .. } | CollectionSubjectRef::Arrangement { .. } => {
+                Err(EngineError {
+                    code: ErrorCode::Unsupported,
+                    message: format!(
+                        "Primer specificity collection mapping does not support {:?} subjects",
+                        subject.kind()
+                    ),
+                    cause_chain: vec![],
+                })
+            }
+        }
+    }
+
+    fn primer_specificity_collection_binding_map(
+        bindings: Vec<PrimerSpecificityCollectionMemberBinding>,
+    ) -> Result<BTreeMap<String, String>, EngineError> {
+        let mut by_member = BTreeMap::new();
+        let mut bound_reports = BTreeMap::<String, String>::new();
+        for binding in bindings {
+            let stable_member_id = binding.stable_member_id.trim().to_string();
+            let primer_report_id = binding.primer_report_id.trim().to_string();
+            if stable_member_id.is_empty() || primer_report_id.is_empty() {
+                return Err(EngineError {
+                    code: ErrorCode::InvalidInput,
+                    message:
+                        "Collection primer-report bindings require non-empty stable_member_id and primer_report_id"
+                            .to_string(),
+                    cause_chain: vec![],
+                });
+            }
+            if by_member
+                .insert(stable_member_id.clone(), primer_report_id.clone())
+                .is_some()
+            {
+                return Err(EngineError {
+                    code: ErrorCode::InvalidInput,
+                    message: format!(
+                        "Collection member '{}' has more than one primer-report binding",
+                        stable_member_id
+                    ),
+                    cause_chain: vec![],
+                });
+            }
+            if let Some(previous_member) =
+                bound_reports.insert(primer_report_id.clone(), stable_member_id.clone())
+                && previous_member != stable_member_id
+            {
+                return Err(EngineError {
+                    code: ErrorCode::InvalidInput,
+                    message: format!(
+                        "Primer-design report '{}' is bound to both '{}' and '{}'; one global specificity run must not be duplicated across collection members",
+                        primer_report_id, previous_member, stable_member_id
+                    ),
+                    cause_chain: vec![],
+                });
+            }
+        }
+        Ok(by_member)
+    }
+
+    fn resolve_primer_specificity_collection_member_report(
+        &self,
+        member: &CollectionMemberRef,
+        explicit_report_id: Option<&str>,
+    ) -> Result<(String, &'static str), EngineError> {
+        if let Some(report_id) = explicit_report_id {
+            let report = self.get_primer_design_report(report_id)?;
+            if let Some(seq_id) = member.seq_id.as_deref()
+                && report.template != seq_id
+            {
+                return Err(EngineError {
+                    code: ErrorCode::InvalidInput,
+                    message: format!(
+                        "Primer-design report '{}' targets sequence '{}', not collection member sequence '{}'",
+                        report.report_id, report.template, seq_id
+                    ),
+                    cause_chain: vec![],
+                });
+            }
+            return Ok((report.report_id, "explicit"));
+        }
+
+        let Some(seq_id) = member.seq_id.as_deref() else {
+            return Err(EngineError {
+                code: ErrorCode::InvalidInput,
+                message: format!(
+                    "Gene-set member '{}' requires an explicit member-to-primer-report binding",
+                    member.stable_member_id
+                ),
+                cause_chain: vec![],
+            });
+        };
+        if !self.state.sequences.contains_key(seq_id) {
+            return Err(EngineError {
+                code: ErrorCode::NotFound,
+                message: format!("Project sequence '{}' not found", seq_id),
+                cause_chain: vec![],
+            });
+        }
+        let candidates = self
+            .list_primer_design_reports()
+            .into_iter()
+            .filter(|summary| summary.template == seq_id)
+            .map(|summary| summary.report_id)
+            .collect::<Vec<_>>();
+        match candidates.as_slice() {
+            [report_id] => Ok((report_id.clone(), "unique_template_match")),
+            [] => Err(EngineError {
+                code: ErrorCode::NotFound,
+                message: format!(
+                    "No primer-design report targets project sequence '{}'; provide --member-report {}=REPORT_ID",
+                    seq_id, member.stable_member_id
+                ),
+                cause_chain: vec![],
+            }),
+            _ => Err(EngineError {
+                code: ErrorCode::InvalidInput,
+                message: format!(
+                    "Project sequence '{}' has {} primer-design reports ({}); bind one explicitly with --member-report {}=REPORT_ID",
+                    seq_id,
+                    candidates.len(),
+                    candidates.join(", "),
+                    member.stable_member_id
+                ),
+                cause_chain: vec![],
+            }),
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn assess_primer_pair_specificity_collection(
+        &mut self,
+        collection_subject: CollectionSubjectRef,
+        member_bindings: Vec<PrimerSpecificityCollectionMemberBinding>,
+        pair_rank: Option<usize>,
+        pair_index: Option<usize>,
+        target_genome_id: &str,
+        policy: PrimerSpecificityPolicy,
+        catalog_path: Option<&str>,
+        cache_dir: Option<&str>,
+        op_id: &str,
+        run_id: &str,
+    ) -> Result<CollectionOperationReport, EngineError> {
+        let subject_kind = collection_subject.kind();
+        let lift_policy = collection_lift_policy(
+            CapabilitySource::EngineOperation,
+            "AssessPrimerPairSpecificity",
+            subject_kind,
+        )
+        .cloned()
+        .ok_or_else(|| EngineError {
+            code: ErrorCode::Unsupported,
+            message: format!(
+                "AssessPrimerPairSpecificity has no collection lift policy for {:?}",
+                subject_kind
+            ),
+            cause_chain: vec![],
+        })?;
+        if !matches!(
+            &lift_policy.support,
+            CollectionLiftSupport::Supported {
+                mode: CollectionLiftingMode::Map,
+                ..
+            }
+        ) {
+            return Err(EngineError {
+                code: ErrorCode::Unsupported,
+                message: format!(
+                    "AssessPrimerPairSpecificity collection lift policy for {:?} does not declare map support",
+                    subject_kind
+                ),
+                cause_chain: vec![],
+            });
+        }
+
+        let (collection_subject, members, provenance, biological_contexts) =
+            self.primer_specificity_collection_subject_members(&collection_subject)?;
+        match lift_policy.context_requirement {
+            CollectionContextRequirement::NotReviewed => {
+                return Err(EngineError::internal(
+                    "AssessPrimerPairSpecificity collection lifting has not reviewed biological-context behavior",
+                ));
+            }
+            CollectionContextRequirement::ContextAgnostic => {}
+            CollectionContextRequirement::Homogeneous => {
+                let context =
+                    homogeneous_collection_biological_context(&biological_contexts, &members)
+                        .map_err(EngineError::from)?;
+                validate_collection_context_target_genome(&context, target_genome_id)
+                    .map_err(EngineError::from)?;
+            }
+            CollectionContextRequirement::Partitionable
+            | CollectionContextRequirement::ExplicitCrossContext => {
+                return Err(EngineError::internal(format!(
+                    "AssessPrimerPairSpecificity does not implement the declared {:?} biological-context behavior",
+                    lift_policy.context_requirement
+                )));
+            }
+        }
+        let bindings = Self::primer_specificity_collection_binding_map(member_bindings)?;
+        let member_ids = members
+            .iter()
+            .map(|member| member.stable_member_id.as_str())
+            .collect::<BTreeSet<_>>();
+        let unknown_bindings = bindings
+            .keys()
+            .filter(|member_id| !member_ids.contains(member_id.as_str()))
+            .cloned()
+            .collect::<Vec<_>>();
+        if !unknown_bindings.is_empty() {
+            return Err(EngineError {
+                code: ErrorCode::InvalidInput,
+                message: format!(
+                    "Primer-report bindings reference member ids that are not in the collection: {}",
+                    unknown_bindings.join(", ")
+                ),
+                cause_chain: vec![],
+            });
+        }
+
+        let mut resolved_members = Vec::with_capacity(members.len());
+        let mut used_report_ids = BTreeMap::<String, String>::new();
+        for member in members {
+            let resolved = self.resolve_primer_specificity_collection_member_report(
+                &member,
+                bindings.get(&member.stable_member_id).map(String::as_str),
+            );
+            if let Ok((report_id, _)) = &resolved
+                && let Some(previous_member) =
+                    used_report_ids.insert(report_id.clone(), member.stable_member_id.clone())
+                && previous_member != member.stable_member_id
+            {
+                return Err(EngineError {
+                    code: ErrorCode::InvalidInput,
+                    message: format!(
+                        "Primer-design report '{}' resolves to both '{}' and '{}'; collection mapping would duplicate one specificity assessment",
+                        report_id, previous_member, member.stable_member_id
+                    ),
+                    cause_chain: vec![],
+                });
+            }
+            resolved_members.push((member, resolved));
+        }
+
+        let canonical_membership = canonical_collection_membership_json(
+            subject_kind,
+            &resolved_members
+                .iter()
+                .map(|(member, _)| member.clone())
+                .collect::<Vec<_>>(),
+        );
+        let membership_fingerprint = sha256_prefixed_str(&canonical_membership);
+        let identity = serde_json::to_string(&json!({
+            "collection_subject": collection_subject,
+            "collection_membership_fingerprint_sha256": membership_fingerprint,
+            "member_bindings": resolved_members.iter().map(|(member, resolved)| json!({
+                "stable_member_id": member.stable_member_id,
+                "primer_report_id": resolved.as_ref().ok().map(|(report_id, _)| report_id),
+            })).collect::<Vec<_>>(),
+            "pair_rank": pair_rank,
+            "pair_index": pair_index,
+            "target_genome_id": target_genome_id,
+            "policy": policy,
+        }))
+        .map_err(|error| EngineError {
+            code: ErrorCode::Internal,
+            message: format!("Could not identify collection primer-specificity report: {error}"),
+            cause_chain: vec![],
+        })?;
+        let report_id = short_sha256_id("collection_primer_specificity", &identity);
+
+        let mut per_member_status = Vec::with_capacity(resolved_members.len());
+        let mut aggregate_warnings = Vec::new();
+        let mut successful_reports = Vec::new();
+        for (mut member, resolved) in resolved_members {
+            let (primer_report_id, resolution_kind) = match resolved {
+                Ok(resolved) => resolved,
+                Err(error) => {
+                    aggregate_warnings.push(format!(
+                        "Member '{}': {}",
+                        member.stable_member_id, error.message
+                    ));
+                    per_member_status.push(CollectionMemberStatusRow {
+                        member,
+                        outcome: CollectionMemberOutcome::Failed,
+                        error: Some(error),
+                        produced_report_ids: vec![],
+                    });
+                    continue;
+                }
+            };
+            member.source_provenance.push(GeneSetProvenanceRow {
+                source_kind: "primer_design_report_binding".to_string(),
+                source_id: primer_report_id.clone(),
+                source_label: None,
+                source_path: None,
+                note: Some(format!(
+                    "Primer-design report binding resolved by {resolution_kind}"
+                )),
+            });
+            match self.assess_primer_pair_specificity(
+                Some(&primer_report_id),
+                pair_rank,
+                pair_index,
+                None,
+                None,
+                target_genome_id,
+                policy.clone(),
+                catalog_path,
+                cache_dir,
+            ) {
+                Ok(report) => {
+                    if report.target_genome_id != target_genome_id {
+                        return Err(EngineError::internal(format!(
+                            "Primer-specificity child report '{}' targets genome '{}', expected '{}'",
+                            report.report_id, report.target_genome_id, target_genome_id
+                        )));
+                    }
+                    let produced_report_id = report.report_id.clone();
+                    aggregate_warnings.extend(
+                        report.warnings.iter().map(|warning| {
+                            format!("Member '{}': {warning}", member.stable_member_id)
+                        }),
+                    );
+                    if !report.summary.specificity_pass {
+                        aggregate_warnings.push(format!(
+                            "Member '{}' completed with biological status '{}'; execution succeeded, but the primer pair did not pass specificity",
+                            member.stable_member_id, report.summary.status
+                        ));
+                    }
+                    successful_reports.push(report);
+                    per_member_status.push(CollectionMemberStatusRow {
+                        member,
+                        outcome: CollectionMemberOutcome::Succeeded,
+                        error: None,
+                        produced_report_ids: vec![produced_report_id],
+                    });
+                }
+                Err(error) => {
+                    aggregate_warnings.push(format!(
+                        "Member '{}': {}",
+                        member.stable_member_id, error.message
+                    ));
+                    per_member_status.push(CollectionMemberStatusRow {
+                        member,
+                        outcome: CollectionMemberOutcome::Failed,
+                        error: Some(error),
+                        produced_report_ids: vec![],
+                    });
+                }
+            }
+        }
+
+        if !successful_reports.is_empty() {
+            let mut store = self.read_primer_design_store();
+            for report in &mut successful_reports {
+                report.op_id = Some(op_id.to_string());
+                report.run_id = Some(run_id.to_string());
+                store
+                    .primer_specificity_reports
+                    .insert(report.report_id.clone(), report.clone());
+            }
+            self.write_primer_design_store(store)?;
+        }
+
+        Ok(CollectionOperationReport {
+            schema: COLLECTION_OPERATION_REPORT_SCHEMA.to_string(),
+            report_id,
+            op_id: Some(op_id.to_string()),
+            run_id: Some(run_id.to_string()),
+            generated_at_unix_ms: Self::now_unix_ms(),
+            capability_source: CapabilitySource::EngineOperation,
+            capability_name: "AssessPrimerPairSpecificity".to_string(),
+            collection_subject,
+            lifting_mode: CollectionLiftingMode::Map,
+            lift_policy,
+            fingerprint_algorithm: COLLECTION_MEMBERSHIP_FINGERPRINT_ALGORITHM.to_string(),
+            collection_membership_fingerprint_sha256: membership_fingerprint,
+            biological_contexts,
+            dry_run: false,
+            applied: true,
+            per_member_status,
+            aggregate_warnings,
+            provenance,
+        })
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(super) fn assess_explicit_primer_pair_specificity_with_target(
         &self,
@@ -12060,6 +12536,331 @@ impl GentleEngine {
                 ),
                 cause_chain: vec![],
             })
+    }
+
+    fn gene_transcript_assay_routine_panel_role(
+        report: &TranscriptAssayPanelReport,
+    ) -> GeneTranscriptAssayRoutinePanelRole {
+        match report.assay_tier {
+            TranscriptAssayUseTier::RoutineCommonRegionScreen => {
+                GeneTranscriptAssayRoutinePanelRole::CommonControl
+            }
+            TranscriptAssayUseTier::IsoformDiscrimination => {
+                GeneTranscriptAssayRoutinePanelRole::JunctionValidation
+            }
+            TranscriptAssayUseTier::LongRangeStructureDiscovery => {
+                GeneTranscriptAssayRoutinePanelRole::EndpointStructure
+            }
+            TranscriptAssayUseTier::Unspecified => {
+                if report.assay_kind == TranscriptAssayKind::EndpointRtPcr
+                    || report.objective == TranscriptAssayPanelObjective::IsoformEndMatrix
+                {
+                    GeneTranscriptAssayRoutinePanelRole::EndpointStructure
+                } else if report.objective == TranscriptAssayPanelObjective::PanTranscript {
+                    GeneTranscriptAssayRoutinePanelRole::CommonControl
+                } else if report.assay_kind == TranscriptAssayKind::SybrQpcr {
+                    GeneTranscriptAssayRoutinePanelRole::JunctionValidation
+                } else if report.assay_kind == TranscriptAssayKind::TaqmanQpcr {
+                    GeneTranscriptAssayRoutinePanelRole::QuantitativeValidation
+                } else {
+                    GeneTranscriptAssayRoutinePanelRole::Other
+                }
+            }
+        }
+    }
+
+    fn compose_gene_transcript_assay_routine(
+        &self,
+        request: &GeneTranscriptAssayRoutineRequest,
+    ) -> Result<GeneTranscriptAssayRoutineReport, EngineError> {
+        let isoform_path = request.isoform_evidence_path.trim();
+        if isoform_path.is_empty() {
+            return Err(EngineError {
+                code: ErrorCode::InvalidInput,
+                message: "Gene transcript-assay routine requires isoform_evidence_path".to_string(),
+                cause_chain: vec![],
+            });
+        }
+        let isoform_bytes = std::fs::read(isoform_path).map_err(|error| EngineError {
+            code: ErrorCode::Io,
+            message: format!(
+                "Could not read gene isoform evidence report '{isoform_path}': {error}"
+            ),
+            cause_chain: vec![],
+        })?;
+        let isoform_report: GeneIsoformEvidenceReport =
+            match serde_json::from_slice::<FeatureExpertView>(&isoform_bytes) {
+                Ok(FeatureExpertView::IsoformEvidence(report)) => report,
+                Ok(_) => {
+                    return Err(EngineError {
+                        code: ErrorCode::InvalidInput,
+                        message: format!(
+                            "Feature-expert output '{isoform_path}' is not an isoform-evidence view"
+                        ),
+                        cause_chain: vec![],
+                    });
+                }
+                Err(view_error) => serde_json::from_slice(&isoform_bytes).map_err(
+                    |report_error| EngineError {
+                        code: ErrorCode::InvalidInput,
+                        message: format!(
+                            "Could not parse gene isoform evidence report '{isoform_path}' as a feature-expert view ({view_error}) or bare report ({report_error})"
+                        ),
+                        cause_chain: vec![],
+                    },
+                )?,
+            };
+        if isoform_report.schema.trim().is_empty() || isoform_report.seq_id.trim().is_empty() {
+            return Err(EngineError {
+                code: ErrorCode::InvalidInput,
+                message: format!(
+                    "Gene isoform evidence report '{isoform_path}' is missing its schema or source sequence id"
+                ),
+                cause_chain: vec![],
+            });
+        }
+        let isoform_sha256 = sha256_prefixed_bytes(&isoform_bytes);
+        if let Some(expected) = request
+            .expected_isoform_evidence_sha256
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            && expected != isoform_sha256
+        {
+            return Err(EngineError {
+                code: ErrorCode::InvalidInput,
+                message: format!(
+                    "Gene isoform evidence report '{}' has digest '{}' but the composition request expected '{}'",
+                    isoform_path, isoform_sha256, expected
+                ),
+                cause_chain: vec![],
+            });
+        }
+        let mut warnings = isoform_report.warnings.clone();
+        if isoform_report.schema != GENE_ISOFORM_EVIDENCE_SCHEMA
+            && isoform_report.schema != GENE_ISOFORM_EVIDENCE_SCHEMA_V1
+        {
+            warnings.push(format!(
+                "Isoform evidence schema '{}' is not a known GENtle v1/v2 schema; fields were interpreted through the compatible serde contract.",
+                isoform_report.schema
+            ));
+        }
+        if isoform_report.schema == GENE_ISOFORM_EVIDENCE_SCHEMA_V1 {
+            warnings.push(
+                "Legacy isoform evidence v1 lacks authoritative per-contrast component measurements and recommendation tiers; rerun isoform-evidence inspection for v2."
+                    .to_string(),
+            );
+        }
+
+        let mut panel_ids = request
+            .transcript_assay_panel_report_ids
+            .iter()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .collect::<Vec<_>>();
+        panel_ids.sort();
+        panel_ids.dedup();
+        if panel_ids.is_empty() {
+            warnings.push(
+                "No transcript-assay panel report was supplied; the routine contains evidence candidates only."
+                    .to_string(),
+            );
+        }
+
+        let mut assay_panels = Vec::new();
+        let mut order_ready_primers = Vec::new();
+        let mut uncovered_transcript_class_ids = Vec::new();
+        for report_id in panel_ids {
+            let report = self.get_transcript_assay_panel_report(&report_id)?;
+            if report.source_seq_id != isoform_report.seq_id {
+                return Err(EngineError {
+                    code: ErrorCode::InvalidInput,
+                    message: format!(
+                        "Transcript-assay panel '{}' targets sequence '{}', not isoform-evidence sequence '{}'",
+                        report.report_id, report.source_seq_id, isoform_report.seq_id
+                    ),
+                    cause_chain: vec![],
+                });
+            }
+            let report_digest = Self::transcript_assay_panel_specificity_digest(&report)?;
+            let mut specificity_issue_messages = report
+                .specificity_acceptance
+                .as_ref()
+                .into_iter()
+                .flat_map(|acceptance| acceptance.issues.iter())
+                .map(|issue| issue.message.clone())
+                .collect::<Vec<_>>();
+            let specificity_digest_matches = report
+                .specificity_acceptance
+                .as_ref()
+                .is_some_and(|acceptance| acceptance.panel_digest == report_digest);
+            if report.specificity_acceptance.is_some() && !specificity_digest_matches {
+                let message = format!(
+                    "Specificity acceptance attached to panel '{}' does not match its current report digest.",
+                    report.report_id
+                );
+                warnings.push(message.clone());
+                specificity_issue_messages.push(message);
+            }
+            let role = Self::gene_transcript_assay_routine_panel_role(&report);
+            order_ready_primers.extend(report.order_ready_primers.iter().cloned().map(|primer| {
+                GeneTranscriptAssayRoutineOrderPrimer {
+                    source_report_id: report.report_id.clone(),
+                    source_report_digest: report_digest.clone(),
+                    primer,
+                }
+            }));
+            uncovered_transcript_class_ids
+                .extend(report.uncovered_equivalence_group_ids.iter().cloned());
+            assay_panels.push(GeneTranscriptAssayRoutinePanelSummary {
+                role,
+                report_id: report.report_id.clone(),
+                report_schema: report.schema.clone(),
+                report_digest,
+                assay_kind: report.assay_kind,
+                objective: report.objective,
+                assay_tier: report.assay_tier,
+                completion_status: report.completion_status,
+                selected_assay_ids: report
+                    .selected_assays
+                    .iter()
+                    .map(|assay| assay.assay_id.clone())
+                    .collect(),
+                selected_assay_count: report.selected_assays.len(),
+                end_reaction_count: report.end_reactions.len(),
+                band_size_row_count: report.band_size_matrix.len(),
+                junction_evaluation_count: report.junction_evaluations.len(),
+                uncovered_equivalence_group_ids: report.uncovered_equivalence_group_ids.clone(),
+                unresolved_group_pairs: report.unresolved_group_pairs.clone(),
+                specificity_status: report
+                    .specificity_acceptance
+                    .as_ref()
+                    .map(|acceptance| acceptance.status),
+                specificity_accepted: specificity_digest_matches
+                    && report
+                        .specificity_acceptance
+                        .as_ref()
+                        .is_some_and(|acceptance| acceptance.accepted),
+                specificity_issue_messages,
+                warnings: report.warnings.clone(),
+            });
+        }
+        assay_panels.sort_by(|left, right| {
+            (left.role as u8)
+                .cmp(&(right.role as u8))
+                .then(left.report_id.cmp(&right.report_id))
+        });
+        order_ready_primers.sort_by(|left, right| {
+            left.source_report_id
+                .cmp(&right.source_report_id)
+                .then(left.primer.line_id.cmp(&right.primer.line_id))
+        });
+        uncovered_transcript_class_ids.sort();
+        uncovered_transcript_class_ids.dedup();
+
+        let mut recommended_experimental_sequence = Vec::new();
+        if assay_panels
+            .iter()
+            .any(|panel| panel.role == GeneTranscriptAssayRoutinePanelRole::CommonControl)
+        {
+            recommended_experimental_sequence.push(
+                "Run the annotation-defined common-region control first; array evidence may prioritize the region but does not establish commonality."
+                    .to_string(),
+            );
+        }
+        if assay_panels
+            .iter()
+            .any(|panel| panel.role == GeneTranscriptAssayRoutinePanelRole::JunctionValidation)
+        {
+            recommended_experimental_sequence.push(
+                "Run short junction-validation assays to test transcript-family discrimination."
+                    .to_string(),
+            );
+        }
+        if assay_panels
+            .iter()
+            .any(|panel| panel.role == GeneTranscriptAssayRoutinePanelRole::EndpointStructure)
+        {
+            recommended_experimental_sequence.push(
+                "Use endpoint or long-range reactions for structural discovery; gel intensity is only rough or semi-quantitative."
+                    .to_string(),
+            );
+        }
+        if assay_panels.iter().any(|panel| {
+            panel.role == GeneTranscriptAssayRoutinePanelRole::QuantitativeValidation
+        }) {
+            recommended_experimental_sequence.push(
+                "Use short quantitative assays only after reviewing transcript-family scope and assay specificity."
+                    .to_string(),
+            );
+        }
+        if assay_panels.iter().any(|panel| !panel.specificity_accepted) {
+            recommended_experimental_sequence.push(
+                "Complete and review the declared genomic/transcriptome specificity handoffs before treating primers as order-ready."
+                    .to_string(),
+            );
+        }
+        if recommended_experimental_sequence.is_empty() {
+            recommended_experimental_sequence.push(
+                "Review annotation-derived candidates and generate assay panels before wet-lab interpretation."
+                    .to_string(),
+            );
+        }
+
+        let identity = serde_json::to_vec(&json!({
+            "schema": GENE_TRANSCRIPT_ASSAY_ROUTINE_SCHEMA,
+            "label": request.label,
+            "isoform_evidence_sha256": isoform_sha256,
+            "panel_digests": assay_panels
+                .iter()
+                .map(|panel| (&panel.report_id, &panel.report_digest))
+                .collect::<Vec<_>>(),
+        }))
+        .map_err(|error| EngineError {
+            code: ErrorCode::Internal,
+            message: format!("Could not identify gene transcript-assay routine: {error}"),
+            cause_chain: vec![],
+        })?;
+        let identity_sha = sha256_prefixed_bytes(&identity);
+        let routine_id = request
+            .routine_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string)
+            .unwrap_or_else(|| {
+                format!(
+                    "gene_assay_routine_{}",
+                    identity_sha
+                        .strip_prefix("sha256:")
+                        .unwrap_or(&identity_sha)
+                        .chars()
+                        .take(16)
+                        .collect::<String>()
+                )
+            });
+        warnings.sort();
+        warnings.dedup();
+        Ok(GeneTranscriptAssayRoutineReport {
+            schema: GENE_TRANSCRIPT_ASSAY_ROUTINE_SCHEMA.to_string(),
+            routine_id,
+            label: request.label.trim().to_string(),
+            seq_id: isoform_report.seq_id.clone(),
+            gene_symbol: isoform_report.gene_symbol.clone(),
+            panel_id: isoform_report.panel_id.clone(),
+            annotation_release: isoform_report.annotation_release.clone(),
+            isoform_evidence_schema: isoform_report.schema.clone(),
+            isoform_evidence_path: isoform_path.to_string(),
+            isoform_evidence_sha256: isoform_sha256,
+            transcript_metrics: isoform_report.transcript_metrics.clone(),
+            exon_candidates: isoform_report.exon_families.clone(),
+            junction_candidates: isoform_report.junctions.clone(),
+            assay_panels,
+            order_ready_primers,
+            uncovered_transcript_class_ids,
+            recommended_experimental_sequence,
+            warnings,
+        })
     }
 
     fn transcript_assay_panel_primer_pair_digest(
@@ -17310,15 +18111,18 @@ impl GentleEngine {
         let mut selection_evidence = vec![];
         let mut warnings = vec![];
         for row in &report.evidence_rows {
-            let junction_like = row.level.eq_ignore_ascii_case("junction")
-                || row.feature_id.to_ascii_uppercase().starts_with("JUC");
-            let psr_like = row.level.eq_ignore_ascii_case("probeset")
-                || row.level.eq_ignore_ascii_case("exon")
-                || row.feature_id.to_ascii_uppercase().starts_with("PSR");
+            let has_junction_edges = row
+                .transcript_mappings
+                .iter()
+                .any(|mapping| !mapping.junction_spans.is_empty());
+            let (probe_class, classification_basis) =
+                GeneLocusProbeClass::classify(&row.level, &row.feature_id, has_junction_edges);
+            let junction_like = probe_class == GeneLocusProbeClass::Juc;
+            let psr_like = probe_class == GeneLocusProbeClass::Psr;
             if !junction_like && !psr_like {
                 warnings.push(format!(
-                    "Probe evidence '{}' has unsupported level '{}'; only JUC/junction and PSR/probeset rows are retained for transcript-panel selection provenance.",
-                    row.evidence_id, row.level
+                    "Probe evidence '{}' has unsupported level '{}' ({classification_basis}); only JUC/junction and PSR/probeset rows are retained for transcript-panel selection provenance.",
+                    row.evidence_id, row.level,
                 ));
                 continue;
             }
@@ -21096,6 +21900,15 @@ impl GentleEngine {
         transcript_targeting: Option<QpcrTranscriptTargeting>,
         report_id: Option<String>,
     ) -> Result<(), EngineError> {
+        if pair_constraints.rejected_near_miss_limit.is_some() {
+            return Err(EngineError {
+                code: ErrorCode::InvalidInput,
+                message:
+                    "pair_constraints.rejected_near_miss_limit is supported by DesignPrimerPairs and DesignInsertionPrimerPairs, not DesignQpcrAssays"
+                        .to_string(),
+                cause_chain: vec![],
+            });
+        }
         let dna = self
             .state
             .sequences
@@ -21413,6 +22226,7 @@ impl GentleEngine {
             let pair_like = PrimerDesignPairRecord {
                 rank: top_assay.rank,
                 score: top_assay.score,
+                score_terms: vec![],
                 forward: top_assay.forward.clone(),
                 reverse: top_assay.reverse.clone(),
                 amplicon_start_0based: top_assay.amplicon_start_0based,
@@ -21458,6 +22272,206 @@ impl GentleEngine {
             ));
         }
         Ok(())
+    }
+
+    fn build_primer_design_selection_reasoning_graph(
+        &self,
+        report: &PrimerDesignReport,
+        dna: &DNAsequence,
+    ) -> Result<ConstructReasoningGraph, EngineError> {
+        let report_token = Self::normalize_id_token(&report.report_id);
+        let objective = Self::normalize_construct_objective(ConstructObjective {
+            objective_id: format!("primer_pair_selection_{report_token}"),
+            title: format!("Primer-pair selection for {}", report.report_id),
+            goal: format!(
+                "Explain retained primer-pair ranks and bounded evaluated rejections for template '{}'",
+                report.template
+            ),
+            intended_tasks: Some(vec![ConstructReasoningRiskTask::Pcr]),
+            notes: vec![
+                "Selection provenance describes deterministic ranking and configured constraint checks; it is not experimental validation of primer performance."
+                    .to_string(),
+            ],
+            ..ConstructObjective::default()
+        });
+        let mut input_fingerprint = Self::construct_reasoning_input_fingerprint(dna, &objective)?;
+        input_fingerprint.source_artifact_kind = Some("primer_design_report".to_string());
+        input_fingerprint.source_artifact_id = Some(report.report_id.clone());
+        input_fingerprint.source_artifact_sha256 =
+            Some(Self::primer_design_report_content_sha256(report)?);
+
+        let provenance_refs = [
+            Some(format!("primer_design_report:{}", report.report_id)),
+            report
+                .op_id
+                .as_ref()
+                .map(|value| format!("operation:{value}")),
+            report.run_id.as_ref().map(|value| format!("run:{value}")),
+        ]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+        let template_len = dna.len();
+        let evidence = report
+            .rejected_near_misses
+            .iter()
+            .enumerate()
+            .map(|(index, candidate)| {
+                let reason_token = candidate
+                    .reasons
+                    .first()
+                    .map(|reason| reason.as_str())
+                    .unwrap_or("unclassified");
+                let start_0based = candidate.amplicon_start_0based.min(template_len);
+                let end_0based_exclusive = candidate
+                    .amplicon_end_0based_exclusive
+                    .min(template_len)
+                    .max(start_0based);
+                let mut context_tags = vec![
+                    "primer_design".to_string(),
+                    "rejected_near_miss".to_string(),
+                ];
+                context_tags.extend(
+                    candidate
+                        .reasons
+                        .iter()
+                        .map(|reason| reason.as_str().to_string()),
+                );
+                DesignEvidence {
+                    evidence_id: format!(
+                        "primer_near_miss_{:03}_{}",
+                        index + 1,
+                        reason_token
+                    ),
+                    seq_id: report.template.clone(),
+                    scope: EvidenceScope::SequenceSpan,
+                    start_0based,
+                    end_0based_exclusive,
+                    role: ConstructRole::Other,
+                    evidence_class: EvidenceClass::ContextEvidence,
+                    label: format!(
+                        "Rejected primer-pair near miss {}",
+                        index.saturating_add(1)
+                    ),
+                    rationale: format!(
+                        "{} This row is one bounded evaluated rejection, not an exhaustive account of all rejected candidates.",
+                        candidate.detail
+                    ),
+                    score: candidate.score,
+                    context_tags,
+                    provenance_kind: "primer_design_report".to_string(),
+                    provenance_refs: provenance_refs.clone(),
+                    editable_status: EditableStatus::Draft,
+                    notes: candidate.failed_checks.clone(),
+                    ..DesignEvidence::default()
+                }
+            })
+            .collect::<Vec<_>>();
+        let evidence_ids = evidence
+            .iter()
+            .map(|row| row.evidence_id.clone())
+            .collect::<Vec<_>>();
+
+        let mut decisions = report
+            .pairs
+            .iter()
+            .enumerate()
+            .map(|(index, pair)| {
+                let rank = if pair.rank == 0 { index + 1 } else { pair.rank };
+                DesignDecisionNode {
+                    decision_id: format!("retain_primer_pair_r{rank:03}"),
+                    decision_type: "primer_pair_selection".to_string(),
+                    method: DecisionMethod::WeightedRule,
+                    title: format!("Retain primer pair rank {rank}"),
+                    rationale: format!(
+                        "Retained at rank {rank} under additive score model '{}' ({}); compared near-miss evidence is bounded as recorded in the source report.",
+                        report.score_model, report.score_direction
+                    ),
+                    input_evidence_ids: evidence_ids.clone(),
+                    parameters_json: json!({
+                        "report_schema": report.schema,
+                        "report_id": report.report_id,
+                        "op_id": report.op_id,
+                        "run_id": report.run_id,
+                        "pair_rank": rank,
+                        "pair_score": pair.score,
+                        "score_model": report.score_model,
+                        "score_direction": report.score_direction,
+                        "score_terms": pair.score_terms,
+                        "pair_content_sha256": Self::primer_specificity_pair_content_sha256(
+                            &pair.forward.sequence,
+                            &pair.reverse.sequence,
+                        ),
+                        "pair_content_fingerprint_algorithm":
+                            PRIMER_DESIGN_PAIR_CONTENT_FINGERPRINT_ALGORITHM,
+                        "near_miss_capture": report.near_miss_capture,
+                        "pair_constraints": report.pair_constraints,
+                        "effective_constraints": {
+                            "roi_start_0based": report.roi_start_0based,
+                            "roi_end_0based_exclusive": report.roi_end_0based,
+                            "min_amplicon_bp": report.min_amplicon_bp,
+                            "max_amplicon_bp": report.max_amplicon_bp,
+                            "max_tm_delta_c": report.max_tm_delta_c,
+                            "max_pairs": report.max_pairs,
+                        },
+                    }),
+                    editable_status: EditableStatus::Draft,
+                    ..DesignDecisionNode::default()
+                }
+            })
+            .collect::<Vec<_>>();
+        if decisions.is_empty() {
+            decisions.push(DesignDecisionNode {
+                decision_id: "no_primer_pair_retained".to_string(),
+                decision_type: "primer_pair_selection".to_string(),
+                method: DecisionMethod::WeightedRule,
+                title: "No primer pair retained".to_string(),
+                rationale:
+                    "No evaluated pair satisfied all configured requirements; bounded rejected near misses remain non-exhaustive context."
+                        .to_string(),
+                input_evidence_ids: evidence_ids,
+                parameters_json: json!({
+                    "report_schema": report.schema,
+                    "report_id": report.report_id,
+                    "op_id": report.op_id,
+                    "run_id": report.run_id,
+                    "score_model": report.score_model,
+                    "near_miss_capture": report.near_miss_capture,
+                    "rejection_summary": report.rejection_summary,
+                    "pair_constraints": report.pair_constraints,
+                    "effective_constraints": {
+                        "roi_start_0based": report.roi_start_0based,
+                        "roi_end_0based_exclusive": report.roi_end_0based,
+                        "min_amplicon_bp": report.min_amplicon_bp,
+                        "max_amplicon_bp": report.max_amplicon_bp,
+                        "max_tm_delta_c": report.max_tm_delta_c,
+                        "max_pairs": report.max_pairs,
+                    },
+                }),
+                editable_status: EditableStatus::Draft,
+                ..DesignDecisionNode::default()
+            });
+        }
+
+        Ok(ConstructReasoningGraph {
+            graph_id: report
+                .construct_reasoning_graph_id
+                .clone()
+                .unwrap_or_else(|| format!("primer_design_reasoning_{report_token}")),
+            seq_id: report.template.clone(),
+            op_id: report.op_id.clone(),
+            run_id: report.run_id.clone(),
+            objective,
+            generated_at_unix_ms: report.generated_at_unix_ms,
+            input_fingerprint: Some(input_fingerprint),
+            evidence,
+            decisions,
+            notes: vec![
+                "This graph explains GENtle's selected ranks against a bounded set of evaluated pair-level rejections. Aggregate rejection counts may include single-primer failures and unevaluated combinations that cannot be drawn as pair intervals."
+                    .to_string(),
+            ],
+            ..ConstructReasoningGraph::default()
+        })
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -21562,6 +22576,18 @@ impl GentleEngine {
                 cause_chain: vec![],
             });
         }
+        let near_miss_limit = pair_constraints
+            .rejected_near_miss_limit
+            .unwrap_or(PRIMER_DESIGN_DEFAULT_REJECTED_NEAR_MISS_LIMIT);
+        if near_miss_limit > PRIMER_DESIGN_MAX_REJECTED_NEAR_MISS_LIMIT {
+            return Err(EngineError {
+                code: ErrorCode::InvalidInput,
+                message: format!(
+                    "pair_constraints.rejected_near_miss_limit ({near_miss_limit}) must be <= {PRIMER_DESIGN_MAX_REJECTED_NEAR_MISS_LIMIT}"
+                ),
+                cause_chain: vec![],
+            });
+        }
 
         Self::validate_primer_design_side_constraints("forward", &forward)?;
         Self::validate_primer_design_side_constraints("reverse", &reverse)?;
@@ -21648,7 +22674,7 @@ impl GentleEngine {
             requested: requested_backend.as_str().to_string(),
             ..PrimerDesignBackendInfo::default()
         };
-        let (pairs, rejection_summary) = match requested_backend {
+        let search_outcome = match requested_backend {
             PrimerDesignBackend::Internal => {
                 backend.used = PrimerDesignBackend::Internal.as_str().to_string();
                 let progress_context = PrimerDesignProgressContext {
@@ -21663,7 +22689,7 @@ impl GentleEngine {
                 let mut emit_internal = |progress: PrimerDesignProgress| {
                     on_progress(OperationProgress::PrimerDesign(progress))
                 };
-                Self::design_primer_pairs_internal_core(
+                Self::design_primer_pairs_internal_core_with_capture(
                     template_bytes,
                     roi_start_0based,
                     roi_end_0based,
@@ -21676,6 +22702,7 @@ impl GentleEngine {
                     max_amplicon_bp,
                     max_tm_delta_c,
                     max_pairs,
+                    near_miss_limit,
                     Some(&progress_context),
                     &mut emit_internal,
                 )?
@@ -21710,8 +22737,8 @@ impl GentleEngine {
                         done: false,
                     },
                 )?;
-                let (pairs, rejection_summary, version, explain, request_boulder_io) =
-                    Self::design_primer_pairs_primer3(
+                let (outcome, version, explain, request_boulder_io) =
+                    Self::design_primer_pairs_primer3_with_capture(
                         &template_seq,
                         roi_start_0based,
                         roi_end_0based,
@@ -21725,6 +22752,7 @@ impl GentleEngine {
                         max_tm_delta_c,
                         max_pairs,
                         primer3_executable,
+                        near_miss_limit,
                     )?;
                 backend.used = PrimerDesignBackend::Primer3.as_str().to_string();
                 backend.primer3_executable = Some(primer3_executable.to_string());
@@ -21739,7 +22767,7 @@ impl GentleEngine {
                         backend_requested: requested_backend.as_str().to_string(),
                         backend_used: PrimerDesignBackend::Primer3.as_str().to_string(),
                         stage: "complete".to_string(),
-                        detail: format!("Primer3 returned {} primer pair(s)", pairs.len()),
+                        detail: format!("Primer3 returned {} primer pair(s)", outcome.pairs.len()),
                         roi_start_0based,
                         roi_end_0based_exclusive: roi_end_0based,
                         forward_candidate_count: None,
@@ -21749,7 +22777,7 @@ impl GentleEngine {
                         pair_evaluated: None,
                         pair_evaluation_limit: None,
                         pair_evaluation_limited: None,
-                        accepted_pair_count: Some(pairs.len()),
+                        accepted_pair_count: Some(outcome.pairs.len()),
                         assay_candidate_combinations: None,
                         assays_evaluated: None,
                         accepted_assay_count: None,
@@ -21757,7 +22785,7 @@ impl GentleEngine {
                         done: true,
                     },
                 )?;
-                (pairs, rejection_summary)
+                outcome
             }
             PrimerDesignBackend::Auto => {
                 Self::emit_operation_primer_design_progress(
@@ -21789,7 +22817,7 @@ impl GentleEngine {
                         done: false,
                     },
                 )?;
-                match Self::design_primer_pairs_primer3(
+                match Self::design_primer_pairs_primer3_with_capture(
                     &template_seq,
                     roi_start_0based,
                     roi_end_0based,
@@ -21803,8 +22831,9 @@ impl GentleEngine {
                     max_tm_delta_c,
                     max_pairs,
                     primer3_executable,
+                    near_miss_limit,
                 ) {
-                    Ok((pairs, rejection_summary, version, explain, request_boulder_io)) => {
+                    Ok((outcome, version, explain, request_boulder_io)) => {
                         backend.used = PrimerDesignBackend::Primer3.as_str().to_string();
                         backend.primer3_executable = Some(primer3_executable.to_string());
                         backend.primer3_version = version;
@@ -21818,7 +22847,10 @@ impl GentleEngine {
                                 backend_requested: requested_backend.as_str().to_string(),
                                 backend_used: PrimerDesignBackend::Primer3.as_str().to_string(),
                                 stage: "complete".to_string(),
-                                detail: format!("Primer3 returned {} primer pair(s)", pairs.len()),
+                                detail: format!(
+                                    "Primer3 returned {} primer pair(s)",
+                                    outcome.pairs.len()
+                                ),
                                 roi_start_0based,
                                 roi_end_0based_exclusive: roi_end_0based,
                                 forward_candidate_count: None,
@@ -21828,7 +22860,7 @@ impl GentleEngine {
                                 pair_evaluated: None,
                                 pair_evaluation_limit: None,
                                 pair_evaluation_limited: None,
-                                accepted_pair_count: Some(pairs.len()),
+                                accepted_pair_count: Some(outcome.pairs.len()),
                                 assay_candidate_combinations: None,
                                 assays_evaluated: None,
                                 accepted_assay_count: None,
@@ -21836,7 +22868,7 @@ impl GentleEngine {
                                 done: true,
                             },
                         )?;
-                        (pairs, rejection_summary)
+                        outcome
                     }
                     Err(err) => {
                         backend.used = PrimerDesignBackend::Internal.as_str().to_string();
@@ -21884,7 +22916,7 @@ impl GentleEngine {
                         let mut emit_internal = |progress: PrimerDesignProgress| {
                             on_progress(OperationProgress::PrimerDesign(progress))
                         };
-                        Self::design_primer_pairs_internal_core(
+                        Self::design_primer_pairs_internal_core_with_capture(
                             template_bytes,
                             roi_start_0based,
                             roi_end_0based,
@@ -21897,6 +22929,7 @@ impl GentleEngine {
                             max_amplicon_bp,
                             max_tm_delta_c,
                             max_pairs,
+                            near_miss_limit,
                             Some(&progress_context),
                             &mut emit_internal,
                         )?
@@ -21904,11 +22937,34 @@ impl GentleEngine {
                 }
             }
         };
+        let PrimerDesignPairSearchOutcome {
+            pairs,
+            rejection_summary,
+            rejected_near_misses,
+            near_miss_capture,
+        } = search_outcome;
 
         let insertion_context = insertion_intent.as_ref().map(|insertion| {
             Self::build_primer_insertion_context_report(&template_seq, insertion, &pairs)
         });
         let report_id = Self::render_primer_design_report_id(report_id, &template);
+        let construct_reasoning_graph_id = format!(
+            "primer_design_reasoning_{}",
+            Self::normalize_id_token(&report_id)
+        );
+        let (score_decomposition_status, score_decomposition_reason) = if pairs.is_empty() {
+            (
+                PrimerPairCharacterizationStatus::NotRun,
+                "No primer pair was retained, so there is no selected ranking score to decompose."
+                    .to_string(),
+            )
+        } else {
+            (
+                PrimerPairCharacterizationStatus::Pass,
+                "Every retained pair uses GENtle's shared additive ranking model; Primer3 candidate generation does not change score meaning."
+                    .to_string(),
+            )
+        };
         let report = PrimerDesignReport {
             schema: PRIMER_DESIGN_REPORT_SCHEMA.to_string(),
             report_id: report_id.clone(),
@@ -21928,7 +22984,14 @@ impl GentleEngine {
             pair_count: pairs.len(),
             pairs,
             rejection_summary,
+            score_decomposition_status,
+            score_decomposition_reason,
+            score_model: PRIMER_DESIGN_SCORE_MODEL.to_string(),
+            score_direction: PRIMER_DESIGN_SCORE_DIRECTION.to_string(),
+            rejected_near_misses,
+            near_miss_capture: Some(near_miss_capture),
             backend,
+            construct_reasoning_graph_id: Some(construct_reasoning_graph_id),
             insertion_context,
         };
         if report.rejection_summary.pair_evaluation_limit_skipped > 0 {
@@ -21937,18 +23000,40 @@ impl GentleEngine {
                 report.rejection_summary.pair_evaluation_limit_skipped
             ));
         }
+        if let Some(capture) = report
+            .near_miss_capture
+            .as_ref()
+            .filter(|capture| capture.omitted_candidate_count > 0)
+        {
+            result.warnings.push(format!(
+                "Primer-design report '{}' retained {} of {} eligible evaluated pair-level near misses (limit={}); aggregate rejection counts remain authoritative",
+                report.report_id,
+                capture.retained_candidate_count,
+                capture.eligible_candidate_count,
+                capture.effective_limit
+            ));
+        }
+        let reasoning_graph = self.build_primer_design_selection_reasoning_graph(&report, &dna)?;
         let mut store = self.read_primer_design_store();
         let replaced = store
             .reports
             .insert(report.report_id.clone(), report.clone())
             .is_some();
         self.write_primer_design_store(store)?;
+        let reasoning_graph = self.upsert_construct_reasoning_graph(reasoning_graph)?;
+        result.construct_reasoning_graph = Some(Box::new(reasoning_graph.clone()));
         result.messages.push(format!(
             "{} primer-design report '{}' for template '{}' (pairs={})",
             if replaced { "Updated" } else { "Created" },
             report.report_id,
             report.template,
             report.pair_count
+        ));
+        result.messages.push(format!(
+            "Stored primer-selection reasoning graph '{}' with {} decision node(s) and {} bounded rejected-candidate interval(s)",
+            reasoning_graph.graph_id,
+            reasoning_graph.decisions.len(),
+            reasoning_graph.annotation_candidates.len()
         ));
         if let Some(context) = report.insertion_context.as_ref() {
             result.messages.push(format!(
@@ -25470,6 +26555,7 @@ impl GentleEngine {
             external_primer_pair_import_report: None,
             transcript_qpcr_panel: None,
             transcript_assay_panel: None,
+            gene_transcript_assay_routine: None,
             experimental_assay_handoff: None,
             primer_specificity_handoff: None,
             primer_specificity_report: None,
@@ -25487,6 +26573,7 @@ impl GentleEngine {
             cutrun_regulatory_support: None,
             gene_set_resolution: None,
             gene_set_promoter_cohort: None,
+            collection_operation: None,
             gene_set_cutrun_regulatory_support: None,
             ortholog_promoter_cohort: None,
             ortholog_promoter_comparison: None,
@@ -26263,7 +27350,11 @@ impl GentleEngine {
                             } else {
                                 peptide.sequence.clone()
                             };
-                            ProteinGelSample {
+                            let molecular_weight_kda = Self::require_protein_molecular_weight_kda(
+                                &peptide.sequence,
+                                &format!("peptide {}", peptide.peptide_index),
+                            )?;
+                            Ok(ProteinGelSample {
                                 name: format!("p{}", peptide.peptide_index),
                                 detail: Some(format!(
                                     "{}..{} aa, {} aa, {}",
@@ -26272,12 +27363,10 @@ impl GentleEngine {
                                     peptide.length_aa,
                                     preview
                                 )),
-                                molecular_weight_kda: Self::estimate_protein_molecular_weight_kda(
-                                    &peptide.sequence,
-                                ),
-                            }
+                                molecular_weight_kda,
+                            })
                         })
-                        .collect::<Vec<_>>();
+                        .collect::<Result<Vec<_>, EngineError>>()?;
                     let requested_ladders: &[String] = ladders.as_deref().unwrap_or(&[]);
                     let layout = build_protein_gel_layout(&samples, requested_ladders, notes)
                         .map_err(|message| EngineError {
@@ -26364,19 +27453,10 @@ impl GentleEngine {
                             });
                         }
                         let sequence = protein.get_forward_string();
-                        let molecular_weight_kda =
-                            Self::estimate_protein_molecular_weight_kda(&sequence);
-                        if molecular_weight_kda <= 0.0 {
-                            return Err(EngineError {
-                                code: ErrorCode::InvalidInput,
-                                message: format!(
-                                    "Could not estimate molecular weight for protein '{}'",
-                                    row.protein_seq_id
-                                ),
-
-                                cause_chain: vec![],
-                            });
-                        }
+                        let molecular_weight_kda = Self::require_protein_molecular_weight_kda(
+                            &sequence,
+                            &format!("protein '{}'", row.protein_seq_id),
+                        )?;
                         let isoelectric_point = Self::estimate_protein_isoelectric_point(&sequence)
                             .filter(|pi| pi.is_finite() && *pi > 0.0)
                             .ok_or_else(|| EngineError {
@@ -29267,6 +30347,21 @@ impl GentleEngine {
                     )?;
                     report.op_id = Some(result.op_id.clone());
                     report.run_id = Some(run_id.to_string());
+                    report.gene_set_resolution.op_id = Some(result.op_id.clone());
+                    report.gene_set_resolution.run_id = Some(run_id.to_string());
+                    let promoter_cohort_report_id =
+                        Self::gene_set_promoter_cohort_artifact_id(&report);
+                    let collection_operation =
+                        Self::build_gene_set_promoter_collection_operation_report(
+                            &report,
+                            &promoter_cohort_report_id,
+                            &result.op_id,
+                            run_id,
+                        )?;
+                    report.collection_operation = Some(Box::new(collection_operation.clone()));
+                    self.upsert_gene_set_resolution_artifact(
+                        report.gene_set_resolution.clone(),
+                    )?;
                     self.upsert_gene_set_promoter_cohort_artifact(report.clone())?;
                     if let Some(path) = path.as_deref() {
                         self.write_pretty_json_file(&report, path, "gene-set promoter cohort")?;
@@ -29280,6 +30375,7 @@ impl GentleEngine {
                         "Built gene-set promoter cohort for '{}' with {} window(s)",
                         genome_id, report.returned_window_count
                     ));
+                    result.collection_operation = Some(collection_operation);
                     result.gene_set_promoter_cohort = Some(report);
                 }
                 Operation::InspectCutRunGeneSetRegulatorySupport {
@@ -31223,6 +32319,81 @@ impl GentleEngine {
                     result.messages.push(report.summary.summary.clone());
                     result.primer_specificity_report = Some(Box::new(report));
                 }
+                Operation::AssessPrimerPairSpecificityCollection {
+                    collection_subject,
+                    member_bindings,
+                    pair_rank,
+                    pair_index,
+                    target_genome_id,
+                    policy,
+                    catalog_path,
+                    cache_dir,
+                    path,
+                } => {
+                    let report = self.assess_primer_pair_specificity_collection(
+                        collection_subject,
+                        member_bindings,
+                        pair_rank,
+                        pair_index,
+                        &target_genome_id,
+                        policy,
+                        catalog_path.as_deref(),
+                        cache_dir.as_deref(),
+                        &result.op_id,
+                        run_id,
+                    )?;
+                    parent_seq_ids.extend(report.per_member_status.iter().flat_map(|row| {
+                        row.produced_report_ids.iter().filter_map(|report_id| {
+                            self.get_primer_specificity_report(report_id)
+                                .ok()
+                                .and_then(|child| child.primary_seq_id)
+                        })
+                    }));
+                    if let Some(path) = path
+                        .as_deref()
+                        .map(str::trim)
+                        .filter(|value| !value.is_empty())
+                    {
+                        let file = File::create(path).map_err(|error| EngineError {
+                            code: ErrorCode::Io,
+                            message: format!(
+                                "Could not create collection primer-specificity report '{path}': {error}"
+                            ),
+                            cause_chain: vec![],
+                        })?;
+                        let writer = BufWriter::new(file);
+                        serde_json::to_writer_pretty(writer, &report).map_err(|error| {
+                            EngineError {
+                                code: ErrorCode::Io,
+                                message: format!(
+                                    "Could not serialize collection primer-specificity report '{path}': {error}"
+                                ),
+                                cause_chain: vec![],
+                            }
+                        })?;
+                        result.messages.push(format!(
+                            "Wrote collection primer-specificity report to '{path}'"
+                        ));
+                    }
+                    let succeeded = report
+                        .per_member_status
+                        .iter()
+                        .filter(|row| row.outcome == CollectionMemberOutcome::Succeeded)
+                        .count();
+                    let failed = report
+                        .per_member_status
+                        .iter()
+                        .filter(|row| row.outcome == CollectionMemberOutcome::Failed)
+                        .count();
+                    result.messages.push(format!(
+                        "Mapped primer specificity over {} collection member(s): {} succeeded, {} failed",
+                        report.per_member_status.len(),
+                        succeeded,
+                        failed
+                    ));
+                    result.warnings.extend(report.aggregate_warnings.clone());
+                    result.collection_operation = Some(report);
+                }
                 Operation::PreparePrimerPairSpecificityHandoff {
                     primer_report_id,
                     pair_rank,
@@ -31651,6 +32822,42 @@ impl GentleEngine {
                         report_id,
                         path,
                     )?;
+                }
+                Operation::ComposeGeneTranscriptAssayRoutine { request, path } => {
+                    let report = self.compose_gene_transcript_assay_routine(&request)?;
+                    parent_seq_ids.push(report.seq_id.clone());
+                    if let Some(path) = path
+                        .as_deref()
+                        .map(str::trim)
+                        .filter(|value| !value.is_empty())
+                    {
+                        let file = File::create(path).map_err(|error| EngineError {
+                            code: ErrorCode::Io,
+                            message: format!(
+                                "Could not create gene transcript-assay routine report '{path}': {error}"
+                            ),
+                            cause_chain: vec![],
+                        })?;
+                        serde_json::to_writer_pretty(BufWriter::new(file), &report).map_err(
+                            |error| EngineError {
+                                code: ErrorCode::Io,
+                                message: format!(
+                                    "Could not serialize gene transcript-assay routine report '{path}': {error}"
+                                ),
+                                cause_chain: vec![],
+                            },
+                        )?;
+                        result.messages.push(format!(
+                            "Wrote gene transcript-assay routine report to '{path}'"
+                        ));
+                    }
+                    result.messages.push(format!(
+                        "Composed gene transcript-assay routine '{}' from {} assay panel(s) without rerunning design.",
+                        report.routine_id,
+                        report.assay_panels.len()
+                    ));
+                    result.warnings.extend(report.warnings.clone());
+                    result.gene_transcript_assay_routine = Some(Box::new(report));
                 }
                 Operation::BuildExperimentalAssayHandoff {
                     panel_report_id,
@@ -37490,5 +38697,36 @@ impl GentleEngine {
         self.add_container_from_result(&op_for_containers, &result);
 
         Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod molecular_weight_tests {
+    use super::*;
+
+    #[test]
+    fn protein_gel_mass_uses_shared_residue_model_and_rejects_ambiguity() {
+        let observed = GentleEngine::estimate_protein_molecular_weight_kda("A")
+            .expect("alanine molecular weight");
+        let expected = ((71.0788_f64 + 18.015_28_f64) / 1_000.0) as f32;
+        assert!((observed - expected).abs() < 1e-6);
+        assert_eq!(
+            GentleEngine::estimate_protein_molecular_weight_kda("MAX"),
+            None
+        );
+        let ambiguous =
+            GentleEngine::require_protein_molecular_weight_kda("MXZ", "protein 'demo'")
+                .expect_err("ambiguous protein mass should be rejected");
+        assert_eq!(ambiguous.code, ErrorCode::InvalidInput);
+        assert_eq!(
+            ambiguous.message,
+            "Could not estimate molecular weight for protein 'demo': ambiguous or unsupported amino-acid residue(s): X, Z"
+        );
+        let empty = GentleEngine::require_protein_molecular_weight_kda("***", "peptide 2")
+            .expect_err("empty peptide mass should be rejected");
+        assert_eq!(
+            empty.message,
+            "Could not estimate molecular weight for peptide 2: sequence contains no supported amino-acid residues"
+        );
     }
 }

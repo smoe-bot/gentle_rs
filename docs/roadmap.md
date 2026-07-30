@@ -224,12 +224,17 @@ broad crate surgery that is not tied to the selected release story.
   ordinals, exon ranges, junction spans, overlap base counts, and conservative
   geometry score/basis fields plus review-only transcript labels for unique,
   shared, constraining, or absent geometry. Those audited records now feed the
-  read-only `gentle.gene_isoform_evidence.v1` ledger, which composes curated
+  read-only `gentle.gene_isoform_evidence.v2` ledger, which composes curated
   transcript families, RNA-read/cDNA/EST support, expression, probe
-  constraints, selected projected occupancy tracks, and existing qPCR
-  candidates while retaining unknown/not-evaluated states. Future work may add
-  persisted probe/expression report stores; it must not turn overlap into an
-  isoform-validation claim.
+  constraints, selected projected occupancy tracks, existing qPCR candidates,
+  per-source/contrast measurements, annotation-derived protein identities, and
+  rule-based assay-triage tiers while retaining unknown/not-evaluated states.
+  `gentle.gene_transcript_assay_routine.v1` can now join that exported ledger
+  with persisted common-control, junction, and endpoint assay panels by
+  digest, without rerunning them. Future work may add
+  persisted probe/expression report stores and separately sourced
+  antibody-epitope evidence; it must not turn overlap, protein mass, or array
+  intensity into an isoform-validation or antibody-compatibility claim.
 
 ### Reserved For Anze: Repeat/Similarity Inspection Follow-Up
 
@@ -324,7 +329,17 @@ wet-lab conclusions or unconfirmed mutations.
 - Weekly/monthly maintenance chore automation rollout from
   [`maintenance_chore_plan.md`](maintenance_chore_plan.md).
 - Browser/WebAssembly frontend portability after core/headless contracts settle.
-- GUI gene-set/collection operation lifting per
+- Expand the landed binding-aware gene-set primer-specificity inspector with
+  source authoring/resolution controls and, later, the curated generic
+  collection launcher described in
   [`gui_gene_set_collection_operations_plan.md`](gui_gene_set_collection_operations_plan.md).
+- Gene-set enrichment analysis over resolved logical sets, with an explicit
+  background universe, identifier namespace/mapping audit, ontology and cache
+  provenance, biological-context compatibility, multiple-testing correction,
+  unresolved-member accounting, and no causal-regulation claim inferred from
+  enrichment alone.
+- Add paralog mapping/resolution only with a concrete engine consumer,
+  preserving relationship provenance and one-to-many ambiguity without
+  inferring functional equivalence from matching symbols.
 - Full glossary/help-generation inversion so `docs/glossary.json` becomes a
   generated or validated projection of engine/protocol-side descriptors.

@@ -24,13 +24,19 @@ pub use gentle_protocol::{
     AnnotationCandidateSummary, AnnotationCandidateWriteback, AttractPwmMappingPolicy,
     AttractRegionClass, AttractSpeciesMatchMode, AttractSplicingEvidenceHitRow,
     AttractSplicingEvidencePolicySummary, AttractSplicingEvidenceSettings,
-    AttractSplicingEvidenceSummaryRow, AttractSplicingEvidenceView, CONSTRUCT_CANDIDATE_SCHEMA,
-    CONSTRUCT_OBJECTIVE_SCHEMA, CONSTRUCT_REASONING_GRAPH_SCHEMA, CONSTRUCT_REASONING_STORE_SCHEMA,
-    CandidateFeatureBoundaryMode, CandidateFeatureGeometryMode, CandidateFeatureStrandRelation,
-    CandidateMacroTemplateParam, CandidateObjectiveDirection, CandidateObjectiveSpec,
-    CandidateSetOperator, CandidateTieBreakPolicy, CandidateWeightedObjectiveTerm, Capabilities,
+    AttractSplicingEvidenceSummaryRow, AttractSplicingEvidenceView, BiologicalContext,
+    BiologicalContextRegistry, BiologicalContextResolutionError,
+    COLLECTION_MEMBERSHIP_FINGERPRINT_ALGORITHM, COLLECTION_OPERATION_REPORT_SCHEMA,
+    CONSTRUCT_CANDIDATE_SCHEMA, CONSTRUCT_OBJECTIVE_SCHEMA, CONSTRUCT_REASONING_GRAPH_SCHEMA,
+    CONSTRUCT_REASONING_STORE_SCHEMA, CandidateFeatureBoundaryMode, CandidateFeatureGeometryMode,
+    CandidateFeatureStrandRelation, CandidateMacroTemplateParam, CandidateObjectiveDirection,
+    CandidateObjectiveSpec, CandidateSetOperator, CandidateTieBreakPolicy,
+    CandidateWeightedObjectiveTerm, Capabilities, CapabilitySource,
     CdnaAssayMaterializedProductRow, CdnaAssayProductGelBandRow, CdnaAssayProductMaterialization,
-    CdnaAssayTranscriptMapCoordinateMode, CdnaAssayTranscriptOrder, ConstructCandidate,
+    CdnaAssayTranscriptMapCoordinateMode, CdnaAssayTranscriptOrder, CollectionContextRequirement,
+    CollectionContextValidationError, CollectionLiftRejectionReason, CollectionLiftSupport,
+    CollectionLiftingMode, CollectionMemberOutcome, CollectionMemberRef, CollectionMemberStatusRow,
+    CollectionOperationReport, CollectionSubjectKind, CollectionSubjectRef, ConstructCandidate,
     ConstructObjective, ConstructReasoningGraph, ConstructReasoningGraphFreshness,
     ConstructReasoningStore, ConstructRole, ContainerId, ContainerKind, CutRunAlignConfig,
     CutRunCatalogEntry, CutRunCatalogListEntry, CutRunCoverageKind, CutRunDatasetListReport,
@@ -43,15 +49,16 @@ pub use gentle_protocol::{
     CutRunReadUnitStatus, CutRunRegulatoryEvidenceSourceKind, CutRunRegulatoryEvidenceSourceRef,
     CutRunRegulatorySupportReport, CutRunRegulatoryTfbsConfirmationStatus, CutRunRegulatoryTfbsRow,
     CutRunSeedFilterConfig, CutRunSupportCluster, CutRunSupportStrength, CutRunSupportWindowRecord,
-    DESIGN_DECISION_NODE_SCHEMA, DESIGN_EVIDENCE_SCHEMA, DESIGN_FACT_SCHEMA, DecisionMethod,
-    DesignDecisionNode, DesignEvidence, DesignFact, DotplotBoxplotBin, DotplotMatchPoint,
-    DotplotMode, DotplotOverlayAnchorExon, DotplotOverlayAnchorExonRef,
-    DotplotOverlayAnchorSeriesSupport, DotplotOverlayQuerySpec, DotplotOverlayResolvedAnchorSeries,
-    DotplotOverlayXAxisMode, DotplotQuerySeries, DotplotReferenceAnnotationInterval,
-    DotplotReferenceAnnotationTrack, DotplotView, DotplotViewSummary,
-    EXON_SKIP_MATERIALIZATION_SCHEMA, EXON_SKIP_SELECTION_PLAN_SCHEMA, EditableStatus, EngineError,
-    ErrorCode, EvidenceClass, EvidenceScope, ExonSkipCandidateExon, ExonSkipMaterializationReport,
-    ExonSkipReturnKind, ExonSkipReturnPayload, ExonSkipSelectionCriterion, ExonSkipSelectionPlan,
+    DEFAULT_BIOLOGICAL_CONTEXT_ID, DESIGN_DECISION_NODE_SCHEMA, DESIGN_EVIDENCE_SCHEMA,
+    DESIGN_FACT_SCHEMA, DecisionMethod, DesignDecisionNode, DesignEvidence, DesignFact,
+    DotplotBoxplotBin, DotplotMatchPoint, DotplotMode, DotplotOverlayAnchorExon,
+    DotplotOverlayAnchorExonRef, DotplotOverlayAnchorSeriesSupport, DotplotOverlayQuerySpec,
+    DotplotOverlayResolvedAnchorSeries, DotplotOverlayXAxisMode, DotplotQuerySeries,
+    DotplotReferenceAnnotationInterval, DotplotReferenceAnnotationTrack, DotplotView,
+    DotplotViewSummary, EXON_SKIP_MATERIALIZATION_SCHEMA, EXON_SKIP_SELECTION_PLAN_SCHEMA,
+    EditableStatus, EngineError, ErrorCode, EvidenceClass, EvidenceScope, ExonSkipCandidateExon,
+    ExonSkipMaterializationReport, ExonSkipReturnKind, ExonSkipReturnPayload,
+    ExonSkipSelectionCriterion, ExonSkipSelectionPlan,
     FEATURE_ANNOTATION_STATE_FINGERPRINT_ALGORITHM, FEATURE_LOCATION_EDIT_SCHEMA,
     FEATURE_LOCATION_EDIT_SCHEMA_V2, FEATURE_LOCATION_FINGERPRINT_ALGORITHM,
     FEATURE_RECORD_CURATION_SCHEMA, FEATURE_RECORD_CURATION_SCHEMA_V1, FeatureBedCoordinateMode,
@@ -65,7 +72,8 @@ pub use gentle_protocol::{
     FeatureRecordSplitRequest, FlexibilityModel, GENE_SET_CO_REGULATED_CACHE_SCHEMA,
     GENE_SET_CUTRUN_REGULATORY_SUPPORT_SCHEMA, GENE_SET_DIRECT_LIST_CACHE_SCHEMA,
     GENE_SET_ONTOLOGY_ASSIGNMENT_CACHE_SCHEMA, GENE_SET_PROMOTER_COHORT_SCHEMA,
-    GENE_SET_RESOLUTION_SCHEMA, GeneSetCoRegulatedProducerMetadata, GeneSetCohortRelationship,
+    GENE_SET_RESOLUTION_SCHEMA, GeneIsoformExonFamilyRow, GeneIsoformJunctionRow,
+    GeneLocusTranscriptMetrics, GeneSetCoRegulatedProducerMetadata, GeneSetCohortRelationship,
     GeneSetCohortRelationshipFlag, GeneSetCutRunEvaluationState, GeneSetCutRunMemberSupport,
     GeneSetCutRunRegulatorySupportReport, GeneSetCutRunSupportAggregate, GeneSetProducerFilter,
     GeneSetProducerKind, GeneSetProducerProvenance, GeneSetProducerQueryMetadata,
@@ -75,21 +83,23 @@ pub use gentle_protocol::{
     GenomeAnchorSide, GenomeAnnotationScope, GenomeGeneExtractMode, GenomeTrackImportProgress,
     GenomeTrackSource, GenomeTrackSubscription, HOST_PROFILE_CATALOG_SCHEMA,
     HelperConstructProfile, HostLifecycleRole, HostProfileCatalog, HostProfileRecord,
-    HostRouteStep, ORTHOLOG_PROMOTER_COHORT_SCHEMA, ORTHOLOG_PROMOTER_COMPARISON_SCHEMA,
-    ORTHOLOG_RESOURCE_SCHEMA, OrthologAmbiguityPolicy, OrthologCutRunSupportRow,
+    HostRouteStep, LEGACY_BIOLOGICAL_CONTEXT_ID, ORTHOLOG_PROMOTER_COHORT_SCHEMA,
+    ORTHOLOG_PROMOTER_COMPARISON_SCHEMA, ORTHOLOG_RESOURCE_SCHEMA, OrthologAmbiguityCandidate,
+    OrthologAmbiguityPolicy, OrthologConfidence, OrthologConfidenceLevel, OrthologCutRunSupportRow,
     OrthologCutRunSupportStatus, OrthologExpressionAssignment, OrthologMappingRow,
     OrthologPairwiseTfbsSimilarity, OrthologPromoterCohortReport, OrthologPromoterCohortRequest,
     OrthologPromoterComparisonReport, OrthologPromoterRole, OrthologPromoterRow, OrthologResource,
     OrthologSequenceSimilarityRow, OrthologSpeciesAlias, OrthologTfbsPeakSummary,
-    OrthologTfbsSummaryRow, OrthologUnresolvedRow, PairwiseAlignmentMode, PortBindingStatus,
-    PreparedCacheCleanupMode, PreparedCacheCleanupRequest, PrimerDesignBackend,
-    PrimerSpecificityAmpliconCeilingSource, PrimerSpecificityCheckMode, PrimerSpecificityPolicy,
-    PrimerSpecificityReportDetailMode, ProteinResidueGenomicCoordinateBase,
-    ProteinResidueGenomicCoordinateMatch, ProteinResidueGenomicCoordinateReport,
-    ProteinToDnaHandoffCandidate, ProteinToDnaHandoffCoverage, ProteinToDnaHandoffRankingGoal,
-    ProteinToDnaHandoffStrategy, ProtocolCartoonKind, QpcrTranscriptSpecificityEvidence,
-    QpcrTranscriptTargetingMode, READ_ACQUISITION_REPORT_SCHEMA, REPORTER_CATALOG_REPORT_SCHEMA,
-    REPORTER_CATALOG_SCHEMA, REPORTER_CONSTRUCT_HANDOFF_SCHEMA, REPORTER_CORPUS_EXPORT_SCHEMA,
+    OrthologTfbsSummaryRow, OrthologUnresolvedRow, OrthologyCardinality, OrthologyType,
+    PairwiseAlignmentMode, PortBindingStatus, PreparedCacheCleanupMode,
+    PreparedCacheCleanupRequest, PrimerDesignBackend, PrimerSpecificityAmpliconCeilingSource,
+    PrimerSpecificityCheckMode, PrimerSpecificityPolicy, PrimerSpecificityReportDetailMode,
+    ProteinResidueGenomicCoordinateBase, ProteinResidueGenomicCoordinateMatch,
+    ProteinResidueGenomicCoordinateReport, ProteinToDnaHandoffCandidate,
+    ProteinToDnaHandoffCoverage, ProteinToDnaHandoffRankingGoal, ProteinToDnaHandoffStrategy,
+    ProtocolCartoonKind, QpcrTranscriptSpecificityEvidence, QpcrTranscriptTargetingMode,
+    READ_ACQUISITION_REPORT_SCHEMA, REPORTER_CATALOG_REPORT_SCHEMA, REPORTER_CATALOG_SCHEMA,
+    REPORTER_CONSTRUCT_HANDOFF_SCHEMA, REPORTER_CORPUS_EXPORT_SCHEMA,
     REPORTER_RECOMMENDATION_SCHEMA, RNA_READ_ALIGNMENT_DISPLAY_BATCH_SCHEMA,
     RNA_READ_BATCH_MAP_REPORT_SCHEMA, RNA_READ_GENE_SCREEN_SUMMARY_SCHEMA,
     RNA_READ_TRANSCRIPT_CATALOG_INDEX_SCHEMA, ReadAcquisitionAnalysisFormat,
@@ -143,7 +153,8 @@ pub use gentle_protocol::{
     TranslationSpeedProfile, TranslationSpeedProfileSource, UniprotFeatureCodingDnaExonPair,
     UniprotFeatureCodingDnaExonSpan, UniprotFeatureCodingDnaMatch,
     UniprotFeatureCodingDnaQueryMode, UniprotFeatureCodingDnaQueryReport,
-    UniprotFeatureCodingDnaSegment,
+    UniprotFeatureCodingDnaSegment, canonical_collection_membership_json, collection_lift_policy,
+    homogeneous_collection_biological_context, validate_collection_context_target_genome,
 };
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
@@ -4465,6 +4476,8 @@ pub struct OpResult {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub transcript_assay_panel: Option<Box<TranscriptAssayPanelReport>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gene_transcript_assay_routine: Option<Box<GeneTranscriptAssayRoutineReport>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub experimental_assay_handoff: Option<Box<ExperimentalAssayHandoffReport>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub primer_specificity_handoff: Option<Box<PrimerSpecificityHandoff>>,
@@ -4500,6 +4513,8 @@ pub struct OpResult {
     pub gene_set_resolution: Option<GeneSetResolutionReport>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gene_set_promoter_cohort: Option<GeneSetPromoterCohortReport>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub collection_operation: Option<CollectionOperationReport>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gene_set_cutrun_regulatory_support: Option<GeneSetCutRunRegulatorySupportReport>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -4652,6 +4667,8 @@ pub struct ProbeRegionRequest {
     pub platform: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub annotation_library_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub r_library_paths: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub condition_column: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -4827,6 +4844,8 @@ pub struct ProbeRegionPlan {
     pub annotation_source: ProbeRegionAnnotationSourcePlan,
     pub platform: ProbeRegionPlatformPlan,
     pub dependencies: Vec<ProbeRegionDependencyCheck>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub r_library_paths_checked: Vec<String>,
     pub backend_candidates: Vec<ProbeRegionBackendCandidate>,
     pub contrasts: Vec<ProbeRegionContrastPlan>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -4878,6 +4897,22 @@ pub struct ProbeRegionOutputPreviewRow {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
 #[serde(default)]
+/// Stable identity metadata for one input consumed by a probe-region backend.
+pub struct ProbeRegionInputFingerprint {
+    pub path: String,
+    pub role: String,
+    pub exists: bool,
+    pub is_file: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub size_bytes: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub modified_unix_seconds: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sha256: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(default)]
 /// Read-only inspection of a completed `probe_regions_oligo.R` output folder.
 pub struct ProbeRegionOutputInspection {
     pub schema: String,
@@ -4900,6 +4935,18 @@ pub struct ProbeRegionOutputInspection {
     pub platform_package: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub normalization: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub r_version: Option<String>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub package_versions: BTreeMap<String, String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub r_library_paths_requested: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub r_library_paths_checked: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub analysis_method_version: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub input_fingerprints: Vec<ProbeRegionInputFingerprint>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub coordinate_system: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -5515,6 +5562,10 @@ pub struct PrimerDesignPairConstraint {
     pub forbidden_amplicon_motifs: Vec<String>,
     pub fixed_amplicon_start_0based: Option<usize>,
     pub fixed_amplicon_end_0based_exclusive: Option<usize>,
+    /// Maximum evaluated pair-level rejection rows retained for selection
+    /// provenance. `None` uses the engine default; `Some(0)` disables capture.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rejected_near_miss_limit: Option<usize>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -5572,11 +5623,27 @@ pub struct PrimerDesignPairRuleFlags {
     pub reverse_three_prime_gc_clamp: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[serde(default)]
+/// One exact additive term in GENtle's primer-pair ranking score.
+///
+/// `contribution` equals `raw_value * weight`; contributions, including the
+/// explicit baseline, sum to the enclosing pair's existing `score`.
+pub struct PrimerDesignScoreTerm {
+    pub term: String,
+    pub raw_value: f64,
+    pub weight: f64,
+    pub contribution: f64,
+    pub detail: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct PrimerDesignPairRecord {
     pub rank: usize,
     pub score: f64,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub score_terms: Vec<PrimerDesignScoreTerm>,
     pub forward: PrimerDesignPrimerRecord,
     pub reverse: PrimerDesignPrimerRecord,
     pub amplicon_start_0based: usize,
@@ -6536,6 +6603,10 @@ impl PrimerPairCharacterizationStatus {
             Self::NotRun => "not_run",
         }
     }
+
+    pub fn is_not_run(value: &Self) -> bool {
+        *value == Self::NotRun
+    }
 }
 
 pub const PRIMER_DESIGN_PAIR_CONTENT_FINGERPRINT_ALGORITHM: &str =
@@ -6632,6 +6703,20 @@ pub struct PrimerSpecificityReportCompaction {
     pub raw_amplicon_count: usize,
     pub retained_amplicon_count: usize,
     pub pairing_candidate_comparison_count: usize,
+}
+
+/// Explicitly binds one collection member to one persisted primer-design report.
+///
+/// Logical gene-set members do not themselves carry a project sequence or
+/// primer report. Collection specificity therefore requires this auditable
+/// binding instead of guessing from a gene symbol. Project-sequence
+/// collections may omit a binding when exactly one stored primer-design report
+/// targets that sequence.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(default, deny_unknown_fields)]
+pub struct PrimerSpecificityCollectionMemberBinding {
+    pub stable_member_id: String,
+    pub primer_report_id: String,
 }
 
 fn primer_specificity_legacy_full_compaction() -> PrimerSpecificityReportCompaction {
@@ -7138,6 +7223,88 @@ pub struct PrimerDesignRejectionSummary {
     pub pair_evaluation_limit_skipped: usize,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "snake_case")]
+/// Stable rejection-census vocabulary.
+///
+/// The legacy census intentionally mixes single-primer counts, evaluated-pair
+/// counts, and skipped-combination counts. Pair-level near misses only use the
+/// pair-valued variants; skipped combinations are never represented as
+/// evaluated candidates.
+pub enum PrimerDesignRejectionReason {
+    OutOfWindow,
+    GcOrTmOutOfBounds,
+    NonUniqueAnneal,
+    #[default]
+    AmpliconOrRoiFailure,
+    PrimerConstraintFailure,
+    PairConstraintFailure,
+    PairEvaluationLimitSkipped,
+}
+
+impl PrimerDesignRejectionReason {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::OutOfWindow => "out_of_window",
+            Self::GcOrTmOutOfBounds => "gc_or_tm_out_of_bounds",
+            Self::NonUniqueAnneal => "non_unique_anneal",
+            Self::AmpliconOrRoiFailure => "amplicon_or_roi_failure",
+            Self::PrimerConstraintFailure => "primer_constraint_failure",
+            Self::PairConstraintFailure => "pair_constraint_failure",
+            Self::PairEvaluationLimitSkipped => "pair_evaluation_limit_skipped",
+        }
+    }
+}
+
+impl PrimerDesignRejectionSummary {
+    pub fn count_for_reason(&self, reason: PrimerDesignRejectionReason) -> usize {
+        match reason {
+            PrimerDesignRejectionReason::OutOfWindow => self.out_of_window,
+            PrimerDesignRejectionReason::GcOrTmOutOfBounds => self.gc_or_tm_out_of_bounds,
+            PrimerDesignRejectionReason::NonUniqueAnneal => self.non_unique_anneal,
+            PrimerDesignRejectionReason::AmpliconOrRoiFailure => self.amplicon_or_roi_failure,
+            PrimerDesignRejectionReason::PrimerConstraintFailure => self.primer_constraint_failure,
+            PrimerDesignRejectionReason::PairConstraintFailure => self.pair_constraint_failure,
+            PrimerDesignRejectionReason::PairEvaluationLimitSkipped => {
+                self.pair_evaluation_limit_skipped
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default)]
+/// One bounded, evaluated primer-pair candidate rejected before report
+/// selection. Single-primer census failures and unevaluated combinations are
+/// deliberately not promoted into this pair-shaped record.
+pub struct PrimerDesignRejectedCandidate {
+    pub forward: PrimerDesignPrimerRecord,
+    pub reverse: PrimerDesignPrimerRecord,
+    pub amplicon_start_0based: usize,
+    pub amplicon_end_0based_exclusive: usize,
+    pub score: Option<f64>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub reasons: Vec<PrimerDesignRejectionReason>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub failed_checks: Vec<String>,
+    pub detail: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(default)]
+/// Completeness and bounded-work accounting for rejected pair retention.
+pub struct PrimerDesignNearMissCapture {
+    pub status: PrimerPairCharacterizationStatus,
+    pub scope: String,
+    pub reason: String,
+    pub requested_limit: usize,
+    pub effective_limit: usize,
+    pub eligible_candidate_count: usize,
+    pub retained_candidate_count: usize,
+    pub omitted_candidate_count: usize,
+    pub candidate_comparison_count: usize,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct PrimerDesignReport {
@@ -7164,8 +7331,25 @@ pub struct PrimerDesignReport {
     pub pairs: Vec<PrimerDesignPairRecord>,
     #[serde(default)]
     pub rejection_summary: PrimerDesignRejectionSummary,
+    #[serde(
+        default,
+        skip_serializing_if = "PrimerPairCharacterizationStatus::is_not_run"
+    )]
+    pub score_decomposition_status: PrimerPairCharacterizationStatus,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub score_decomposition_reason: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub score_model: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub score_direction: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub rejected_near_misses: Vec<PrimerDesignRejectedCandidate>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub near_miss_capture: Option<PrimerDesignNearMissCapture>,
     #[serde(default)]
     pub backend: PrimerDesignBackendInfo,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub construct_reasoning_graph_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub insertion_context: Option<PrimerInsertionContextReport>,
 }
@@ -8837,6 +9021,88 @@ pub struct TranscriptAssayPanelReport {
     #[serde(default)]
     pub provenance: TranscriptAssayPanelProvenance,
     #[serde(default)]
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default)]
+/// Pure-read request joining one exported isoform ledger with persisted assay panels.
+pub struct GeneTranscriptAssayRoutineRequest {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub routine_id: Option<String>,
+    pub label: String,
+    pub isoform_evidence_path: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expected_isoform_evidence_sha256: Option<String>,
+    pub transcript_assay_panel_report_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum GeneTranscriptAssayRoutinePanelRole {
+    CommonControl,
+    JunctionValidation,
+    EndpointStructure,
+    QuantitativeValidation,
+    #[default]
+    Other,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct GeneTranscriptAssayRoutinePanelSummary {
+    pub role: GeneTranscriptAssayRoutinePanelRole,
+    pub report_id: String,
+    pub report_schema: String,
+    pub report_digest: String,
+    pub assay_kind: TranscriptAssayKind,
+    pub objective: TranscriptAssayPanelObjective,
+    pub assay_tier: TranscriptAssayUseTier,
+    pub completion_status: TranscriptAssayPanelCompletionStatus,
+    pub selected_assay_ids: Vec<String>,
+    pub selected_assay_count: usize,
+    pub end_reaction_count: usize,
+    pub band_size_row_count: usize,
+    pub junction_evaluation_count: usize,
+    pub uncovered_equivalence_group_ids: Vec<String>,
+    pub unresolved_group_pairs: Vec<TranscriptAssayUnresolvedPair>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub specificity_status: Option<TranscriptAssayPanelSpecificityAcceptanceStatus>,
+    pub specificity_accepted: bool,
+    pub specificity_issue_messages: Vec<String>,
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct GeneTranscriptAssayRoutineOrderPrimer {
+    pub source_report_id: String,
+    pub source_report_digest: String,
+    pub primer: TranscriptAssayOrderPrimer,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default)]
+/// Review manifest joining existing evidence and assay reports without rerunning them.
+pub struct GeneTranscriptAssayRoutineReport {
+    pub schema: String,
+    pub routine_id: String,
+    pub label: String,
+    pub seq_id: String,
+    pub gene_symbol: String,
+    pub panel_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub annotation_release: Option<String>,
+    pub isoform_evidence_schema: String,
+    pub isoform_evidence_path: String,
+    pub isoform_evidence_sha256: String,
+    pub transcript_metrics: Vec<GeneLocusTranscriptMetrics>,
+    pub exon_candidates: Vec<GeneIsoformExonFamilyRow>,
+    pub junction_candidates: Vec<GeneIsoformJunctionRow>,
+    pub assay_panels: Vec<GeneTranscriptAssayRoutinePanelSummary>,
+    pub order_ready_primers: Vec<GeneTranscriptAssayRoutineOrderPrimer>,
+    pub uncovered_transcript_class_ids: Vec<String>,
+    pub recommended_experimental_sequence: Vec<String>,
     pub warnings: Vec<String>,
 }
 

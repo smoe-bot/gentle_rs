@@ -319,3 +319,63 @@ kind and deterministic content fingerprint in addition to its prefix and genome
 label. Replacing database content at the same prefix invalidates a pending
 handoff. Whole-prepare activity state does not override successful
 component-level `blastdbcmd` validation.
+
+## DEC-030: Collection Lifting Is Subject-Specific And Engine-Owned
+
+Status: active
+
+Collection-visible capabilities declare their lifting behavior in the typed
+`gentle.collection_lift_policy_registry.v1` registry. Policies are keyed by
+capability and subject kind because a logical gene set, physical container, and
+ordered arrangement do not have interchangeable semantics. Supported modes are
+`map`, `combine`, `compare`, `arrange`, and `derive`; incompatibility is an
+explicit typed rejection rather than an adapter-local conditional.
+
+Dynamic readiness failures remain operation/fact-graph results and must not be
+misclassified as permanent policy rejection. Generic collection reports carry
+typed member outcomes/errors and links to produced domain reports. Membership
+locks are set-like except for explicitly ordered subjects such as
+arrangements, whose numeric member order is part of the fingerprint.
+
+Collection members bind biological interpretation through a report-owned
+context registry. Context-sensitive policies are fail-closed: an undeclared
+policy is `not_reviewed`, while reviewed consumers may require one homogeneous
+context and reject missing, conflicting, or target-mismatched contexts before
+coordinate lookup, sequence search, or other biological work. Generic portable
+collection reports copy the registry because their source may otherwise be
+available only by report id; domain reports embedding the source resolution do
+not create a second registry. The canonical collection membership fingerprint
+continues to lock membership/order only and must not be interpreted as a
+context or biological-input fingerprint.
+
+## DEC-031: Ortholog Context Binding Extends The Specialized Resource
+
+Status: active
+
+The existing offline `gentle.ortholog_resource.v1` remains the authoritative
+ortholog mapping contract. Optional source/target context ids bind each
+directional endpoint to the resource's biological-context registry, and
+resolved cohort reports copy referenced contexts so they remain portable.
+Explicit organism or genome conflicts fail before genome-catalog work.
+
+Orthology type and confidence are open typed string vocabularies: GENtle
+recognizes canonical cardinality/confidence values while preserving unknown
+provider-specific text exactly. Legacy symbol-only rows remain accepted, but a
+matching symbol is never treated as relationship or functional-equivalence
+evidence. The shipped `reject` and deterministic warning-bearing `first`
+ambiguity policies remain unchanged. The additive `preserve` policy leaves an
+ambiguous target unresolved while carrying every ordered candidate mapping and
+its portable context/provenance; candidates do not become resolved cohort
+members.
+
+Unlike provider-owned orthology type and confidence text, ambiguity policy is
+a closed GENtle operation-control vocabulary. The v1 report schema is retained
+because `preserve` is opt-in and does not change the meaning or wire shape of
+existing `reject` and `first` reports. Readers must reject an unknown policy
+rather than silently defaulting it; consequently, a pre-`preserve` v1 reader
+cannot consume a report that explicitly requested `preserve`. Candidate ranks
+and labels are presentation references within one report, not durable
+cross-run identities.
+
+A generic relation hierarchy or paralog contract still requires a concrete
+resolver/consumer and is not inferred from the ortholog contract.

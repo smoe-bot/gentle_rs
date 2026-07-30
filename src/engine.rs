@@ -584,18 +584,20 @@ pub use crate::feature_expert::{
     CDNA_EST_EVIDENCE_RESOURCE_SCHEMA, CdnaEstEvidenceKind, CdnaEstEvidenceRecord,
     CdnaEstEvidenceResource, FeatureExpertTarget, FeatureExpertView,
     GENE_ISOFORM_EVIDENCE_INSTRUCTION, GENE_ISOFORM_EVIDENCE_SCHEMA,
-    GENE_LOCUS_EVIDENCE_DISPLAY_INSTRUCTION, GENE_LOCUS_EVIDENCE_DISPLAY_SCHEMA,
-    GENE_LOCUS_OCCUPANCY_LAYOUT_SCHEMA, GeneIsoformAssayCandidate, GeneIsoformEvidenceComponent,
-    GeneIsoformEvidenceComponents, GeneIsoformEvidenceItem, GeneIsoformEvidenceProvenanceSource,
+    GENE_ISOFORM_EVIDENCE_SCHEMA_V1, GENE_LOCUS_EVIDENCE_DISPLAY_INSTRUCTION,
+    GENE_LOCUS_EVIDENCE_DISPLAY_SCHEMA, GENE_LOCUS_OCCUPANCY_LAYOUT_SCHEMA,
+    GeneIsoformAssayCandidate, GeneIsoformEvidenceComponent, GeneIsoformEvidenceComponents,
+    GeneIsoformEvidenceItem, GeneIsoformEvidenceMeasurement, GeneIsoformEvidenceProvenanceSource,
     GeneIsoformEvidenceReport, GeneIsoformEvidenceRequest, GeneIsoformExonFamilyRow,
     GeneIsoformFamilyRow, GeneIsoformJunctionRow, GeneIsoformOccupancyInterval,
-    GeneIsoformOccupancyLane, GeneIsoformTranscriptRow, GeneLocusAssayOverlay, GeneLocusCodonKind,
-    GeneLocusCodonMarker, GeneLocusEvidenceDisplayReport, GeneLocusEvidenceDisplayRequest,
-    GeneLocusMotifHit, GeneLocusMotifTrack, GeneLocusOccupancyGroup,
-    GeneLocusOccupancyGroupRequest, GeneLocusOccupancyLane, GeneLocusOccupancyLaneRequest,
-    GeneLocusOccupancyLaneRole, GeneLocusOccupancyLayout, GeneLocusOccupancyScaleMode,
-    GeneLocusProbeClass, GeneLocusProbeEffectContrast, GeneLocusProbeEffectOverlay,
-    GeneLocusProbeEffectValue, GeneLocusTranscriptMetrics, ISOFORM_ARCHITECTURE_EXPERT_INSTRUCTION,
+    GeneIsoformOccupancyLane, GeneIsoformRecommendation, GeneIsoformRecommendationTier,
+    GeneIsoformTranscriptRow, GeneLocusAssayOverlay, GeneLocusCodonKind, GeneLocusCodonMarker,
+    GeneLocusEvidenceDisplayReport, GeneLocusEvidenceDisplayRequest, GeneLocusMotifHit,
+    GeneLocusMotifTrack, GeneLocusOccupancyGroup, GeneLocusOccupancyGroupRequest,
+    GeneLocusOccupancyLane, GeneLocusOccupancyLaneRequest, GeneLocusOccupancyLaneRole,
+    GeneLocusOccupancyLayout, GeneLocusOccupancyScaleMode, GeneLocusProbeClass,
+    GeneLocusProbeEffectContrast, GeneLocusProbeEffectOverlay, GeneLocusProbeEffectValue,
+    GeneLocusTranscriptMetrics, ISOFORM_ARCHITECTURE_EXPERT_INSTRUCTION,
     IsoformArchitectureCdsAaSegment, IsoformArchitectureExpertView,
     IsoformArchitectureProteinDomain, IsoformArchitectureProteinLane,
     IsoformArchitectureTranscriptLane, IsoformEvidenceAssessmentStatus, IsoformEvidenceSourceKind,
@@ -644,6 +646,7 @@ const TRANSCRIPT_ASSAY_PANEL_SPECIFICITY_ACCEPTANCE_SCHEMA: &str =
     "gentle.transcript_assay_panel_specificity_acceptance.v2";
 pub const TRANSCRIPT_QPCR_PANEL_REPORT_SCHEMA: &str = "gentle.transcript_qpcr_panel.v1";
 pub const TRANSCRIPT_ASSAY_PANEL_REPORT_SCHEMA: &str = "gentle.transcript_assay_panel.v2";
+pub const GENE_TRANSCRIPT_ASSAY_ROUTINE_SCHEMA: &str = "gentle.gene_transcript_assay_routine.v1";
 pub const PRIMER_PAIR_SUMMARY_SCHEMA: &str = "gentle.primer_pair_summary.v2";
 const RESTRICTION_CLONING_PCR_HANDOFF_REPORT_SCHEMA: &str =
     "gentle.restriction_cloning_pcr_handoff.v1";
@@ -835,6 +838,11 @@ const PRIMER_RECOMMENDED_MAX_SELF_COMPLEMENTARY_RUN_BP: usize = 6;
 const PRIMER_RECOMMENDED_MAX_PAIR_DIMER_RUN_BP: usize = 6;
 const PRIMER_RECOMMENDED_MAX_PAIR_3PRIME_DIMER_RUN_BP: usize = 3;
 const PRIMER_INTERNAL_MAX_PAIR_EVALUATIONS: usize = 1_000_000;
+const PRIMER_DESIGN_DEFAULT_REJECTED_NEAR_MISS_LIMIT: usize = 20;
+const PRIMER_DESIGN_MAX_REJECTED_NEAR_MISS_LIMIT: usize = 100;
+const PRIMER_DESIGN_SCORE_MODEL: &str = "gentle_primer_pair_rank_v1";
+const PRIMER_DESIGN_SCORE_DIRECTION: &str = "higher_is_better";
+const PRIMER_DESIGN_SCORE_SUM_TOLERANCE: f64 = 1.0e-9;
 const QPCR_PREFERRED_PROBE_TM_OFFSET_C: f64 = 7.5;
 const FEATURE_QUERY_RESULT_SCHEMA: &str = "gentle.sequence_feature_query_result.v1";
 const FEATURE_BED_EXPORT_REPORT_SCHEMA: &str = "gentle.sequence_feature_bed_export.v1";
@@ -2350,6 +2358,7 @@ impl Default for PrimerDesignPairConstraint {
             forbidden_amplicon_motifs: vec![],
             fixed_amplicon_start_0based: None,
             fixed_amplicon_end_0based_exclusive: None,
+            rejected_near_miss_limit: None,
         }
     }
 }
@@ -4013,6 +4022,24 @@ pub enum Operation {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         path: Option<String>,
     },
+    AssessPrimerPairSpecificityCollection {
+        collection_subject: CollectionSubjectRef,
+        #[serde(default)]
+        member_bindings: Vec<PrimerSpecificityCollectionMemberBinding>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pair_rank: Option<usize>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pair_index: Option<usize>,
+        target_genome_id: String,
+        #[serde(default)]
+        policy: PrimerSpecificityPolicy,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        catalog_path: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        cache_dir: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        path: Option<String>,
+    },
     PreparePrimerPairSpecificityHandoff {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         primer_report_id: Option<String>,
@@ -4234,6 +4261,13 @@ pub enum Operation {
         specificity: Option<TranscriptAssaySpecificityRequest>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         report_id: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        path: Option<String>,
+    },
+    /// Compose existing isoform evidence and transcript-assay reports without
+    /// rerunning design, specificity, or external analysis.
+    ComposeGeneTranscriptAssayRoutine {
+        request: GeneTranscriptAssayRoutineRequest,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         path: Option<String>,
     },
@@ -5763,6 +5797,26 @@ struct PrimerDesignCandidate {
     gc_fraction: f64,
     anneal_hits: usize,
 }
+
+#[derive(Debug, Default)]
+struct PrimerDesignNearMissCollector {
+    requested_limit: usize,
+    effective_limit: usize,
+    eligible_candidate_count: usize,
+    candidate_comparison_count: usize,
+    rows: Vec<PrimerDesignRejectedCandidate>,
+}
+
+#[derive(Debug, Default)]
+struct PrimerDesignPairSearchOutcome {
+    pairs: Vec<PrimerDesignPairRecord>,
+    rejection_summary: PrimerDesignRejectionSummary,
+    rejected_near_misses: Vec<PrimerDesignRejectedCandidate>,
+    near_miss_capture: PrimerDesignNearMissCapture,
+}
+
+type PrimerDesignCandidatePairFilter<'a> =
+    &'a dyn Fn(&PrimerDesignCandidate, &PrimerDesignCandidate) -> bool;
 
 #[derive(Debug, Clone, Copy, Default)]
 struct PrimerHeuristicMetrics {
@@ -19421,6 +19475,21 @@ impl GentleEngine {
                 fingerprint.sequence_snapshot_sha256.trim().to_string();
             fingerprint.objective_sha256 = fingerprint.objective_sha256.trim().to_string();
             fingerprint.rule_set_version = fingerprint.rule_set_version.trim().to_string();
+            fingerprint.source_artifact_kind = fingerprint
+                .source_artifact_kind
+                .take()
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty());
+            fingerprint.source_artifact_id = fingerprint
+                .source_artifact_id
+                .take()
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty());
+            fingerprint.source_artifact_sha256 = fingerprint
+                .source_artifact_sha256
+                .take()
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty());
             fingerprint
         });
         for (idx, evidence) in graph.evidence.iter_mut().enumerate() {
@@ -19571,6 +19640,14 @@ impl GentleEngine {
         })
     }
 
+    fn primer_design_report_content_sha256(
+        report: &PrimerDesignReport,
+    ) -> Result<String, EngineError> {
+        let report_snapshot =
+            Self::construct_reasoning_canonical_json(report, "primer-design report")?;
+        Ok(sha256_prefixed_str(&report_snapshot))
+    }
+
     fn construct_reasoning_graph_snapshot_status_for_objective(
         &self,
         graph: &ConstructReasoningGraph,
@@ -19629,6 +19706,56 @@ impl GentleEngine {
                 "Reasoning rule set changed from '{}' to '{}'.",
                 stored.rule_set_version, current.rule_set_version
             ));
+        }
+        let source_artifact_fields_present = stored.source_artifact_kind.is_some()
+            || stored.source_artifact_id.is_some()
+            || stored.source_artifact_sha256.is_some();
+        if source_artifact_fields_present {
+            let (Some(source_kind), Some(source_id), Some(source_sha256)) = (
+                stored.source_artifact_kind.as_deref(),
+                stored.source_artifact_id.as_deref(),
+                stored.source_artifact_sha256.as_deref(),
+            ) else {
+                return ConstructReasoningGraphSnapshotStatus {
+                    freshness: ConstructReasoningGraphFreshness::Unknown,
+                    reasons: vec![
+                        "Graph source-artifact fingerprint is incomplete; refresh it before relying on current-state actions."
+                            .to_string(),
+                    ],
+                };
+            };
+            if source_kind != "primer_design_report" {
+                return ConstructReasoningGraphSnapshotStatus {
+                    freshness: ConstructReasoningGraphFreshness::Unknown,
+                    reasons: vec![format!(
+                        "Graph source-artifact kind '{source_kind}' is not supported for freshness verification."
+                    )],
+                };
+            }
+            let report_store = self.read_primer_design_store();
+            let Some(report) = report_store.reports.get(source_id) else {
+                reasons.push(format!(
+                    "Source primer-design report '{source_id}' is no longer stored."
+                ));
+                return ConstructReasoningGraphSnapshotStatus {
+                    freshness: ConstructReasoningGraphFreshness::Stale,
+                    reasons,
+                };
+            };
+            match Self::primer_design_report_content_sha256(report) {
+                Ok(current_sha256) if current_sha256 != source_sha256 => {
+                    reasons.push(format!(
+                        "Source primer-design report '{source_id}' changed after graph generation."
+                    ));
+                }
+                Ok(_) => {}
+                Err(error) => {
+                    return ConstructReasoningGraphSnapshotStatus {
+                        freshness: ConstructReasoningGraphFreshness::Unknown,
+                        reasons: vec![error.to_string()],
+                    };
+                }
+            }
         }
         ConstructReasoningGraphSnapshotStatus {
             freshness: if reasons.is_empty() {
@@ -19910,6 +20037,32 @@ impl GentleEngine {
             &self.read_construct_reasoning_store(),
             target,
         );
+        if let Some(graph) = existing.as_ref()
+            && graph
+                .input_fingerprint
+                .as_ref()
+                .and_then(|fingerprint| fingerprint.source_artifact_kind.as_deref())
+                == Some("primer_design_report")
+        {
+            let status = self.construct_reasoning_graph_snapshot_status(graph);
+            if status.freshness == ConstructReasoningGraphFreshness::Current {
+                return Ok(graph.clone());
+            }
+            return Err(EngineError {
+                code: ErrorCode::InvalidInput,
+                message: format!(
+                    "Primer-selection reasoning graph '{}' is {} and cannot be rebuilt as a generic construct graph; rerun DesignPrimerPairs to refresh its report-bound evidence{}",
+                    graph.graph_id,
+                    status.freshness.as_str(),
+                    if status.reasons.is_empty() {
+                        String::new()
+                    } else {
+                        format!(" ({})", status.reasons.join("; "))
+                    }
+                ),
+                cause_chain: vec![],
+            });
+        }
         let objective_id = existing
             .as_ref()
             .map(|graph| graph.objective.objective_id.as_str());

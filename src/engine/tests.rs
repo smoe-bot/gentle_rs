@@ -731,6 +731,10 @@ fn probe_region_output_inspection_v1_deserializes_without_additive_coordinate_fi
     assert_eq!(inspection.coordinate_system, None);
     assert_eq!(inspection.genome_build, None);
     assert!(inspection.coordinate_projections.is_empty());
+    assert_eq!(inspection.r_version, None);
+    assert!(inspection.package_versions.is_empty());
+    assert_eq!(inspection.analysis_method_version, None);
+    assert!(inspection.input_fingerprints.is_empty());
     assert!(!inspection.projection_ready);
 }
 
@@ -4183,6 +4187,55 @@ fn write_ortholog_test_resource(root: &Path, include_ambiguous_mouse_row: bool) 
     path.to_string_lossy().to_string()
 }
 
+fn write_context_bound_ortholog_test_resource(root: &Path, target_genome_id: &str) -> String {
+    let path = root.join("context_bound_ortholog_resource.json");
+    fs::write(
+        &path,
+        format!(
+            r#"{{
+  "schema": "{}",
+  "id": "tp73_context_bound_orthologs",
+  "contexts": [
+    {{
+      "context_id": "human_context",
+      "organism": "Homo sapiens",
+      "genome_id": "HumanToy",
+      "annotation_source": "synthetic_gtf"
+    }},
+    {{
+      "context_id": "mouse_context",
+      "organism": "Mus musculus",
+      "genome_id": "{}",
+      "annotation_source": "synthetic_gtf"
+    }}
+  ],
+  "species_aliases": [
+    {{"species": "Homo sapiens", "aliases": ["human"]}},
+    {{"species": "Mus musculus", "aliases": ["mouse"]}}
+  ],
+  "rows": [
+    {{
+      "source_species": "Homo sapiens",
+      "source_context_id": "human_context",
+      "source_gene_symbol": "TP73",
+      "target_species": "Mus musculus",
+      "target_context_id": "mouse_context",
+      "target_gene_symbol": "Trp73",
+      "orthology_type": "ortholog_one2one",
+      "confidence": "provider_reviewed",
+      "source": "synthetic context-bound table",
+      "evidence": ["symbol_keyed_mapping_retained"]
+    }}
+  ]
+}}"#,
+            gentle_protocol::ORTHOLOG_RESOURCE_SCHEMA,
+            target_genome_id
+        ),
+    )
+    .expect("write context-bound ortholog resource");
+    path.to_string_lossy().to_string()
+}
+
 fn gene_set_cutrun_promoter_cohort(
     windows: Vec<GeneSetPromoterWindow>,
 ) -> GeneSetPromoterCohortReport {
@@ -5359,6 +5412,226 @@ fn build_gene_set_promoter_cohort_uses_default_strand_geometry_and_keeps_unresol
 }
 
 #[test]
+fn build_gene_set_promoter_cohort_emits_persisted_collection_lift_report() {
+    let td = tempdir().expect("tempdir");
+    let root = td.path();
+    let mut engine = GentleEngine::new();
+    let genome_catalog_path = prepare_gene_set_test_genome(root, &mut engine);
+    let resolution = engine
+        .resolve_gene_set(
+            GeneSetRequest::ExplicitMembers {
+                members: vec!["NEG1".to_string(), "POS1".to_string()],
+            },
+            Some("ToyGenome"),
+            None,
+            Some(&genome_catalog_path),
+            None,
+            false,
+            false,
+        )
+        .expect("resolve explicit gene set");
+
+    let result = engine
+        .apply(Operation::BuildGeneSetPromoterCohort {
+            genome_id: "ToyGenome".to_string(),
+            source: None,
+            resolution: Some(Box::new(resolution)),
+            relationship: GeneSetCohortRelationship::Manual,
+            upstream_bp: DEFAULT_PROMOTER_WINDOW_UPSTREAM_BP,
+            downstream_bp: DEFAULT_PROMOTER_WINDOW_DOWNSTREAM_BP,
+            gene_group_catalog_path: None,
+            genome_catalog_path: Some(genome_catalog_path),
+            cache_dir: None,
+            allow_draft: false,
+            allow_deprecated: false,
+            path: None,
+        })
+        .expect("build promoter cohort operation");
+    let generic = result
+        .collection_operation
+        .expect("generic collection operation report");
+    let cohort = result
+        .gene_set_promoter_cohort
+        .expect("promoter cohort report");
+    assert_eq!(
+        cohort.collection_operation.as_deref(),
+        Some(&generic),
+        "domain report and generic operation result must carry the same collection report"
+    );
+    assert_eq!(generic.schema, COLLECTION_OPERATION_REPORT_SCHEMA);
+    assert_eq!(generic.capability_name, "BuildGeneSetPromoterCohort");
+    assert_eq!(generic.lifting_mode, CollectionLiftingMode::Derive);
+    assert_eq!(
+        cohort.gene_set_resolution.op_id.as_deref(),
+        cohort.op_id.as_deref()
+    );
+    assert_eq!(
+        cohort.gene_set_resolution.run_id.as_deref(),
+        cohort.run_id.as_deref()
+    );
+    assert_eq!(
+        generic.fingerprint_algorithm,
+        COLLECTION_MEMBERSHIP_FINGERPRINT_ALGORITHM
+    );
+    assert!(
+        generic
+            .collection_membership_fingerprint_sha256
+            .starts_with("sha256:")
+    );
+    assert!(generic.applied);
+    assert!(!generic.dry_run);
+    assert_eq!(
+        generic.lift_policy.context_requirement,
+        CollectionContextRequirement::Homogeneous
+    );
+    assert_eq!(
+        generic.biological_contexts, cohort.gene_set_resolution.biological_contexts,
+        "the generic report needs its own portable copy of the source registry"
+    );
+    assert_eq!(
+        generic.biological_contexts.default_context_id.as_deref(),
+        Some(DEFAULT_BIOLOGICAL_CONTEXT_ID)
+    );
+
+    let source_rows = generic
+        .per_member_status
+        .iter()
+        .filter(|row| row.member.parent_member_id.is_none())
+        .collect::<Vec<_>>();
+    let derived_rows = generic
+        .per_member_status
+        .iter()
+        .filter(|row| row.member.parent_member_id.is_some())
+        .collect::<Vec<_>>();
+    assert_eq!(source_rows.len(), 2);
+    assert_eq!(derived_rows.len(), 2);
+    assert!(source_rows.iter().all(|row| {
+        row.outcome == CollectionMemberOutcome::Succeeded
+            && row.member.gene_symbol.is_some()
+            && row.produced_report_ids.len() == 1
+            && generic
+                .biological_contexts
+                .resolve(row.member.context_id.as_deref(), None)
+                .is_ok_and(|context| context.is_some())
+    }));
+    assert!(derived_rows.iter().all(|row| {
+        row.outcome == CollectionMemberOutcome::Succeeded
+            && source_rows.iter().any(|source| {
+                row.member.parent_member_id.as_deref()
+                    == Some(source.member.stable_member_id.as_str())
+            })
+            && row.produced_report_ids == source_rows[0].produced_report_ids
+            && generic
+                .biological_contexts
+                .resolve(row.member.context_id.as_deref(), None)
+                .is_ok_and(|context| context.is_some())
+    }));
+
+    let persisted = GentleEngine::gene_set_promoter_cohort_artifacts_from_state(engine.state());
+    assert_eq!(persisted.len(), 1);
+    assert_eq!(
+        persisted[0]
+            .collection_operation
+            .as_deref()
+            .map(|report| report.report_id.as_str()),
+        Some(generic.report_id.as_str())
+    );
+    let persisted_resolutions =
+        GentleEngine::gene_set_resolution_artifacts_from_state(engine.state());
+    let subject_report_id = match &generic.collection_subject {
+        CollectionSubjectRef::GeneSetResolution { report_id } => report_id,
+        other => panic!("expected gene-set resolution subject, got {other:?}"),
+    };
+    assert_eq!(
+        Some(subject_report_id.as_str()),
+        cohort.gene_set_resolution.op_id.as_deref(),
+        "collection subject should use the persisted source operation id"
+    );
+    assert!(persisted_resolutions.iter().any(|resolution| {
+        GentleEngine::gene_set_resolution_artifact_id(resolution) == *subject_report_id
+    }));
+}
+
+#[test]
+fn build_gene_set_promoter_cohort_rejects_missing_and_mixed_contexts_before_lookup() {
+    let engine = GentleEngine::new();
+    let member = |dedup_key: &str, context_id: Option<&str>| GeneSetResolvedMember {
+        dedup_key: dedup_key.to_string(),
+        symbol: dedup_key.to_string(),
+        context_id: context_id.map(str::to_string),
+        ..GeneSetResolvedMember::default()
+    };
+    let missing = GeneSetResolutionReport {
+        resolved_member_count: 1,
+        resolved_members: vec![member("GENE_A", None)],
+        ..GeneSetResolutionReport::default()
+    };
+    let error = engine
+        .build_gene_set_promoter_cohort(
+            "ToyGenome",
+            missing,
+            GeneSetCohortRelationship::Manual,
+            100,
+            20,
+            Some("does-not-need-to-exist.json"),
+            None,
+        )
+        .expect_err("missing context must fail before catalog lookup");
+    assert_eq!(error.code, ErrorCode::InvalidInput);
+    assert!(error.message.contains("missing_biological_context"));
+    assert!(
+        error
+            .cause_chain
+            .iter()
+            .any(|cause| cause.contains("missing_biological_context"))
+    );
+
+    let mixed = GeneSetResolutionReport {
+        genome_id: Some("ToyGenome".to_string()),
+        biological_contexts: BiologicalContextRegistry {
+            contexts: vec![
+                BiologicalContext {
+                    context_id: "toy".to_string(),
+                    genome_id: Some("ToyGenome".to_string()),
+                    ..BiologicalContext::default()
+                },
+                BiologicalContext {
+                    context_id: "other".to_string(),
+                    genome_id: Some("OtherGenome".to_string()),
+                    ..BiologicalContext::default()
+                },
+            ],
+            default_context_id: Some("toy".to_string()),
+        },
+        resolved_member_count: 2,
+        resolved_members: vec![
+            member("GENE_A", Some("toy")),
+            member("GENE_B", Some("other")),
+        ],
+        ..GeneSetResolutionReport::default()
+    };
+    let error = engine
+        .build_gene_set_promoter_cohort(
+            "ToyGenome",
+            mixed,
+            GeneSetCohortRelationship::Manual,
+            100,
+            20,
+            Some("does-not-need-to-exist.json"),
+            None,
+        )
+        .expect_err("mixed context must fail before catalog lookup");
+    assert_eq!(error.code, ErrorCode::InvalidInput);
+    assert!(error.message.contains("mixed_biological_context"));
+    assert!(
+        error
+            .cause_chain
+            .iter()
+            .any(|cause| cause.contains("mixed_biological_context"))
+    );
+}
+
+#[test]
 fn resolve_ortholog_promoter_cohort_uses_aliases_and_strand_geometry() {
     let td = tempdir().expect("tempdir");
     let root = td.path();
@@ -5407,6 +5680,7 @@ fn resolve_ortholog_promoter_cohort_uses_aliases_and_strand_geometry() {
     assert_eq!(anchor.promoter_end_1based, 1621);
     assert_eq!(anchor.tss_position_0based, 100);
     assert!(anchor.promoter_sequence.is_some());
+    assert!(anchor.context_id.is_some());
 
     let mouse = cohort
         .rows
@@ -5423,6 +5697,111 @@ fn resolve_ortholog_promoter_cohort_uses_aliases_and_strand_geometry() {
     assert_eq!(mouse.orthology_type.as_deref(), Some("one_to_one"));
     assert_eq!(mouse.confidence.as_deref(), Some("high"));
     assert_eq!(mouse.orthology_evidence, vec!["orthology_one2one"]);
+    assert!(mouse.context_id.is_some());
+    assert_eq!(
+        mouse.orthology_source_context_id.as_deref(),
+        anchor.context_id.as_deref()
+    );
+    assert_eq!(
+        mouse.orthology_target_context_id.as_deref(),
+        mouse.context_id.as_deref()
+    );
+    for row in &cohort.rows {
+        cohort
+            .biological_contexts
+            .context(row.context_id.as_deref().expect("resolved row context"))
+            .expect("row context resolves from report registry");
+    }
+}
+
+#[test]
+fn context_bound_ortholog_resource_preserves_symbol_resolution_and_context_provenance() {
+    let td = tempdir().expect("tempdir");
+    let root = td.path();
+    let mut engine = GentleEngine::new();
+    let catalog_path = prepare_ortholog_test_genomes(root, &mut engine);
+    let resource_path = write_context_bound_ortholog_test_resource(root, "MouseToy");
+    let target_genome_ids = BTreeMap::from([("mouse".to_string(), "MouseToy".to_string())]);
+
+    let cohort = engine
+        .resolve_ortholog_promoter_cohort(
+            "human",
+            "HumanToy",
+            "TP73",
+            &["mouse".to_string()],
+            &target_genome_ids,
+            &BTreeMap::new(),
+            &resource_path,
+            100,
+            20,
+            OrthologAmbiguityPolicy::Reject,
+            GeneSetCohortRelationship::Unspecified,
+            Some(&catalog_path),
+            None,
+        )
+        .expect("resolve context-bound symbol mapping");
+
+    assert_eq!(cohort.resolved_promoter_count, 2);
+    assert_eq!(cohort.biological_contexts.contexts.len(), 2);
+    let anchor = cohort
+        .rows
+        .iter()
+        .find(|row| row.role == OrthologPromoterRole::Anchor)
+        .expect("anchor row");
+    let target = cohort
+        .rows
+        .iter()
+        .find(|row| row.role == OrthologPromoterRole::Target)
+        .expect("target row");
+    assert_eq!(anchor.context_id.as_deref(), Some("human_context"));
+    assert_eq!(target.context_id.as_deref(), Some("mouse_context"));
+    assert_eq!(
+        target.orthology_source_context_id.as_deref(),
+        Some("human_context")
+    );
+    assert_eq!(
+        target.orthology_target_context_id.as_deref(),
+        Some("mouse_context")
+    );
+    assert_eq!(target.gene_symbol.as_deref(), Some("Trp73"));
+    assert_eq!(
+        target
+            .orthology_type
+            .as_ref()
+            .and_then(OrthologyType::cardinality),
+        Some(OrthologyCardinality::OneToOne)
+    );
+    assert_eq!(target.confidence.as_deref(), Some("provider_reviewed"));
+}
+
+#[test]
+fn ortholog_context_genome_mismatch_fails_before_catalog_lookup() {
+    let td = tempdir().expect("tempdir");
+    let resource_path = write_context_bound_ortholog_test_resource(td.path(), "WrongMouseGenome");
+    let engine = GentleEngine::new();
+    let target_genome_ids = BTreeMap::from([("mouse".to_string(), "MouseToy".to_string())]);
+
+    let error = engine
+        .resolve_ortholog_promoter_cohort(
+            "human",
+            "HumanToy",
+            "TP73",
+            &["mouse".to_string()],
+            &target_genome_ids,
+            &BTreeMap::new(),
+            &resource_path,
+            100,
+            20,
+            OrthologAmbiguityPolicy::Reject,
+            GeneSetCohortRelationship::Unspecified,
+            Some("/catalog/that/does/not/exist.json"),
+            None,
+        )
+        .expect_err("context mismatch must fail before catalog lookup");
+
+    assert_eq!(error.code, ErrorCode::InvalidInput);
+    assert!(error.message.contains("WrongMouseGenome"));
+    assert!(error.message.contains("MouseToy"));
 }
 
 #[test]
@@ -5460,6 +5839,133 @@ fn resolve_ortholog_promoter_cohort_reports_ambiguity_unless_policy_allows_first
             .contains("Ambiguous local ortholog mapping")
     );
     assert_eq!(rejected.unresolved_rows[0].candidates.len(), 2);
+    assert!(rejected.unresolved_rows[0].candidate_mappings.is_empty());
+
+    let preserved = engine
+        .resolve_ortholog_promoter_cohort(
+            "Homo sapiens",
+            "HumanToy",
+            "ENSG_TP73",
+            &["Mus musculus".to_string()],
+            &target_genome_ids,
+            &BTreeMap::new(),
+            &resource_path,
+            100,
+            20,
+            OrthologAmbiguityPolicy::Preserve,
+            GeneSetCohortRelationship::Unspecified,
+            Some(&catalog_path),
+            None,
+        )
+        .expect("preserve ambiguity policy retains candidates");
+    assert_eq!(preserved.resolved_promoter_count, 1);
+    assert_eq!(preserved.unresolved_count, 1);
+    let preserved_target = &preserved.unresolved_rows[0];
+    assert!(
+        preserved_target
+            .reason
+            .contains("ambiguity_policy=preserve")
+    );
+    assert_eq!(preserved_target.candidates.len(), 2);
+    assert_eq!(preserved_target.candidate_mappings.len(), 2);
+    assert_eq!(
+        preserved_target
+            .candidate_mappings
+            .iter()
+            .map(|candidate| candidate.candidate_rank)
+            .collect::<Vec<_>>(),
+        vec![1, 2]
+    );
+    assert_eq!(
+        preserved_target.candidate_mappings[0]
+            .target_gene_symbol
+            .as_deref(),
+        Some("Trp73")
+    );
+    assert_eq!(
+        preserved_target.candidate_mappings[1]
+            .target_gene_symbol
+            .as_deref(),
+        Some("Trp73b")
+    );
+    assert_eq!(
+        preserved_target.candidate_mappings[0]
+            .orthology_type
+            .as_ref()
+            .and_then(OrthologyType::cardinality),
+        Some(OrthologyCardinality::OneToOne)
+    );
+    assert_eq!(
+        preserved_target.candidate_mappings[1]
+            .orthology_type
+            .as_ref()
+            .and_then(OrthologyType::cardinality),
+        Some(OrthologyCardinality::OneToMany)
+    );
+    assert_eq!(
+        preserved_target.candidate_mappings[1].source.as_deref(),
+        Some("synthetic ambiguous row")
+    );
+    assert!(
+        preserved_target.candidate_mappings[1]
+            .candidate_label
+            .contains("source=synthetic ambiguous row")
+    );
+    assert_eq!(
+        preserved_target.candidate_mappings[1].evidence,
+        vec!["synthetic_one2many".to_string()]
+    );
+    for candidate in &preserved_target.candidate_mappings {
+        assert_eq!(candidate.target_genome_id.as_deref(), Some("MouseToy"));
+        for context_id in [
+            candidate.source_context_id.as_deref(),
+            candidate.target_context_id.as_deref(),
+        ] {
+            preserved
+                .biological_contexts
+                .context(context_id.expect("candidate context id"))
+                .expect("candidate context copied into report");
+        }
+    }
+
+    let preserved_without_target_genome = engine
+        .resolve_ortholog_promoter_cohort(
+            "Homo sapiens",
+            "HumanToy",
+            "ENSG_TP73",
+            &["Mus musculus".to_string()],
+            &BTreeMap::new(),
+            &BTreeMap::new(),
+            &resource_path,
+            100,
+            20,
+            OrthologAmbiguityPolicy::Preserve,
+            GeneSetCohortRelationship::Unspecified,
+            Some(&catalog_path),
+            None,
+        )
+        .expect("preserve ambiguity without inventing a target genome");
+    let unresolved_without_target_genome = &preserved_without_target_genome.unresolved_rows[0];
+    assert!(
+        preserved_without_target_genome
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("do not claim a genome identity"))
+    );
+    for candidate in &unresolved_without_target_genome.candidate_mappings {
+        assert_eq!(candidate.target_genome_id, None);
+        let target_context = preserved_without_target_genome
+            .biological_contexts
+            .context(
+                candidate
+                    .target_context_id
+                    .as_deref()
+                    .expect("candidate target context id"),
+            )
+            .expect("candidate target context");
+        assert_eq!(target_context.organism.as_deref(), Some("Mus musculus"));
+        assert_eq!(target_context.genome_id, None);
+    }
 
     let first = engine
         .resolve_ortholog_promoter_cohort(
@@ -7060,6 +7566,307 @@ fn test_design_primer_pairs_persists_report() {
     assert_eq!(summary.backend_used, "internal");
 }
 
+fn primer_selection_provenance_operation(
+    report_id: &str,
+    rejected_near_miss_limit: usize,
+) -> Operation {
+    Operation::DesignPrimerPairs {
+        template: "primer_provenance_tpl".to_string(),
+        roi_start_0based: 40,
+        roi_end_0based: 80,
+        forward: PrimerDesignSideConstraint {
+            min_length: 20,
+            max_length: 20,
+            start_0based: Some(0),
+            end_0based: Some(40),
+            min_tm_c: 0.0,
+            max_tm_c: 100.0,
+            min_gc_fraction: 0.0,
+            max_gc_fraction: 1.0,
+            max_anneal_hits: 1_000,
+            ..PrimerDesignSideConstraint::default()
+        },
+        reverse: PrimerDesignSideConstraint {
+            min_length: 20,
+            max_length: 20,
+            start_0based: Some(80),
+            end_0based: Some(120),
+            min_tm_c: 0.0,
+            max_tm_c: 100.0,
+            min_gc_fraction: 0.0,
+            max_gc_fraction: 1.0,
+            max_anneal_hits: 1_000,
+            ..PrimerDesignSideConstraint::default()
+        },
+        pair_constraints: PrimerDesignPairConstraint {
+            fixed_amplicon_start_0based: Some(5),
+            fixed_amplicon_end_0based_exclusive: Some(110),
+            rejected_near_miss_limit: Some(rejected_near_miss_limit),
+            ..PrimerDesignPairConstraint::default()
+        },
+        min_amplicon_bp: 40,
+        max_amplicon_bp: 150,
+        max_tm_delta_c: Some(100.0),
+        max_pairs: Some(10),
+        report_id: Some(report_id.to_string()),
+    }
+}
+
+fn primer_selection_provenance_engine() -> GentleEngine {
+    let mut state = ProjectState::default();
+    state.sequences.insert(
+        "primer_provenance_tpl".to_string(),
+        seq(
+            "ACGTTGCATGTCAGTACGATCGTACGTAGCTAGTCGATCGTACGATCGTAGCTAGCATCGATGCTAGCTAGTACGTAGCATCGATCGTAGCTAGCATGCTAGCTAGTCGATCGATCGTACGATCG",
+        ),
+    );
+    let mut engine = GentleEngine::from_state(state);
+    engine.state_mut().parameters.primer_design_backend = PrimerDesignBackend::Internal;
+    engine
+}
+
+#[test]
+fn primer_selection_provenance_is_bounded_visible_and_report_fingerprinted() {
+    let mut without_capture = primer_selection_provenance_engine();
+    without_capture
+        .apply(primer_selection_provenance_operation(
+            "primer_provenance_disabled",
+            0,
+        ))
+        .expect("primer design without rejected-candidate capture");
+    let without_capture_report = without_capture
+        .get_primer_design_report("primer_provenance_disabled")
+        .expect("report without capture");
+    assert!(without_capture_report.rejected_near_misses.is_empty());
+    assert_eq!(
+        without_capture_report
+            .near_miss_capture
+            .as_ref()
+            .expect("disabled capture metadata")
+            .status,
+        PrimerPairCharacterizationStatus::NotRun
+    );
+
+    let mut engine = primer_selection_provenance_engine();
+    let result = engine
+        .apply(primer_selection_provenance_operation(
+            "primer_provenance_captured",
+            5,
+        ))
+        .expect("primer design with rejected-candidate capture");
+    let report = engine
+        .get_primer_design_report("primer_provenance_captured")
+        .expect("captured report");
+
+    assert!(!report.pairs.is_empty());
+    assert_eq!(
+        serde_json::to_value(&report.pairs).unwrap(),
+        serde_json::to_value(&without_capture_report.pairs).unwrap(),
+        "near-miss capture must not affect selected pair ranks or scores"
+    );
+    assert_eq!(
+        report.score_decomposition_status,
+        PrimerPairCharacterizationStatus::Pass
+    );
+    assert_eq!(report.score_model, PRIMER_DESIGN_SCORE_MODEL);
+    assert_eq!(report.score_direction, PRIMER_DESIGN_SCORE_DIRECTION);
+    assert!(report.pairs.iter().all(|pair| {
+        let sum = pair
+            .score_terms
+            .iter()
+            .map(|term| term.contribution)
+            .sum::<f64>();
+        !pair.score_terms.is_empty()
+            && (pair.score - sum).abs()
+                <= PRIMER_DESIGN_SCORE_SUM_TOLERANCE * pair.score.abs().max(1.0)
+    }));
+
+    let capture = report.near_miss_capture.as_ref().expect("capture metadata");
+    assert_eq!(capture.status, PrimerPairCharacterizationStatus::Pass);
+    assert_eq!(capture.effective_limit, 5);
+    assert_eq!(capture.retained_candidate_count, 5);
+    assert!(capture.eligible_candidate_count > capture.retained_candidate_count);
+    assert_eq!(
+        capture.omitted_candidate_count,
+        capture
+            .eligible_candidate_count
+            .saturating_sub(capture.retained_candidate_count)
+    );
+    assert!(
+        capture.candidate_comparison_count
+            <= capture
+                .eligible_candidate_count
+                .saturating_mul(capture.effective_limit)
+    );
+    assert_eq!(report.rejected_near_misses.len(), 5);
+    assert!(
+        report
+            .rejected_near_misses
+            .iter()
+            .all(|row| !row.reasons.is_empty())
+    );
+    for reason in [
+        PrimerDesignRejectionReason::OutOfWindow,
+        PrimerDesignRejectionReason::GcOrTmOutOfBounds,
+        PrimerDesignRejectionReason::NonUniqueAnneal,
+        PrimerDesignRejectionReason::AmpliconOrRoiFailure,
+        PrimerDesignRejectionReason::PrimerConstraintFailure,
+        PrimerDesignRejectionReason::PairConstraintFailure,
+        PrimerDesignRejectionReason::PairEvaluationLimitSkipped,
+    ] {
+        let retained_for_reason = report
+            .rejected_near_misses
+            .iter()
+            .filter(|row| row.reasons.contains(&reason))
+            .count();
+        assert!(
+            report.rejection_summary.count_for_reason(reason) >= retained_for_reason,
+            "retained rows cannot exceed the authoritative rejection census"
+        );
+    }
+
+    let graph = result
+        .construct_reasoning_graph
+        .as_deref()
+        .expect("operation result reasoning graph");
+    assert_eq!(
+        report.construct_reasoning_graph_id.as_deref(),
+        Some(graph.graph_id.as_str())
+    );
+    assert_eq!(graph.decisions.len(), report.pairs.len());
+    assert!(graph.decisions.iter().all(|decision| {
+        decision.parameters_json["report_id"].as_str() == Some(report.report_id.as_str())
+            && decision.parameters_json["op_id"].as_str() == Some(result.op_id.as_str())
+            && decision.parameters_json["run_id"].as_str() == Some("interactive")
+            && decision.input_evidence_ids.len() == graph.evidence.len()
+    }));
+    assert!(graph.evidence.iter().all(|evidence| {
+        evidence.evidence_class == EvidenceClass::ContextEvidence
+            && evidence
+                .provenance_refs
+                .iter()
+                .any(|reference| reference == "primer_design_report:primer_provenance_captured")
+    }));
+    assert_eq!(
+        graph.annotation_candidates.len(),
+        report.rejected_near_misses.len()
+    );
+    let overlay = crate::dna_display::ConstructReasoningOverlay::from_graph(graph);
+    assert_eq!(overlay.evidence.len(), report.rejected_near_misses.len());
+    assert!(overlay.evidence.iter().all(|row| {
+        row.context_tags
+            .iter()
+            .any(|tag| tag == "rejected_near_miss")
+    }));
+    assert_eq!(
+        engine
+            .construct_reasoning_graph_snapshot_status(graph)
+            .freshness,
+        ConstructReasoningGraphFreshness::Current
+    );
+    let refreshed = engine
+        .refresh_construct_reasoning_graph_for_seq_id("primer_provenance_tpl")
+        .expect("current report-bound graph refreshes without changing graph family");
+    assert_eq!(refreshed.graph_id, graph.graph_id);
+    assert_eq!(refreshed.evidence, graph.evidence);
+    assert_eq!(refreshed.decisions, graph.decisions);
+
+    let mut store = engine.read_primer_design_store();
+    store
+        .reports
+        .get_mut("primer_provenance_captured")
+        .expect("mutable source report")
+        .pairs[0]
+        .score += 0.25;
+    engine
+        .write_primer_design_store(store)
+        .expect("mutate source report");
+    let stale = engine.construct_reasoning_graph_snapshot_status(graph);
+    assert_eq!(stale.freshness, ConstructReasoningGraphFreshness::Stale);
+    assert!(
+        stale
+            .reasons
+            .iter()
+            .any(|reason| reason.contains("primer-design report") && reason.contains("changed"))
+    );
+    let refresh_error = engine
+        .refresh_construct_reasoning_graph_for_seq_id("primer_provenance_tpl")
+        .expect_err("stale report-bound graph must not become a generic graph");
+    assert!(refresh_error.message.contains("rerun DesignPrimerPairs"));
+}
+
+#[test]
+fn old_primer_design_report_payload_defaults_selection_provenance_fields() {
+    let old_payload = json!({
+        "schema": PRIMER_DESIGN_REPORT_SCHEMA,
+        "report_id": "legacy_primer_report",
+        "template": "legacy_template",
+        "pair_count": 0,
+        "pairs": [],
+        "rejection_summary": {}
+    });
+    let report: PrimerDesignReport =
+        serde_json::from_value(old_payload).expect("deserialize legacy report");
+    assert_eq!(
+        report.score_decomposition_status,
+        PrimerPairCharacterizationStatus::NotRun
+    );
+    assert!(report.score_decomposition_reason.is_empty());
+    assert!(report.score_model.is_empty());
+    assert!(report.score_direction.is_empty());
+    assert!(report.rejected_near_misses.is_empty());
+    assert!(report.near_miss_capture.is_none());
+    assert!(report.construct_reasoning_graph_id.is_none());
+
+    let serialized = serde_json::to_value(report).expect("serialize legacy report");
+    for absent in [
+        "score_decomposition_status",
+        "score_decomposition_reason",
+        "score_model",
+        "score_direction",
+        "rejected_near_misses",
+        "near_miss_capture",
+        "construct_reasoning_graph_id",
+    ] {
+        assert!(
+            serialized.get(absent).is_none(),
+            "default additive field '{absent}' should stay absent"
+        );
+    }
+}
+
+#[test]
+fn qpcr_design_rejects_primer_report_near_miss_capture_option() {
+    let mut state = ProjectState::default();
+    state
+        .sequences
+        .insert("qpcr_near_miss_tpl".to_string(), seq(&"ACGT".repeat(40)));
+    let mut engine = GentleEngine::from_state(state);
+    let error = engine
+        .apply(Operation::DesignQpcrAssays {
+            template: "qpcr_near_miss_tpl".to_string(),
+            roi_start_0based: 40,
+            roi_end_0based: 80,
+            forward: PrimerDesignSideConstraint::default(),
+            reverse: PrimerDesignSideConstraint::default(),
+            probe: PrimerDesignSideConstraint::default(),
+            pair_constraints: PrimerDesignPairConstraint {
+                rejected_near_miss_limit: Some(5),
+                ..PrimerDesignPairConstraint::default()
+            },
+            min_amplicon_bp: 40,
+            max_amplicon_bp: 120,
+            max_tm_delta_c: None,
+            max_probe_tm_delta_c: None,
+            max_assays: None,
+            transcript_targeting: None,
+            report_id: Some("unsupported_qpcr_near_miss".to_string()),
+        })
+        .expect_err("qPCR report does not carry primer-pair near misses");
+    assert_eq!(error.code, ErrorCode::InvalidInput);
+    assert!(error.message.contains("not DesignQpcrAssays"));
+}
+
 #[test]
 fn test_prepare_restriction_cloning_pcr_handoff_creates_extended_artifacts_and_preserves_anneal_len()
  {
@@ -8470,6 +9277,480 @@ fn write_fake_blastdbcmd(path: &Path, sequence_count: u64, total_bases: u64) {
         .permissions();
     permissions.set_mode(0o755);
     fs::set_permissions(path, permissions).expect("enable fake blastdbcmd");
+}
+
+fn primer_specificity_collection_test_design_report(
+    report_id: &str,
+    template: &str,
+    forward_sequence: &str,
+    reverse_sequence: &str,
+) -> PrimerDesignReport {
+    let primer = |sequence: &str, start_0based: usize| PrimerDesignPrimerRecord {
+        sequence: sequence.to_string(),
+        start_0based,
+        end_0based_exclusive: start_0based + sequence.len(),
+        length_bp: sequence.len(),
+        anneal_length_bp: sequence.len(),
+        ..PrimerDesignPrimerRecord::default()
+    };
+    PrimerDesignReport {
+        schema: "gentle.primer_design_report.v1".to_string(),
+        report_id: report_id.to_string(),
+        template: template.to_string(),
+        roi_start_0based: 20,
+        roi_end_0based: 80,
+        pair_count: 1,
+        pairs: vec![PrimerDesignPairRecord {
+            rank: 1,
+            forward: primer(forward_sequence, 0),
+            reverse: primer(reverse_sequence, 80),
+            amplicon_start_0based: 0,
+            amplicon_end_0based_exclusive: 80 + reverse_sequence.len(),
+            amplicon_length_bp: 80 + reverse_sequence.len(),
+            ..PrimerDesignPairRecord::default()
+        }],
+        ..PrimerDesignReport::default()
+    }
+}
+
+fn primer_specificity_parity_projection(report: &PrimerSpecificityReport) -> serde_json::Value {
+    serde_json::json!({
+        "schema": report.schema,
+        "report_id": report.report_id,
+        "primary_seq_id": report.primary_seq_id,
+        "related_seq_ids": report.related_seq_ids,
+        "external_inputs": report.external_inputs,
+        "request_summary": report.request_summary,
+        "effective_settings_summary": report.effective_settings_summary,
+        "primer_report_id": report.primer_report_id,
+        "pair_rank": report.pair_rank,
+        "pair_index": report.pair_index,
+        "target_kind": report.target_kind,
+        "target_genome_id": report.target_genome_id,
+        "blast_database": report.blast_database,
+        "intended_target": report.intended_target,
+        "policy": report.policy,
+        "primers": report.primers,
+        "forward_hits": report.forward_hits,
+        "reverse_hits": report.reverse_hits,
+        "amplicons": report.amplicons,
+        "compaction": report.compaction,
+        "search_completeness": report.search_completeness,
+        "summary": report.summary,
+        "genomic_specificity": report.genomic_specificity,
+        "transcriptome_specificity": report.transcriptome_specificity,
+        "design_provenance": report.design_provenance,
+        "characterization_dimensions": report.characterization_dimensions,
+        "warnings": report.warnings,
+    })
+}
+
+#[test]
+fn gene_set_primer_specificity_rejects_missing_or_mismatched_context_before_member_resolution() {
+    let mut engine = GentleEngine::new();
+    let resolution = GeneSetResolutionReport {
+        schema: GENE_SET_RESOLUTION_SCHEMA.to_string(),
+        generated_at_unix_ms: 1,
+        op_id: Some("missing_context_fixture".to_string()),
+        resolved_member_count: 1,
+        resolved_members: vec![GeneSetResolvedMember {
+            dedup_key: "gene_id:GENE_A".to_string(),
+            symbol: "GENEA".to_string(),
+            gene_id: Some("GENE_A".to_string()),
+            ..GeneSetResolvedMember::default()
+        }],
+        ..GeneSetResolutionReport::default()
+    };
+    let report_id = GentleEngine::gene_set_resolution_artifact_id(&resolution);
+    engine
+        .upsert_gene_set_resolution_artifact(resolution)
+        .expect("persist legacy context-free report");
+
+    let error = engine
+        .apply(Operation::AssessPrimerPairSpecificityCollection {
+            collection_subject: CollectionSubjectRef::GeneSetResolution { report_id },
+            member_bindings: vec![],
+            pair_rank: Some(1),
+            pair_index: None,
+            target_genome_id: "ToyGenome".to_string(),
+            policy: PrimerSpecificityPolicy::default(),
+            catalog_path: Some("does-not-need-to-exist.json".to_string()),
+            cache_dir: None,
+            path: None,
+        })
+        .expect_err("missing context must fail before member binding or BLAST");
+    assert_eq!(error.code, ErrorCode::InvalidInput);
+    assert!(error.message.contains("missing_biological_context"));
+    assert!(
+        error
+            .cause_chain
+            .iter()
+            .any(|cause| cause.contains("missing_biological_context"))
+    );
+
+    let mismatched = GeneSetResolutionReport {
+        schema: GENE_SET_RESOLUTION_SCHEMA.to_string(),
+        generated_at_unix_ms: 2,
+        op_id: Some("mismatched_context_fixture".to_string()),
+        genome_id: Some("ToyGenome".to_string()),
+        resolved_member_count: 1,
+        resolved_members: vec![GeneSetResolvedMember {
+            dedup_key: "gene_id:GENE_A".to_string(),
+            symbol: "GENEA".to_string(),
+            gene_id: Some("GENE_A".to_string()),
+            ..GeneSetResolvedMember::default()
+        }],
+        ..GeneSetResolutionReport::default()
+    };
+    let report_id = GentleEngine::gene_set_resolution_artifact_id(&mismatched);
+    engine
+        .upsert_gene_set_resolution_artifact(mismatched)
+        .expect("persist mismatched-context report");
+    let error = engine
+        .apply(Operation::AssessPrimerPairSpecificityCollection {
+            collection_subject: CollectionSubjectRef::GeneSetResolution { report_id },
+            member_bindings: vec![],
+            pair_rank: Some(1),
+            pair_index: None,
+            target_genome_id: "OtherGenome".to_string(),
+            policy: PrimerSpecificityPolicy::default(),
+            catalog_path: Some("does-not-need-to-exist.json".to_string()),
+            cache_dir: None,
+            path: None,
+        })
+        .expect_err("target-genome mismatch must fail before member binding or BLAST");
+    assert_eq!(error.code, ErrorCode::InvalidInput);
+    assert!(error.message.contains("mixed_biological_context"));
+}
+
+#[cfg(unix)]
+#[test]
+fn collection_primer_specificity_matches_direct_per_member_assessment() {
+    let _env_lock = crate::genomes::genbank_env_lock()
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    let temp = tempdir().expect("temporary collection specificity directory");
+    let root = temp.path();
+    let fasta = root.join("toy.fa");
+    let annotation = root.join("toy.gtf");
+    let cache = root.join("cache");
+    let catalog = root.join("catalog.json");
+    fs::write(&fasta, format!(">chr1\n{}\n", "ACGT".repeat(100)))
+        .expect("write collection specificity FASTA");
+    fs::write(
+        &annotation,
+        concat!(
+            "chr1\ttest\tgene\t1\t150\t.\t+\t.\tgene_id \"GENE_A\"; gene_name \"GENEA\";\n",
+            "chr1\ttest\tgene\t201\t350\t.\t+\t.\tgene_id \"GENE_B\"; gene_name \"GENEB\";\n",
+        ),
+    )
+    .expect("write collection specificity annotation");
+    fs::write(
+        &catalog,
+        format!(
+            r#"{{
+  "ToyGenome": {{
+    "description": "synthetic collection primer-specificity fixture",
+    "sequence_local": "{}",
+    "annotations_local": "{}",
+    "cache_dir": "{}"
+  }}
+}}"#,
+            fasta.display(),
+            annotation.display(),
+            cache.display()
+        ),
+    )
+    .expect("write collection specificity catalog");
+
+    let fake_makeblastdb = root.join("fake_makeblastdb.sh");
+    fs::write(
+        &fake_makeblastdb,
+        "#!/bin/sh\nif [ \"$1\" = '-version' ]; then echo 'makeblastdb: fake 1.0'; exit 0; fi\nout=''\nwhile [ $# -gt 0 ]; do\n  if [ \"$1\" = '-out' ]; then out=\"$2\"; shift 2; else shift; fi\ndone\nmkdir -p \"$(dirname \"$out\")\"\nprintf nhr > \"${out}.nhr\"\nprintf nin > \"${out}.nin\"\nprintf nsq > \"${out}.nsq\"\n",
+    )
+    .expect("write fake makeblastdb");
+    let fake_blastn = root.join("fake_blastn.sh");
+    fs::write(
+        &fake_blastn,
+        "#!/bin/sh\nif [ \"$1\" = '-version' ]; then echo 'blastn: fake 1.0'; exit 0; fi\nexit 0\n",
+    )
+    .expect("write fake blastn");
+    let fake_blastdbcmd = root.join("fake_blastdbcmd.sh");
+    write_fake_blastdbcmd(&fake_blastdbcmd, 1, 400);
+    for executable in [&fake_makeblastdb, &fake_blastn] {
+        let mut permissions = fs::metadata(executable)
+            .expect("fake executable metadata")
+            .permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(executable, permissions).expect("enable fake executable");
+    }
+    let _makeblastdb = EnvVarGuard::set(
+        crate::genomes::MAKEBLASTDB_ENV_BIN,
+        &fake_makeblastdb.to_string_lossy(),
+    );
+    let _blastn = EnvVarGuard::set(
+        crate::genomes::BLASTN_ENV_BIN,
+        &fake_blastn.to_string_lossy(),
+    );
+    let _blastdbcmd = EnvVarGuard::set(
+        crate::genomes::BLASTDBCMD_ENV_BIN,
+        &fake_blastdbcmd.to_string_lossy(),
+    );
+
+    let mut engine = GentleEngine::new();
+    engine
+        .apply(Operation::PrepareGenome {
+            genome_id: "ToyGenome".to_string(),
+            catalog_path: Some(catalog.to_string_lossy().to_string()),
+            cache_dir: None,
+            timeout_seconds: None,
+        })
+        .expect("prepare collection specificity genome");
+    engine
+        .state_mut()
+        .sequences
+        .insert("seq_a".to_string(), seq(&"ACGT".repeat(30)));
+    engine
+        .state_mut()
+        .sequences
+        .insert("seq_b".to_string(), seq(&"TGCA".repeat(30)));
+
+    let design_reports = [
+        primer_specificity_collection_test_design_report(
+            "primer_report_a",
+            "seq_a",
+            "ACGTACGTACGTACGTACGT",
+            "TGCATGCATGCATGCATGCA",
+        ),
+        primer_specificity_collection_test_design_report(
+            "primer_report_b",
+            "seq_b",
+            "AAAACCCCGGGGTTTTACGT",
+            "TTTTGGGGCCCCAAAATGCA",
+        ),
+    ];
+    let mut store = engine.read_primer_design_store();
+    for report in &design_reports {
+        store
+            .reports
+            .insert(report.report_id.clone(), report.clone());
+    }
+    engine
+        .write_primer_design_store(store)
+        .expect("persist collection specificity primer reports");
+
+    let resolution = engine
+        .resolve_gene_set(
+            GeneSetRequest::ExplicitMembers {
+                members: vec!["GENEA".to_string(), "GENEB".to_string()],
+            },
+            Some("ToyGenome"),
+            None,
+            Some(&catalog.to_string_lossy()),
+            None,
+            false,
+            false,
+        )
+        .expect("resolve collection specificity gene set");
+    let resolution_id = GentleEngine::gene_set_resolution_artifact_id(&resolution);
+    engine
+        .upsert_gene_set_resolution_artifact(resolution.clone())
+        .expect("persist collection specificity gene set");
+
+    let policy = PrimerSpecificityPolicy::default();
+    let mut direct_by_design_report = BTreeMap::new();
+    for report in &design_reports {
+        let direct = engine
+            .assess_primer_pair_specificity(
+                Some(&report.report_id),
+                Some(1),
+                None,
+                None,
+                None,
+                "ToyGenome",
+                policy.clone(),
+                Some(&catalog.to_string_lossy()),
+                None,
+            )
+            .expect("run direct primer specificity");
+        direct_by_design_report.insert(report.report_id.clone(), direct);
+    }
+    let bindings = resolution
+        .resolved_members
+        .iter()
+        .map(|member| PrimerSpecificityCollectionMemberBinding {
+            stable_member_id: member.dedup_key.clone(),
+            primer_report_id: match member.symbol.as_str() {
+                "GENEA" => "primer_report_a",
+                "GENEB" => "primer_report_b",
+                other => panic!("unexpected resolved gene-set member {other}"),
+            }
+            .to_string(),
+        })
+        .collect::<Vec<_>>();
+    let result = engine
+        .apply(Operation::AssessPrimerPairSpecificityCollection {
+            collection_subject: CollectionSubjectRef::GeneSetResolution {
+                report_id: resolution_id,
+            },
+            member_bindings: bindings,
+            pair_rank: Some(1),
+            pair_index: None,
+            target_genome_id: "ToyGenome".to_string(),
+            policy,
+            catalog_path: Some(catalog.to_string_lossy().to_string()),
+            cache_dir: None,
+            path: None,
+        })
+        .expect("run collection primer specificity");
+    let collection = result
+        .collection_operation
+        .expect("collection specificity report");
+    assert_eq!(collection.lifting_mode, CollectionLiftingMode::Map);
+    assert_eq!(collection.capability_name, "AssessPrimerPairSpecificity");
+    assert_eq!(
+        collection.lift_policy.context_requirement,
+        CollectionContextRequirement::Homogeneous
+    );
+    assert_eq!(
+        collection.biological_contexts,
+        resolution.biological_contexts
+    );
+    assert_eq!(collection.per_member_status.len(), 2);
+    assert!(collection.per_member_status.iter().all(|row| {
+        row.outcome == CollectionMemberOutcome::Succeeded
+            && row.produced_report_ids.len() == 1
+            && row.error.is_none()
+            && row.member.source_provenance.iter().any(|source| {
+                source.source_kind == "primer_design_report_binding"
+                    && source
+                        .note
+                        .as_deref()
+                        .is_some_and(|note| note.contains("explicit"))
+            })
+            && collection
+                .biological_contexts
+                .resolve(row.member.context_id.as_deref(), None)
+                .is_ok_and(|context| {
+                    context.is_some_and(|context| context.genome_id.as_deref() == Some("ToyGenome"))
+                })
+    }));
+
+    for row in &collection.per_member_status {
+        let produced_report_id = &row.produced_report_ids[0];
+        let mapped = engine
+            .get_primer_specificity_report(produced_report_id)
+            .expect("persisted mapped specificity report");
+        let design_report_id = mapped
+            .primer_report_id
+            .as_ref()
+            .expect("mapped report cites primer design");
+        let direct = direct_by_design_report
+            .get(design_report_id)
+            .expect("matching direct assessment");
+        assert_eq!(
+            primer_specificity_parity_projection(&mapped),
+            primer_specificity_parity_projection(direct),
+            "collection mapping must preserve the direct specificity result for {design_report_id}"
+        );
+    }
+
+    let project_sequence_map = execute_shell_command(
+        &mut engine,
+        &ShellCommand::CollectionsRunPrimerSpecificity {
+            collection_subject: CollectionSubjectRef::ProjectSequences {
+                seq_ids: vec!["seq_b".to_string(), "seq_a".to_string()],
+            },
+            member_bindings: vec![],
+            pair_rank: Some(1),
+            pair_index: None,
+            target_genome_id: "ToyGenome".to_string(),
+            policy: PrimerSpecificityPolicy::default(),
+            catalog_path: Some(catalog.to_string_lossy().to_string()),
+            cache_dir: None,
+            path: None,
+        },
+    )
+    .expect("auto-resolve one primer report per project sequence")
+    .output;
+    let project_sequence_map =
+        serde_json::from_value::<CollectionOperationReport>(project_sequence_map["report"].clone())
+            .expect("project-sequence collection report");
+    assert!(project_sequence_map.per_member_status.iter().all(|row| {
+        row.outcome == CollectionMemberOutcome::Succeeded
+            && row.member.source_provenance.iter().any(|source| {
+                source.source_kind == "primer_design_report_binding"
+                    && source
+                        .note
+                        .as_deref()
+                        .is_some_and(|note| note.contains("unique_template_match"))
+            })
+    }));
+
+    let missing_bindings = engine
+        .apply(Operation::AssessPrimerPairSpecificityCollection {
+            collection_subject: collection.collection_subject.clone(),
+            member_bindings: vec![],
+            pair_rank: Some(1),
+            pair_index: None,
+            target_genome_id: "ToyGenome".to_string(),
+            policy: PrimerSpecificityPolicy::default(),
+            catalog_path: Some(catalog.to_string_lossy().to_string()),
+            cache_dir: None,
+            path: None,
+        })
+        .expect("retain missing gene-set bindings as typed member failures")
+        .collection_operation
+        .expect("failed-member collection report");
+    assert!(missing_bindings.per_member_status.iter().all(|row| {
+        row.outcome == CollectionMemberOutcome::Failed
+            && row.produced_report_ids.is_empty()
+            && row.error.as_ref().is_some_and(|error| {
+                error
+                    .message
+                    .contains("requires an explicit member-to-primer-report binding")
+            })
+    }));
+    assert_eq!(missing_bindings.aggregate_warnings.len(), 2);
+
+    let mut mixed_resolution = resolution;
+    mixed_resolution.op_id = Some("mixed_context_fixture".to_string());
+    mixed_resolution
+        .biological_contexts
+        .contexts
+        .push(BiologicalContext {
+            context_id: "other_genome".to_string(),
+            genome_id: Some("OtherGenome".to_string()),
+            ..BiologicalContext::default()
+        });
+    mixed_resolution.resolved_members[1].context_id = Some("other_genome".to_string());
+    let mixed_resolution_id = GentleEngine::gene_set_resolution_artifact_id(&mixed_resolution);
+    engine
+        .upsert_gene_set_resolution_artifact(mixed_resolution)
+        .expect("persist mixed-context fixture");
+    let specificity_report_count = engine.list_primer_specificity_reports().len();
+    let error = engine
+        .apply(Operation::AssessPrimerPairSpecificityCollection {
+            collection_subject: CollectionSubjectRef::GeneSetResolution {
+                report_id: mixed_resolution_id,
+            },
+            member_bindings: vec![],
+            pair_rank: Some(1),
+            pair_index: None,
+            target_genome_id: "ToyGenome".to_string(),
+            policy: PrimerSpecificityPolicy::default(),
+            catalog_path: Some(catalog.to_string_lossy().to_string()),
+            cache_dir: None,
+            path: None,
+        })
+        .expect_err("mixed contexts must fail before member or BLAST work");
+    assert_eq!(error.code, ErrorCode::InvalidInput);
+    assert!(error.message.contains("mixed_biological_context"));
+    assert_eq!(
+        engine.list_primer_specificity_reports().len(),
+        specificity_report_count,
+        "context rejection must not persist partial child reports"
+    );
 }
 
 #[test]
@@ -14140,6 +15421,18 @@ fn test_design_primer_pairs_primer3_zero_pairs_persists_request_and_explain() {
         .expect("primer3 zero-pair report");
     assert_eq!(report.backend.used, "primer3");
     assert_eq!(report.pair_count, 0);
+    assert_eq!(
+        report.score_decomposition_status,
+        PrimerPairCharacterizationStatus::NotRun
+    );
+    assert!(report.score_decomposition_reason.contains("No primer pair"));
+    let capture = report
+        .near_miss_capture
+        .as_ref()
+        .expect("Primer3 capture completeness");
+    assert_eq!(capture.status, PrimerPairCharacterizationStatus::Incomplete);
+    assert!(capture.reason.contains("Primer3-internal"));
+    assert!(report.rejected_near_misses.is_empty());
     assert!(
         report
             .backend
@@ -15119,6 +16412,7 @@ fn test_design_primer_pairs_enforces_pair_constraints() {
         forbidden_amplicon_motifs: vec![],
         fixed_amplicon_start_0based: Some(pair.amplicon_start_0based),
         fixed_amplicon_end_0based_exclusive: Some(pair.amplicon_end_0based_exclusive),
+        rejected_near_miss_limit: None,
     };
     engine
         .apply(Operation::DesignPrimerPairs {
@@ -15153,6 +16447,7 @@ fn test_design_primer_pairs_enforces_pair_constraints() {
                 forbidden_amplicon_motifs: vec![motif],
                 fixed_amplicon_start_0based: None,
                 fixed_amplicon_end_0based_exclusive: None,
+                rejected_near_miss_limit: None,
             },
             min_amplicon_bp: 40,
             max_amplicon_bp: 150,
@@ -20180,6 +21475,34 @@ fn gene_isoform_evidence_inspector_composes_gene_locus_evidence_for_patz1_minus_
     assert_eq!(report.gene_strand, "-");
     assert_eq!(report.families.len(), 3);
     assert_eq!(report.transcripts.len(), 3);
+    assert_eq!(report.transcript_metrics.len(), 3);
+    let inferred_coding_metrics = report
+        .transcript_metrics
+        .iter()
+        .find(|row| row.transcript_id == "PATZ1-201")
+        .expect("inferred coding transcript metrics");
+    assert!(inferred_coding_metrics.protein_identity_sha256.is_some());
+    assert_eq!(
+        inferred_coding_metrics.predicted_molecular_weight_kda, None,
+        "the fixture has no complete annotated CDS, so inferred ORF mass must remain unavailable"
+    );
+    assert_eq!(
+        inferred_coding_metrics.protein_mass_basis.as_deref(),
+        Some("unavailable_due_to_incomplete_or_unresolved_cds")
+    );
+    assert!(
+        inferred_coding_metrics
+            .flags
+            .iter()
+            .any(|flag| flag == "protein_mass_unavailable_incomplete_cds")
+    );
+    let noncoding_metrics = report
+        .transcript_metrics
+        .iter()
+        .find(|row| row.transcript_id == "PATZ1-202")
+        .expect("noncoding transcript metrics");
+    assert_eq!(noncoding_metrics.protein_identity_sha256, None);
+    assert_eq!(noncoding_metrics.predicted_molecular_weight_kda, None);
     let long = report
         .transcripts
         .iter()
@@ -20200,10 +21523,41 @@ fn gene_isoform_evidence_inspector_composes_gene_locus_evidence_for_patz1_minus_
         .expect("stable supported junction id");
     assert_eq!(supported_junction.transcript_donor_1based, 31325979);
     assert_eq!(supported_junction.transcript_acceptor_1based, 31325940);
+    assert!(
+        supported_junction
+            .components
+            .abundance
+            .measurements
+            .iter()
+            .any(|measurement| {
+                measurement.classification == "dataset_relative_rna_read_support"
+                    && measurement.value == Some(0.7)
+                    && measurement.unit.as_deref() == Some("read_fraction")
+            })
+    );
     assert_eq!(
         supported_junction.components.abundance.classification,
-        "dataset_relative_rna_read_support"
+        "incompatible_measurement_units"
     );
+    assert_eq!(supported_junction.components.abundance.value, None);
+    assert_eq!(supported_junction.components.abundance.unit, None);
+    assert!(report.warnings.iter().any(|warning| {
+        warning.contains(&supported_junction.junction_id)
+            && warning.contains("input_value")
+            && warning.contains("read_fraction")
+    }));
+    let expression_items = report
+        .evidence_items
+        .iter()
+        .filter(|item| item.source_kind == IsoformEvidenceSourceKind::Expression)
+        .collect::<Vec<_>>();
+    assert_eq!(expression_items.len(), 9);
+    assert!(expression_items.iter().any(|item| {
+        item.family_ids == vec!["patz1_long".to_string()]
+            && item.condition.as_deref() == Some("TAp73alpha")
+            && item.value == Some(8.0)
+            && item.unit.as_deref() == Some("input_value")
+    }));
     assert_eq!(
         supported_junction.components.assayability.classification,
         "qpcr_candidate_available"
@@ -20220,6 +21574,8 @@ fn gene_isoform_evidence_inspector_composes_gene_locus_evidence_for_patz1_minus_
     assert!(report.evidence_items.iter().any(|item| {
         item.source_kind == IsoformEvidenceSourceKind::ArrayProbe
             && item.status == IsoformEvidenceAssessmentStatus::ConstraintOnly
+            && item.probe_class == Some(GeneLocusProbeClass::Juc)
+            && item.probe_classification_basis.as_deref() == Some("explicit_probe_type_or_level")
             && item.condition.as_deref() == Some("synthetic_case_vs_control")
             && item
                 .notes
@@ -20275,6 +21631,96 @@ fn gene_isoform_evidence_inspector_composes_gene_locus_evidence_for_patz1_minus_
         warning.contains("patz1_wrong_template_qpcr") && warning.contains("another_sequence")
     }));
 
+    let mut multi_contrast: serde_json::Value = serde_json::from_slice(
+        &fs::read(format!("{fixture}/patz1_probe_evidence.json"))
+            .expect("read probe fixture for multi-contrast test"),
+    )
+    .expect("parse probe fixture for multi-contrast test");
+    let rows = multi_contrast["evidence_rows"]
+        .as_array()
+        .expect("probe evidence rows")
+        .clone();
+    let mut second_contrast = rows[0].clone();
+    second_contrast["evidence_id"] = serde_json::json!("JUC2200054820.hg.1.second");
+    second_contrast["contrast"] = serde_json::json!("synthetic_second_vs_control");
+    second_contrast["logfc"] = serde_json::json!(2.4);
+    let mut missing_effect = rows[0].clone();
+    missing_effect["evidence_id"] = serde_json::json!("JUC2200054820.hg.1.missing");
+    missing_effect["contrast"] = serde_json::json!("synthetic_missing_vs_control");
+    missing_effect["logfc"] = serde_json::Value::Null;
+    let ordered_rows = vec![
+        rows[0].clone(),
+        second_contrast.clone(),
+        missing_effect,
+        rows[1].clone(),
+    ];
+    multi_contrast["evidence_rows"] = serde_json::Value::Array(ordered_rows.clone());
+    let ordered_path = temp.path().join("probe_multi_contrast_ordered.json");
+    fs::write(
+        &ordered_path,
+        serde_json::to_vec_pretty(&multi_contrast).expect("serialize multi-contrast fixture"),
+    )
+    .expect("write multi-contrast fixture");
+    multi_contrast["evidence_rows"] =
+        serde_json::Value::Array(ordered_rows.into_iter().rev().collect());
+    let reversed_path = temp.path().join("probe_multi_contrast_reversed.json");
+    fs::write(
+        &reversed_path,
+        serde_json::to_vec_pretty(&multi_contrast).expect("serialize reversed fixture"),
+    )
+    .expect("write reversed fixture");
+
+    let contrast_component = |path: &Path| {
+        let view = engine
+            .inspect_feature_expert(
+                "patz1_isoform_evidence",
+                &FeatureExpertTarget::IsoformEvidence {
+                    request: GeneIsoformEvidenceRequest {
+                        panel_id: "patz1_synthetic_v1".to_string(),
+                        annotation_release: Some("Ensembl116-like synthetic model".to_string()),
+                        probe_evidence_paths: vec![path.to_string_lossy().to_string()],
+                        ..Default::default()
+                    },
+                },
+            )
+            .expect("inspect multi-contrast evidence");
+        let FeatureExpertView::IsoformEvidence(report) = view else {
+            panic!("expected multi-contrast isoform evidence");
+        };
+        report
+            .junctions
+            .iter()
+            .find(|row| row.junction_id == "JCT:GRCh38.p14:31325860-31325979:-")
+            .expect("probe-mapped junction")
+            .components
+            .responsiveness
+            .clone()
+    };
+    let ordered_component = contrast_component(&ordered_path);
+    let reversed_component = contrast_component(&reversed_path);
+    assert_eq!(
+        ordered_component.measurements, reversed_component.measurements,
+        "component measurements must be independent of evidence-row order"
+    );
+    assert_eq!(ordered_component.measurements.len(), 2);
+    assert!(
+        ordered_component
+            .measurements
+            .iter()
+            .all(|measurement| measurement.value != Some(0.0)),
+        "missing effects must remain missing rather than becoming zero"
+    );
+    assert_eq!(
+        ordered_component
+            .measurements
+            .iter()
+            .filter_map(|measurement| measurement.condition.as_deref())
+            .collect::<Vec<_>>(),
+        vec!["synthetic_case_vs_control", "synthetic_second_vs_control"]
+    );
+    assert_eq!(ordered_component.value, None);
+    assert_eq!(ordered_component.unit.as_deref(), Some("logFC"));
+
     let mut wildcard_request = request.clone();
     wildcard_request.occupancy_track_names = vec!["*".to_string()];
     let wildcard_view = engine
@@ -20309,7 +21755,7 @@ fn gene_isoform_evidence_inspector_composes_gene_locus_evidence_for_patz1_minus_
         )
         .expect("render isoform evidence SVG");
     let svg = fs::read_to_string(svg_path).expect("read rendered SVG");
-    assert!(svg.contains("gentle.gene_isoform_evidence.v1"));
+    assert!(svg.contains(GENE_ISOFORM_EVIDENCE_SCHEMA));
     assert!(svg.contains("PATZ1 isoform evidence"));
     assert!(svg.contains("5' -&gt; 3'") || svg.contains("5' -> 3'"));
     assert!(svg.contains("data-gentle-occupancy-lane"));
@@ -20511,6 +21957,165 @@ fn gene_isoform_evidence_inspector_composes_gene_locus_evidence_for_patz1_minus_
     assert_eq!(locus_svg.matches("data-gentle-assay-junction").count(), 1);
     assert!(locus_svg.contains("Evidence provenance"));
     assert!(locus_svg.contains("data-gentle-provenance-source"));
+}
+
+#[test]
+fn gene_transcript_assay_routine_composes_existing_reports_without_rerunning_them() {
+    let temp = tempdir().expect("routine tempdir");
+    let isoform_path = temp.path().join("isoform_evidence.json");
+    let isoform_report = GeneIsoformEvidenceReport {
+        schema: GENE_ISOFORM_EVIDENCE_SCHEMA.to_string(),
+        seq_id: "synthetic_gene".to_string(),
+        gene_symbol: "GENE1".to_string(),
+        panel_id: "gene1_panel".to_string(),
+        annotation_release: Some("Synthetic release 1".to_string()),
+        exon_families: vec![GeneIsoformExonFamilyRow {
+            exon_family_id: "EXF:synthetic".to_string(),
+            specificity_class: "shared".to_string(),
+            recommendation: GeneIsoformRecommendation {
+                tier: GeneIsoformRecommendationTier::AnnotationCandidate,
+                recommended_use: "routine_common_region_screen".to_string(),
+                rule: "synthetic annotation rule".to_string(),
+                ..Default::default()
+            },
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    let isoform_bytes =
+        serde_json::to_vec_pretty(&isoform_report).expect("serialize isoform evidence");
+    fs::write(&isoform_path, &isoform_bytes).expect("write isoform evidence");
+    let isoform_digest = crate::digest_utils::sha256_prefixed_bytes(&isoform_bytes);
+
+    let panel = TranscriptAssayPanelReport {
+        schema: TRANSCRIPT_ASSAY_PANEL_REPORT_SCHEMA.to_string(),
+        report_id: "gene1_common_control".to_string(),
+        source_seq_id: "synthetic_gene".to_string(),
+        assay_kind: TranscriptAssayKind::SybrQpcr,
+        objective: TranscriptAssayPanelObjective::PanTranscript,
+        assay_tier: TranscriptAssayUseTier::Unspecified,
+        completion_status: TranscriptAssayPanelCompletionStatus::Complete,
+        selected_assays: vec![TranscriptAssayPanelAssay {
+            assay_id: "assay_common_1".to_string(),
+            rank: 1,
+            assay_kind: TranscriptAssayKind::SybrQpcr,
+            ..Default::default()
+        }],
+        order_ready_primers: vec![TranscriptAssayOrderPrimer {
+            line_id: "primer_common_f".to_string(),
+            assay_id: "assay_common_1".to_string(),
+            assay_rank: 1,
+            name: "GENE1_common_F".to_string(),
+            role: "forward".to_string(),
+            sequence_5_to_3: "ACGTACGTACGTACGTACGT".to_string(),
+            length_nt: 20,
+        }],
+        ..Default::default()
+    };
+    let mut engine = GentleEngine::default();
+    let mut store = engine.read_primer_design_store();
+    store
+        .transcript_assay_panels
+        .insert(panel.report_id.clone(), panel);
+    engine
+        .write_primer_design_store(store)
+        .expect("persist synthetic transcript-assay panel");
+
+    let output_path = temp.path().join("routine.json");
+    let state_before = serde_json::to_value(engine.state()).expect("serialize state before");
+    let result = engine
+        .apply(Operation::ComposeGeneTranscriptAssayRoutine {
+            request: GeneTranscriptAssayRoutineRequest {
+                label: "GENE1 validation routine".to_string(),
+                isoform_evidence_path: isoform_path.to_string_lossy().to_string(),
+                expected_isoform_evidence_sha256: Some(isoform_digest.clone()),
+                transcript_assay_panel_report_ids: vec!["gene1_common_control".to_string()],
+                ..Default::default()
+            },
+            path: Some(output_path.to_string_lossy().to_string()),
+        })
+        .expect("compose gene transcript-assay routine");
+    let state_after = serde_json::to_value(engine.state()).expect("serialize state after");
+    assert_eq!(
+        state_before, state_after,
+        "composition must remain a pure read"
+    );
+    let routine = result
+        .gene_transcript_assay_routine
+        .expect("routine report");
+    assert_eq!(routine.schema, GENE_TRANSCRIPT_ASSAY_ROUTINE_SCHEMA);
+    assert_eq!(routine.isoform_evidence_sha256, isoform_digest);
+    assert_eq!(routine.assay_panels.len(), 1);
+    assert_eq!(
+        routine.assay_panels[0].role,
+        GeneTranscriptAssayRoutinePanelRole::CommonControl
+    );
+    assert_eq!(routine.assay_panels[0].specificity_status, None);
+    assert!(!routine.assay_panels[0].specificity_accepted);
+    assert_eq!(routine.order_ready_primers.len(), 1);
+    assert!(output_path.is_file());
+
+    let wrapped_isoform_path = temp.path().join("isoform_evidence_view.json");
+    let wrapped_isoform_bytes =
+        serde_json::to_vec_pretty(&FeatureExpertView::IsoformEvidence(isoform_report.clone()))
+            .expect("serialize wrapped isoform evidence");
+    fs::write(&wrapped_isoform_path, &wrapped_isoform_bytes)
+        .expect("write wrapped isoform evidence");
+    let wrapped_isoform_digest = crate::digest_utils::sha256_prefixed_bytes(&wrapped_isoform_bytes);
+    let wrapped_result = engine
+        .apply(Operation::ComposeGeneTranscriptAssayRoutine {
+            request: GeneTranscriptAssayRoutineRequest {
+                label: "GENE1 wrapped validation routine".to_string(),
+                isoform_evidence_path: wrapped_isoform_path.to_string_lossy().to_string(),
+                expected_isoform_evidence_sha256: Some(wrapped_isoform_digest.clone()),
+                transcript_assay_panel_report_ids: vec!["gene1_common_control".to_string()],
+                ..Default::default()
+            },
+            path: None,
+        })
+        .expect("compose from wrapped feature-expert isoform evidence");
+    let wrapped_routine = wrapped_result
+        .gene_transcript_assay_routine
+        .expect("wrapped routine report");
+    assert_eq!(
+        wrapped_routine.isoform_evidence_sha256,
+        wrapped_isoform_digest
+    );
+    assert_eq!(wrapped_routine.gene_symbol, "GENE1");
+
+    let error = engine
+        .apply(Operation::ComposeGeneTranscriptAssayRoutine {
+            request: GeneTranscriptAssayRoutineRequest {
+                label: "stale routine".to_string(),
+                isoform_evidence_path: isoform_path.to_string_lossy().to_string(),
+                expected_isoform_evidence_sha256: Some("sha256:stale".to_string()),
+                transcript_assay_panel_report_ids: vec!["gene1_common_control".to_string()],
+                ..Default::default()
+            },
+            path: None,
+        })
+        .expect_err("stale isoform-evidence digest must be rejected");
+    assert_eq!(error.code, ErrorCode::InvalidInput);
+    assert!(error.message.contains("expected 'sha256:stale'"));
+
+    let empty_report_path = temp.path().join("empty_report.json");
+    fs::write(&empty_report_path, "{}").expect("write empty report");
+    let error = engine
+        .apply(Operation::ComposeGeneTranscriptAssayRoutine {
+            request: GeneTranscriptAssayRoutineRequest {
+                label: "invalid empty report".to_string(),
+                isoform_evidence_path: empty_report_path.to_string_lossy().to_string(),
+                ..Default::default()
+            },
+            path: None,
+        })
+        .expect_err("default-filled empty JSON must not be accepted as isoform evidence");
+    assert_eq!(error.code, ErrorCode::InvalidInput);
+    assert!(
+        error
+            .message
+            .contains("missing its schema or source sequence id")
+    );
 }
 
 #[test]

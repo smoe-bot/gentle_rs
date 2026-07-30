@@ -2085,7 +2085,7 @@ cargo run --bin gentle_cli -- tracks import-vcf grch38_tp53 data/variants/sample
 cargo run --bin gentle_cli -- arrays inspect-microarray-track data/publication_resources/rostock_p73_clariomd_e_mtab_14704/analysis/clariomd_probe_level/clariomd_microarray_track_manifest.json
 cargo run --bin gentle_cli -- arrays inspect-microarray-track test_files/fixtures/microarray_tracks/clariomd.tp73_vendor_subset.manifest.json
 cargo run --bin gentle_cli -- arrays project-microarray-track grch38_tp73 data/publication_resources/rostock_p73_clariomd_e_mtab_14704/analysis/clariomd_probe_level/clariomd_microarray_track_manifest.json --contrasts AdTAp73alpha-AdGFP,AdTAp73beta-AdGFP --level probeset --max-features 5000 --clear-existing
-cargo run --bin gentle_cli -- arrays probe-regions --cel sample1.CEL --cel sample2.CEL --metadata samples.tsv --gene PATZ1 --gene TP73 --platform Clariom_D_Human --annotation-library path/to/NetAffx_or_APT_library --condition-column condition --sample-column file --normalization rma --plot --output analysis/probe_regions --dry-run
+cargo run --bin gentle_cli -- arrays probe-regions --cel sample1.CEL --cel sample2.CEL --metadata samples.tsv --gene PATZ1 --gene TP73 --platform Clariom_D_Human --annotation-library path/to/NetAffx_or_APT_library --r-library-path .r-lib --condition-column condition --sample-column file --normalization rma --plot --output analysis/probe_regions --dry-run
 cargo run --bin gentle_cli -- arrays probe-regions --dataset E-MTAB-14704 --gene PATZ1 --gene FUS --gene MDM2 --paired-by-replicate-suffix --platform Clariom_D_Human --plot --dry-run
 cargo run --bin gentle_cli -- arrays probe-regions --dataset E-MTAB-14704 --gene TP73 --platform Clariom_D_Human --dry-run
 cargo run --bin gentle_cli -- arrays inspect-probe-region-output analysis/probe_regions
@@ -2888,7 +2888,7 @@ Shared shell command:
     - `arrays render-probe-region-evidence-svg REPORT.json OUTPUT.svg`
     - `arrays project-probe-region-output SEQ_ID OUTPUT_DIR [--contrasts CSV] [--level probe_region|pm_probe] [--min-abs-logfc N] [--max-features N] [--clear-existing]`
     - `arrays interpret-probe-region-evidence SEQ_ID [--gene LABEL] [--level all|probe_region|pm_probe] [--min-abs-logfc N] [--path FILE]`
-    - `arrays probe-regions (--cel PATH ... | --dataset ID) (--gene SYMBOL|--genes CSV|--locus LOCUS|--loci CSV|--transcript-cluster-id ID|--probeset-id ID ...) [--metadata PATH] [--platform NAME] [--annotation-library PATH] [--condition-column NAME] [--sample-column NAME] [--block-column NAME] [--paired-by-replicate-suffix] [--normalization rma|quantile-feature|none] [--plot] [--output DIR] [--cache-dir DIR] [--dry-run]`
+    - `arrays probe-regions (--cel PATH ... | --dataset ID) (--gene SYMBOL|--genes CSV|--locus LOCUS|--loci CSV|--transcript-cluster-id ID|--probeset-id ID ...) [--metadata PATH] [--platform NAME] [--annotation-library PATH] [--r-library-path PATH ...] [--condition-column NAME] [--sample-column NAME] [--block-column NAME] [--paired-by-replicate-suffix] [--normalization rma|quantile-feature|none] [--plot] [--output DIR] [--cache-dir DIR] [--dry-run]`
     - `macros run [--transactional] [--file PATH | SCRIPT_OR_@FILE]`
     - `macros instance-list`
     - `macros instance-show MACRO_INSTANCE_ID`
@@ -3014,6 +3014,8 @@ Shared shell command:
     - `primers design-qpcr REQUEST_JSON_OR_@FILE [--backend auto|internal|primer3] [--primer3-exec PATH]`
     - `primers specificity REPORT_ID --pair-rank N --target-genome GENOME_ID [--max-target-amplicon-bp N | --readiness-max-amplicon-bp N --exploratory-max-amplicon-bp N] [--report-detail compact|full] [--min-primer-coverage-fraction F] [--max-3prime-mismatches N] [--three-prime-window-bp N] [--min-total-mismatches-to-unintended-target N] [--max-hits-per-primer N] [--path OUTPUT.json]`
     - `primers specificity --forward SEQ --reverse SEQ --target-genome GENOME_ID [--max-target-amplicon-bp N | --readiness-max-amplicon-bp N --exploratory-max-amplicon-bp N] [--report-detail compact|full] [--min-primer-coverage-fraction F] [--max-3prime-mismatches N] [--three-prime-window-bp N] [--min-total-mismatches-to-unintended-target N] [--max-hits-per-primer N] [--path OUTPUT.json]`
+    - `collections run primer-specificity GENE_SET_REPORT_ID --member-report MEMBER_ID=PRIMER_REPORT_ID ... --pair-rank N --target-genome GENOME_ID [--policy JSON_OR_@FILE] [--catalog PATH] [--cache-dir DIR] [--path OUTPUT.json]`
+    - `collections run primer-specificity --seq-ids SEQ_ID,... (--pair-rank N | --pair-index N) --target-genome GENOME_ID [--member-report MEMBER_ID=PRIMER_REPORT_ID]... [--policy JSON_OR_@FILE] [--catalog PATH] [--cache-dir DIR] [--path OUTPUT.json]`
     - `primers specificity-plan REPORT_ID --pair-rank N --target-genome GENOME_ID --output-dir DIR [same policy/catalog/cache options as specificity]`
     - `primers specificity-plan --forward SEQ --reverse SEQ --target-genome GENOME_ID --output-dir DIR [same policy/catalog/cache options as specificity]`
     - `primers specificity-import HANDOFF.json [--path OUTPUT.json]`
@@ -3070,6 +3072,32 @@ Shared shell command:
         visible without inventing a universal safe cutoff. A missing primer
         target remains structurally distinct from an indeterminate no-product
         result.
+    - `primers compose-gene-assay-routine REQUEST_JSON_OR_@FILE [--path OUTPUT.json]`
+      - joins one exported isoform-evidence ledger with persisted transcript
+        assay panels into `gentle.gene_transcript_assay_routine.v1`
+      - accepts either the bare `gentle.gene_isoform_evidence.v1|v2` report or
+        the tagged `isoform_evidence` feature-expert JSON returned by the
+        shared inspection route
+      - accepts an optional `expected_isoform_evidence_sha256`; mismatch is a
+        hard error, while missing or stale panel specificity remains visibly
+        unaccepted
+      - this command only composes existing reports and digests. It does not
+        rerun design or specificity and does not change project state
+      - example request:
+        ```json
+        {
+          "label": "PATZ1 common, junction, and endpoint review",
+          "isoform_evidence_path": "analysis/patz1_isoform_evidence.json",
+          "expected_isoform_evidence_sha256": "sha256:<digest>",
+          "transcript_assay_panel_report_ids": [
+            "patz1_common_control",
+            "patz1_junction_sybr",
+            "patz1_endpoint_matrix"
+          ]
+        }
+        ```
+        Save this as `analysis/patz1_assay_routine_request.json`, then run
+        `primers compose-gene-assay-routine @analysis/patz1_assay_routine_request.json --path analysis/patz1_assay_routine.json`.
     - `primers experimental-handoff PANEL_REPORT_ID [--policy JSON_OR_@FILE] [--variant-evidence PATH ...] [--order-form-id ID] [--path OUTPUT.json] [--order-table OUTPUT.tsv]`
     - `primers test-cdna-qpcr-fasta CDNA_FASTA[.gz] [CDNA_FASTA[.gz] ...] --forward SEQ --reverse SEQ --probe SEQ [--transcript-id ID] [--min-amplicon-bp N] [--max-amplicon-bp N] [--max-mismatches N] [--require-3prime-exact-bases N] [--path OUTPUT.json] [--svg OUTPUT.svg]`
     - `primers preflight [--backend auto|internal|primer3] [--primer3-exec PATH]`
@@ -3086,7 +3114,9 @@ Shared shell command:
     - `primers show-report REPORT_ID`
       - accepts either kind; design reports include `simple_pcr_pairs` with
         per-pair left/right distance from the core ROI, overlap flags, and
-        flanking labels for quick CLI inspection
+        flanking labels for quick CLI inspection. The full design report also
+        exposes additive score terms, bounded evaluated rejection rows,
+        capture completeness/accounting, and its construct-reasoning graph id.
     - `primers export-report REPORT_ID OUTPUT.json`
       - exports either a primer-design report or a persisted
         primer-specificity artifact without rerunning BLAST
@@ -3474,6 +3504,20 @@ Shared shell command:
       - `pair_constraints` is optional and supports:
         `require_roi_flanking`, amplicon motif filters, and fixed amplicon
         start/end coordinates.
+      - `pair_constraints.rejected_near_miss_limit` controls deterministic
+        evaluated pair-level rejection retention (`null`/omitted = `20`,
+        `0` = disabled, maximum `100`). This does not change candidate
+        selection, rank, or score. It applies to primer-pair and
+        insertion-primer design; qPCR design rejects a non-null value rather
+        than silently ignoring it.
+      - retained pairs from both the internal and Primer3 proposal paths use
+        the same additive `gentle_primer_pair_rank_v1` score decomposition.
+        Primer3 near-miss capture is explicitly `incomplete`: GENtle can retain
+        only Primer3-returned pairs that its post-filters reject, not Primer3's
+        hidden internal rejection space.
+      - every design report links a report-content-fingerprinted
+        construct-reasoning graph. Its bounded rejected intervals reach the
+        existing linear-map overlay as non-verdict `ContextEvidence`.
     - Primer ROI seed helper notes (`primers seed-from-feature` / `primers seed-from-splicing`):
       - returns non-mutating schema `gentle.primer_seed_request.v1`
       - includes `template`, source metadata, `roi_start_0based`,
@@ -3513,6 +3557,22 @@ Shared shell command:
       - returns and persists `gentle.primer_specificity_report.v4`; repeated
         assessment of the same biological inputs and policy reuses one stable
         content-derived `report_id`
+      - `collections run primer-specificity` is the engine-owned `map`
+        continuation for a persisted gene-set resolution or a set of project
+        sequences. It calls this same assessment once per resolved primer
+        report and returns `gentle.collection_operation.v1` with typed
+        per-member outcomes and produced specificity-report ids
+      - logical gene-set members require explicit repeated
+        `--member-report MEMBER_ID=PRIMER_REPORT_ID` bindings. A gene symbol
+        does not identify one assay and is never used to guess a report.
+        Project-sequence members may omit a binding only when exactly one
+        stored primer-design report targets that sequence; zero or multiple
+        matches are retained as member failures
+      - a member outcome of `succeeded` means that GENtle completed and
+        persisted the child assessment. The child report may still have
+        `summary.status = fail|incomplete|not_assessed`; those biological
+        verdicts are preserved and summarized as aggregate warnings rather
+        than mislabeled as execution errors
       - the report follows GENtle's computational-artifact contract with
         `op_id`, `run_id`, sequence links, external inputs/database
         fingerprints, request/effective-setting summaries, a reopen hint, and
@@ -4946,7 +5006,7 @@ Tutorial companion:
     transcript-cluster RMA matrices, probeset-level RMA matrices when
     supported by the platform design package, limma contrasts, and first-pass
     probeset heterogeneity tables for splice-variant triage.
-- `Rscript scripts/probe_regions_oligo.R --cel sample1.CEL --cel sample2.CEL --metadata samples.tsv --gene PATZ1 --platform-package pd.clariom.d.human --coordinate-system hg38 --genome-build GRCh38 --output analysis/probe_regions`
+- `Rscript scripts/probe_regions_oligo.R --r-library-path .r-lib --cel sample1.CEL --cel sample2.CEL --metadata samples.tsv --gene PATZ1 --platform-package pd.clariom.d.human --coordinate-system hg38 --genome-build GRCh38 --output analysis/probe_regions`
   - Generic external R/oligo backend helper for the `arrays probe-regions`
     preflight contract.
   - Currently supports `--normalization rma`; other normalization modes remain
@@ -4955,11 +5015,24 @@ Tutorial companion:
     `--allow-all-features` is used intentionally.
   - Requires R/Bioconductor packages `oligo`, `limma`, `Biobase`, `DBI`,
     `RSQLite`, and the platform design package such as `pd.clariom.d.human`.
+  - `--r-library-path PATH` is repeatable. It prepends explicit agent-local,
+    user, or system package roots to R's `.libPaths()` for both preflight and
+    execution. With no explicit flag, an existing workspace `.r-lib` remains
+    the compatibility default. Missing-package errors print every effective
+    library path and ask the user to check this flag when the result differs
+    from the R environment in which packages were installed.
   - Writes `region_intensity_chrom_order.csv`, expression/feature TSVs,
     limma contrast TSVs when metadata defines conditions, a normalized matrix
     manifest, provenance JSON, and `sessionInfo.txt`. Supplying
     `--coordinate-system` and `--genome-build` records the coordinate basis
     needed before any later genome-anchored projection can be accepted.
+    Provenance also records the R version, exact versions of `oligo`, `limma`,
+    `Biobase`, `DBI`, `RSQLite`, and the platform package, plus the helper
+    method version and input fingerprints. The script only checks dependencies;
+    it does not install them. A direct R invocation records path, size, and
+    modification time; `arrays run-probe-region-backend` additionally binds
+    those inputs with Rust-computed SHA-256 fingerprints in the finalized
+    provenance.
 - `arrays inspect-probe-region-output analysis/probe_regions`
   - Read-only GENtle inspection of a completed `probe_regions_oligo.R` output
     directory.
@@ -4969,6 +5042,10 @@ Tutorial companion:
     bounded preview rows, row counts, feature counts, coordinate/build
     declarations, declared coordinate projection maps, projection-readiness
     blockers, and required-column problems.
+  - The same inspection includes `r_version`, `package_versions`,
+    `analysis_method_version`, and `input_fingerprints` when newer helper
+    provenance supplies them. Older output directories remain readable with
+    those optional fields absent.
 - `arrays import-apt-probe-region-output apt.summary.tsv annotation.csv analysis/probe_regions --metadata samples.csv --condition-column condition --sample-column file --probe-intensity probe_intensity.tsv --probe-id-column probe_id --platform Clariom_D_Human --normalization rma-sketch --coordinate-system hg38 --genome-build GRCh38`
   - Converts explicit APT summary output plus an explicit annotation/NetAffx
     coordinate table into GENtle's helper-output directory contract. The
@@ -5229,7 +5306,7 @@ Tutorial companion:
     and live Ensembl ortholog/paralog retrieval is not implemented.
   - Draft members are included with explicit warnings; recipes that used
     `.status // "included"` may miss those warnings.
-- `orthologs resolve-promoter-cohort --anchor-species SPECIES --anchor-genome GENOME_ID --anchor-gene QUERY --target-species SPECIES [--target-species SPECIES ...] [--target-genome SPECIES=GENOME_ID] [--transcript SPECIES=TRANSCRIPT_ID] --orthologs ORTHOLOG_RESOURCE.json [--relationship manual|co-regulated|anti-co-regulated] [--upstream-bp N] [--downstream-bp N] [--ambiguity-policy reject|first] [--catalog GENOMES.json] [--cache-dir PATH] [--path OUTPUT.json]`
+- `orthologs resolve-promoter-cohort --anchor-species SPECIES --anchor-genome GENOME_ID --anchor-gene QUERY --target-species SPECIES [--target-species SPECIES ...] [--target-genome SPECIES=GENOME_ID] [--transcript SPECIES=TRANSCRIPT_ID] --orthologs ORTHOLOG_RESOURCE.json [--relationship manual|co-regulated|anti-co-regulated] [--upstream-bp N] [--downstream-bp N] [--ambiguity-policy reject|first|preserve] [--catalog GENOMES.json] [--cache-dir PATH] [--path OUTPUT.json]`
   - Runs engine `ResolveOrthologPromoterCohort`.
   - Uses a local `gentle.ortholog_resource.v1` mapping table only; no live
     Ensembl or orthology API call is made.
@@ -5238,6 +5315,9 @@ Tutorial companion:
     honored for matching.
   - Ambiguous target mappings are unresolved by default. `--ambiguity-policy
     first` chooses the stable first candidate and records a warning.
+    `--ambiguity-policy preserve` keeps the target unresolved and emits
+    ordered, structured `candidate_mappings[]` for review; it never promotes
+    all candidates into the resolved promoter cohort.
   - Optional `--relationship` records an expected cross-species association
     without deriving evidence flags until a comparison is run.
   - Returns portable schema `gentle.ortholog_promoter_cohort.v1`.
@@ -6859,6 +6939,15 @@ Notes:
   With `--output DIR`, the preflight also writes `DIR/plan.json`, a pretty
   versioned copy of the same `gentle.probe_region_plan.v1` report returned on
   stdout.
+  Repeat `--r-library-path PATH` to make an agent sandbox, user library, or
+  system package tree explicit. The normalized request records those paths,
+  `r_library_paths_checked` records R's complete effective search path, and
+  every generated R helper command receives the same values. The preflight
+  checks all direct helper dependencies in one bounded R process without
+  attaching package namespaces and reports their exact versions. A timeout or
+  probe failure is distinct from a missing or unchecked package; each
+  diagnostic names the paths inspected and tells the user to verify
+  `--r-library-path` if the result conflicts with their interactive R session.
   With `--dataset E-MTAB-14704`, the preflight resolves the publication
   resource's declared local CEL paths and any locally present SDRF metadata, then
   reports missing raw files as ordinary file-status errors.
@@ -6872,8 +6961,8 @@ Notes:
   Legacy 3' IVT arrays such as HG-U133 / Mouse 430 / Rat 230 families are
   recognized as provisional CDF-backed platforms; their `r_affy_cdf` candidate
   renders an explicit `scripts/probe_regions_affy.R` command when CEL inputs
-  are present, while readiness still depends on local R/`affy`, `limma`, CDF,
-  and annotation resources.
+  are present, while readiness still depends on local R/`affy`, `limma`,
+  `Biobase`, CDF, and annotation resources.
 - `arrays run-probe-region-backend PLAN.json --allow-external-execution`
   (or `arrays run-probe-region-backend --plan PLAN.json --allow-external-execution`)
   reads a persisted `gentle.probe_region_plan.v1`, checks the recorded

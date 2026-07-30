@@ -12,6 +12,68 @@ Maintenance rule:
   document names, schemas, or feature names only when they help a reader
 understand what changed.
 
+## 2026-07-30
+
+- Hardened preserved ortholog ambiguity reports: species-only mappings now
+  retain organism context without fabricating a genome id, candidate labels
+  expose provider source when available, and the closed-policy v1
+  compatibility boundary is explicit.
+- Added `ambiguity_policy=preserve` for offline ortholog promoter resolution.
+  It leaves ambiguous targets unresolved while retaining ordered, structured
+  mapping candidates with portable context and provider evidence; existing
+  `reject` and `first` behavior is unchanged.
+- Bound the existing offline ortholog resource and promoter-cohort reports to
+  portable biological-context registries. Orthology type/confidence now use
+  open typed vocabularies that preserve provider-specific legacy strings;
+  context organism/genome conflicts fail before catalog access, while
+  symbol-only mappings and the existing `reject`/`first` ambiguity behavior
+  remain compatible.
+- Unified protein-gel, peptide-gel, 2D-gel, and isoform-evidence molecular
+  weights on the amino-acid residue-mass model. All routes now add one terminal
+  water per chain and reject ambiguous residues instead of silently producing
+  a zero-mass estimate; gel errors consistently identify empty sequences or
+  list the ambiguous/unsupported residues.
+- Made probe-region R readiness use the same explicit, repeatable
+  `--r-library-path` contract as the generated oligo/affy helpers. Preflight now
+  batches and bounds direct package/version checks, records effective
+  `.libPaths()`, and names those paths in diagnostics when sandbox, user, and
+  system R installations disagree.
+- Added report-owned biological-context registries for resolved gene sets and
+  portable collection-operation reports. Promoter derivation and gene-set
+  primer-specificity mapping now require a homogeneous context matching the
+  requested genome and reject missing or mixed contexts before coordinate or
+  BLAST work, while legacy report-level context fields remain readable.
+- Added `Genome > Gene Set Inspector...` as the first prominent collection GUI
+  consumer. It requires explicit persisted gene-to-primer-report bindings,
+  executes the shared `collections run primer-specificity` route in a detached
+  background snapshot, and keeps member execution outcomes distinct from child
+  reports' biological specificity verdicts.
+- Added primer-selection provenance to `gentle.primer_design_report.v1`:
+  exact additive score terms, bounded deterministic evaluated near misses with
+  explicit capture completeness, and report-fingerprinted construct-reasoning
+  decisions whose rejected intervals reuse the existing linear-map overlay.
+- Added engine-owned collection `map` execution for primer specificity through
+  `AssessPrimerPairSpecificityCollection` and
+  `collections run primer-specificity`. Persisted gene sets use explicit
+  member-to-primer-report bindings, project sequences may resolve one unique
+  report, and the aggregate `gentle.collection_operation.v1` keeps execution
+  failures separate from each child report's biological verdict.
+- Upgraded the gene isoform evidence ledger to
+  `gentle.gene_isoform_evidence.v2`, retaining every contrast/source
+  measurement without cross-unit magnitude selection, adding typed PSR/JUC
+  provenance, ambiguity-safe protein identity/mass, and rule-based assay
+  recommendation tiers. Added pure-read
+  `gentle.gene_transcript_assay_routine.v1` composition for existing evidence,
+  panel, specificity, and order-table artifacts, plus R/oligo package-version
+  and input-fingerprint inspection without package installation.
+- Added the first engine-owned collection-lifting slice:
+  `gentle.collection_lift_policy_registry.v1` capability policies,
+  subject-aware canonical membership fingerprints, and portable
+  `gentle.collection_operation.v1` reports. Gene-set promoter cohorts now link
+  source genes to derived windows through typed per-member rows and persisted
+  report ids, while logical gene sets are explicitly rejected as implicit
+  physical pools or gel lanes.
+
 ## 2026-07-29
 
 - Preserved gene-level identity for prepared transcriptome BLAST resources in
@@ -40,9 +102,6 @@ understand what changed.
   ordered qualifiers. Both use per-feature plus annotation-state locks and
   normal undo/redo, while ambiguous topology or metadata reconciliation is
   rejected.
-
-## 2026-07-29
-
 - Extended primer-specificity v2 with transcript-set intended products,
   GENtle-derived target geometry for imported pairs, effective mismatches for
   partial HSPs, and independent genomic-carryover and transcriptome-specificity

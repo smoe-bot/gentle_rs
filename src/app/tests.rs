@@ -6121,6 +6121,23 @@ fn command_palette_includes_external_services_entry() {
 }
 
 #[test]
+fn gene_set_inspector_is_discoverable_and_registered_as_an_open_window() {
+    let mut app = GENtleApp::default();
+    let entries = app.collect_command_palette_entries();
+    assert!(entries.iter().any(|entry| {
+        entry.title == "Gene Set Inspector"
+            && matches!(entry.action, CommandPaletteAction::OpenGeneSetInspector)
+    }));
+
+    app.gene_set_inspector.show_panel = true;
+    let windows = app.collect_open_window_entries();
+    assert!(windows.iter().any(|entry| {
+        entry.viewport_id == GENtleApp::gene_set_inspector_viewport_id()
+            && entry.title == "Gene Set Inspector"
+    }));
+}
+
+#[test]
 fn command_palette_includes_new_sequence_entries() {
     let mut app = GENtleApp::default();
     let entries = app.collect_command_palette_entries();
@@ -12365,6 +12382,7 @@ fn poll_prepare_success_after_cancel_request_reports_completion_prefix() {
             primerbank_search_report: None,
             transcript_qpcr_panel: None,
             transcript_assay_panel: None,
+            gene_transcript_assay_routine: None,
             primer_specificity_handoff: None,
             primer_specificity_report: None,
             external_primer_pair_import_report: None,
@@ -12383,6 +12401,7 @@ fn poll_prepare_success_after_cancel_request_reports_completion_prefix() {
             cutrun_regulatory_support: None,
             gene_set_resolution: None,
             gene_set_promoter_cohort: None,
+            collection_operation: None,
             gene_set_cutrun_regulatory_support: None,
             ortholog_promoter_cohort: None,
             ortholog_promoter_comparison: None,
@@ -12591,6 +12610,7 @@ fn poll_track_import_refreshes_only_changed_sequence_windows() {
             primerbank_search_report: None,
             transcript_qpcr_panel: None,
             transcript_assay_panel: None,
+            gene_transcript_assay_routine: None,
             primer_specificity_handoff: None,
             primer_specificity_report: None,
             external_primer_pair_import_report: None,
@@ -12609,6 +12629,7 @@ fn poll_track_import_refreshes_only_changed_sequence_windows() {
             cutrun_regulatory_support: None,
             gene_set_resolution: None,
             gene_set_promoter_cohort: None,
+            collection_operation: None,
             gene_set_cutrun_regulatory_support: None,
             ortholog_promoter_cohort: None,
             ortholog_promoter_comparison: None,
@@ -12707,6 +12728,7 @@ fn poll_track_import_refreshes_all_open_windows_when_changed_ids_missing() {
             primerbank_search_report: None,
             transcript_qpcr_panel: None,
             transcript_assay_panel: None,
+            gene_transcript_assay_routine: None,
             primer_specificity_handoff: None,
             primer_specificity_report: None,
             external_primer_pair_import_report: None,
@@ -12725,6 +12747,7 @@ fn poll_track_import_refreshes_all_open_windows_when_changed_ids_missing() {
             cutrun_regulatory_support: None,
             gene_set_resolution: None,
             gene_set_promoter_cohort: None,
+            collection_operation: None,
             gene_set_cutrun_regulatory_support: None,
             ortholog_promoter_cohort: None,
             ortholog_promoter_comparison: None,
@@ -13060,6 +13083,7 @@ fn format_extract_region_status_includes_annotation_fallback_reason() {
         primerbank_search_report: None,
         transcript_qpcr_panel: None,
         transcript_assay_panel: None,
+        gene_transcript_assay_routine: None,
         primer_specificity_handoff: None,
         primer_specificity_report: None,
         external_primer_pair_import_report: None,
@@ -13078,6 +13102,7 @@ fn format_extract_region_status_includes_annotation_fallback_reason() {
         cutrun_regulatory_support: None,
         gene_set_resolution: None,
         gene_set_promoter_cohort: None,
+        collection_operation: None,
         gene_set_cutrun_regulatory_support: None,
         ortholog_promoter_cohort: None,
         ortholog_promoter_comparison: None,

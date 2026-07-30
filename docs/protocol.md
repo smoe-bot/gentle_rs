@@ -494,18 +494,51 @@ Behavior notes:
 - `gentle.ortholog_resource.v1` is a local mapping table with
   `source_species`, source gene id/symbol, `target_species`, target gene
   id/symbol, `orthology_type`, `confidence`, `source`, `evidence[]`, and
-  `species_aliases[]`.
+  `species_aliases[]`. Additive context binding uses a flattened
+  `contexts[]` registry plus optional `source_context_id` and
+  `target_context_id` row references; old resources without those fields
+  remain valid.
+- `orthology_type` and `confidence` remain JSON strings for compatibility but
+  deserialize into open typed vocabularies. Canonical one-to-one, one-to-many,
+  many-to-one, and many-to-many spellings expose typed cardinality, and
+  canonical high/medium/low confidence values expose typed levels. Unknown
+  provider or fixture values round-trip exactly rather than being rejected or
+  silently normalized.
 - `ResolveOrthologPromoterCohort` resolves the anchor gene first, maps each
   target species through the local ortholog table, and derives promoter
   windows with the same prepared-genome promoter/TSS resolver used by
   `genomes extract-promoter`.
+- Explicit context references must exist. Their organism and optional
+  `genome_id` must agree with the row and request; conflicts fail before
+  prepared-genome catalog access. When a legacy row has no context ids, the
+  resolver creates deterministic report-local contexts from the requested
+  species/genome pair. A preserved mapping with only a species declaration
+  receives an organism-only context and does not fabricate a `genome_id`.
 - Species aliases are normalized for matching. Ambiguous target mappings are
   unresolved by default; `ambiguity_policy=first` chooses the stable first
-  candidate and records a warning.
+  candidate and records a warning. `ambiguity_policy=preserve` also leaves the
+  target unresolved, but adds ordered `candidate_mappings[]` rows carrying
+  each candidate's gene identity, genome/context references, orthology
+  type/confidence, provider source, and evidence. Preserved candidates are not
+  inserted into the resolved promoter `rows[]`, so downstream comparison does
+  not silently treat alternatives as accepted cohort members. The shipped
+  `reject` and `first` behavior remains unchanged. Candidate labels include
+  provider source text when available, but labels and ranks are local to one
+  report and must not be persisted as stable candidate identities. Ambiguity
+  policy is a closed operation-control enum: unknown values are rejected
+  rather than defaulted. The additive `preserve` value remains in v1 because
+  it is opt-in and does not alter existing policy meanings; older v1 readers
+  cannot read reports that explicitly select it.
 - Resolved rows carry species, genome id, gene id/symbol, transcript id,
   strand, TSS, promoter span, transcription-aligned promoter sequence, and
-  orthology evidence/provenance. Unresolved rows make missing or ambiguous
-  mappings explicit.
+  orthology evidence/provenance. They also refer to a context copied into the
+  cohort report; target rows retain the mapping's oriented source/target
+  context references. Unresolved rows make missing or ambiguous mappings
+  explicit, and preserved ambiguity candidates refer only to contexts copied
+  into the same portable report.
+- Symbol-only mappings remain supported for legacy/local resources. A symbol
+  is a lookup key, not evidence of orthology or functional equivalence; those
+  claims remain bound to the row's declared type, source, and evidence.
 - Ortholog promoter cohort and comparison reports may carry an additive
   `relationship` expectation (`manual`, `co_regulated`,
   `anti_co_regulated`, or `unspecified`) plus non-blocking
@@ -824,6 +857,34 @@ Resolution notes:
   may silently drop or miss draft-member warnings; the engine now reports draft
   members explicitly in gene-set resolution warnings.
 
+Biological-context binding:
+
+- `gentle.gene_set_resolution.v1` owns a `contexts[]` registry plus an optional
+  `default_context_id`. Each context can identify organism, taxon, GENtle
+  genome-catalog entry, assembly accession, annotation source/release, and
+  symbol namespace.
+- A resolved member may select a registry row through `context_id`. Effective
+  context resolution uses member context, then report default, then legacy
+  report-level `genome_id`/organism/taxon/namespace fields. Lower-precedence
+  fields may fill missing values but may not contradict an already selected
+  context.
+- Existing V1 reports remain readable. When they contain legacy report-level
+  context fields, GENtle promotes those fields into one deterministic default
+  registry row when the report is produced, stored, or read.
+- Context-sensitive collection consumers must explicitly declare
+  `context_requirement="homogeneous"` in the lift-policy registry. An absent
+  declaration deserializes as `not_reviewed`, never as permission to treat
+  mixed contexts as safe.
+- The complete declarative vocabulary is `not_reviewed`, `context_agnostic`,
+  `homogeneous`, `partitionable`, and `explicit_cross_context`. This slice
+  implements the first two current behaviors (`context_agnostic` and
+  `homogeneous`); partitioning and explicit cross-context comparison require
+  their own consumers and are not inferred automatically.
+- Promoter derivation and gene-set primer-specificity mapping require one
+  resolvable homogeneous context whose `genome_id` equals the requested target
+  genome. They reject before coordinate lookup or BLAST with
+  `missing_biological_context` or `mixed_biological_context` otherwise.
+
 Retrieval producer metadata:
 
 - `gentle.gene_set_resolution.v1` carries additive, defaulted metadata for
@@ -941,6 +1002,79 @@ Initial high-value lifting expectations:
 | Promoter or neighboring-sequence derivation | `derive` one or more windows per resolved member, preserving gene-set/source provenance |
 | Multiple sequence alignment | `compare` members together and return an alignment report with member order and column correspondence |
 | Rack/freezer/inventory placement | `arrange` into a storage projection from containers/arrangements, without changing logical set identity |
+
+Implemented collection-lifting baseline:
+
+- `gentle.collection_lift_policy_registry.v1` is loaded from
+  `docs/collection_lift_policies.json`. Each curated row is keyed by capability
+  source/name and collection subject kind. It declares either one supported
+  lifting mode and result payload kind, or a typed rejection reason. The
+  additive `context_requirement` field is `not_reviewed` by default and can
+  require a homogeneous biological context for coordinate- or
+  reference-sensitive operations.
+- Capability descriptors project their applicable `collection_lift_policies`;
+  adapters should consume that field rather than inventing local collection
+  behavior.
+- Dynamic readiness remains in the normal fact/precondition and operation
+  error machinery. A temporary missing input is not encoded as a static
+  collection-policy rejection.
+- `gentle.collection_operation.v1` records the selected subject, capability,
+  lifting mode, policy, source-membership lock, per-member outcomes and typed
+  errors, produced report ids, warnings, and provenance. `dry_run` and
+  `applied` distinguish previews from committed operations. Because this report
+  may outlive or be transported without its source report, it owns a portable
+  copy of the source `contexts[]` registry and `default_context_id`.
+- Domain reports that embed their source resolution by value, such as
+  `GeneSetPromoterCohortReport`, inherit the registry through that embedded
+  resolution and do not duplicate a second domain-level registry.
+- Derived members are additional `per_member_status` rows. Their
+  `parent_member_id` points to the source member, while
+  `produced_report_ids` links both source and descendants to the domain report.
+- `BuildGeneSetPromoterCohort` is the first proving consumer. Its normal
+  promoter-cohort result embeds the generic collection report, and the same
+  report is returned in `OpResult.collection_operation`.
+- `AssessPrimerPairSpecificityCollection` is the first `map` consumer. It
+  applies the existing `AssessPrimerPairSpecificity` interpretation separately
+  to each resolved primer-design report, persists successful child reports,
+  and returns their ids through the collection report. The aggregate wrapper
+  does not reimplement hit, amplicon, completeness, or biological pass/fail
+  logic. Its operation JSON is accepted through the normal CLI `op`/workflow,
+  MCP `op`, JavaScript, and Lua paths; `collections run primer-specificity` is
+  the shared-shell convenience form.
+- A logical gene-set member has no inherent primer-assay identity. Its
+  `PrimerSpecificityCollectionMemberBinding` must therefore name the exact
+  `stable_member_id` and persisted `primer_report_id`. Project-sequence
+  collections may resolve that binding automatically only when exactly one
+  primer-design report names the sequence as its template. Missing,
+  ambiguous, mismatched, duplicate, and unknown bindings become typed member
+  or request errors rather than symbol-based guesses.
+- `CollectionMemberOutcome::Succeeded` records successful execution and
+  persistence, not a biological specificity pass. A child report with
+  `summary.status = fail|incomplete|not_assessed` remains a successful
+  collection execution row and contributes an aggregate warning. This keeps
+  infrastructure failures distinct from scientific conclusions.
+- Logical gene sets are explicitly rejected for `ExportPool` and
+  `RenderPoolGelSvg` with `requires_physical_pool`; resolving genes never
+  silently asserts that their products occupy one tube or gel lane.
+
+Collection membership fingerprints use
+`sha256_canonical_collection_members_v1`. GENtle hashes the UTF-8 canonical
+JSON projection of the source members:
+
+- project sequence selections, containers, and resolved gene sets are set-like;
+  stable member ids are sorted and de-duplicated
+- arrangements are order-bearing; rows are sorted by numeric
+  `ordering_index`, duplicates are retained, and each index travels with its
+  stable member id
+- the subject kind and order semantics are part of the hashed projection
+
+This deliberately avoids lexicographic position ordering (`10` before `2`) and
+ensures that swapping two arrangement lanes changes the membership lock.
+The membership fingerprint intentionally covers membership and ordering only.
+Two collections with the same stable member ids but different assemblies or
+annotation releases therefore have the same membership fingerprint. Consumers
+must inspect the biological-context registry; the membership digest must not be
+used as a proxy for identical biological input.
 
 ## Stateless sequence-scan contract
 
@@ -1390,17 +1524,33 @@ Behavior notes:
   package `pd.clariom.d.human`.
 - `scripts/probe_regions_oligo.R` is the generic R/oligo backend helper for
   `arrays probe-regions`; it consumes explicit CEL paths, optional TSV/CSV/SDRF
-  metadata, selectors, and a platform design package, then writes
+  metadata, selectors, a platform design package, and repeatable
+  `--r-library-path PATH` values, then writes
   chromosome-ordered intensity CSVs plus expression/feature TSVs, limma
   contrast TSVs, provenance JSON, and a normalized matrix manifest. It
   currently supports `--normalization rma`; the Rust preflight emits an advisory
   command only for compatible explicit CEL requests, and users still run it
-  explicitly.
+  explicitly. The helper records `r_version`, exact `package_versions`,
+  requested and effective R library paths, `analysis_method_version`, and input
+  fingerprints in provenance.
+  `arrays inspect-probe-region-output` exposes these fields through the existing
+  `gentle.probe_region_output_inspection.v1` contract. GENtle reports missing
+  R/Bioconductor dependencies but never installs them. The `r_oligo` contract
+  checks the helper's direct packages `oligo`, `limma`, `Biobase`, `DBI`, and
+  `RSQLite`, plus the selected platform package, in one bounded, non-loading R
+  probe and records every detected package version. If an agent-local package
+  installation and a system installation disagree, the diagnostic lists the
+  exact R library paths checked and explicitly asks the user to verify
+  `--r-library-path PATH`. A direct R invocation
+  records input path, size, and modification time; execution through
+  `arrays run-probe-region-backend` enriches the finalized provenance with
+  Rust-computed SHA-256 input fingerprints.
 - `scripts/probe_regions_affy.R` is the matching explicit R/`affy` helper for
   legacy 3' IVT/CDF arrays. It consumes explicit CEL paths, a local CDF package
   or CDF name, optional metadata, optional Bioconductor annotation package, and
-  optional user-supplied probeset coordinate table, then writes the same
-  helper-output contract. A CDF supplies probe grouping for RMA; genome
+  optional user-supplied probeset coordinate table, accepts the same repeatable
+  R-library-path flag, and writes the same helper-output contract including
+  package versions and effective library paths. A CDF supplies probe grouping for RMA; genome
   placement for region displays still requires local annotation coordinates.
 - Affymetrix/Thermo Fisher platform knowledge for `arrays probe-regions` is
   now a resource specification:
@@ -2702,12 +2852,23 @@ Microarray track projection notes:
   size/mtime-derived cache keys, parsed metadata previews, default condition
   contrasts, annotation/library readiness, explicit output/cache path status,
   backend-candidate readiness, normalized platform hints, planned outputs, and
-  local dependency checks. The `r_oligo` backend candidate includes the
+  local dependency checks. Repeatable `--r-library-path PATH` values select
+  additional R library roots for both preflight and the generated helper
+  command. When no value is supplied, an existing workspace `.r-lib` is
+  retained as a backward-compatible default; the resolved path is made explicit
+  in the normalized request. The report separates
+  `request.r_library_paths` from `r_library_paths_checked`, which also includes
+  R's effective `.libPaths()`. Command and package probes are bounded to avoid a
+  hung `Rscript` blocking preflight; `timed_out`, `probe_failed`, `missing`, and
+  `unchecked` remain distinct dependency states. The `r_oligo` backend candidate includes the
   `scripts/probe_regions_oligo.R` helper path and, for explicit RMA/CEL
   requests, a suggested command. Legacy 3' IVT/CDF registry entries expose an
   `r_affy_cdf` candidate with the `scripts/probe_regions_affy.R` helper path;
-  readiness depends on local R/`affy`, `limma`, CDF, CEL, and annotation
-  resources. The `affymetrix_power_tools` candidate
+  readiness depends on local R/`affy`, `limma`, `Biobase`, CDF, CEL, and
+  annotation resources. Package probes use `system.file()` and
+  `packageVersion()` without attaching namespaces, while the helper remains
+  authoritative for executable runtime loading. The
+  `affymetrix_power_tools` candidate
   recognizes user-supplied APT library directories/files containing at least
   PGF and CLF files, includes an optional MPS/meta-probesets file when present,
   and reports an explicit `apt-probeset-summarize -a rma-sketch ...` command
@@ -3358,8 +3519,11 @@ external coding agent runtime, see:
 - gene isoform evidence inspection reuses the shared feature-expert routes:
   - `inspect-feature-expert SEQ_ID isoform-evidence PANEL_ID [--annotation-release LABEL] [--rna-read-report-id ID]... [--probe-evidence PATH]... [--cdna-est-resource PATH]... [--expression-tsv PATH] [--occupancy-track NAME]... [--qpcr-report-id ID]...`
   - `render-feature-expert-svg SEQ_ID isoform-evidence PANEL_ID [same evidence options] OUTPUT.svg`
-  - the report schema is `gentle.gene_isoform_evidence.v1`; inspection is a
+  - the report schema is `gentle.gene_isoform_evidence.v2`; inspection is a
     pure read and never creates qPCR assays or changes the sequence
+  - legacy `gentle.gene_isoform_evidence.v1` payloads remain readable. Their
+    new per-measurement and recommendation fields default empty and should be
+    regenerated before contrast-aware interpretation
   - `transcripts[]` keeps biological `exon_family_ids_5_to_3` separate from
     `exon_family_ids_genomic_ascending`, which is essential for minus-strand
     genes
@@ -3371,7 +3535,19 @@ external coding agent runtime, see:
     independent components: specificity, dataset-relative abundance,
     contrast-specific responsiveness, and assayability. Missing evidence is
     `unknown` or `not_evaluated`, never numeric zero, and no aggregate utility
-    score is inferred
+    score is inferred. Every abundance/responsiveness/assayability component
+    retains `measurements[]` by evidence id, condition, value, and unit.
+    Multiple measurements are never reduced by maximum magnitude; incompatible
+    units remain separate and produce a warning instead of a numeric summary
+  - `recommendation` is a deterministic rule-based tier (`assay_ready`,
+    `evidence_prioritized`, `annotation_candidate`, or `not_evaluated`) plus
+    recommended use and evidence ids. It is triage guidance, not a weighted
+    biological score
+  - `transcript_metrics[]` records exact annotation-derived protein identity
+    SHA-256 and predicted unmodified molecular weight when a complete,
+    unambiguous translated CDS is available. Ambiguous residues make mass
+    unavailable rather than receiving an average residue mass; predicted mass
+    is not evidence of protein expression or gel separation
   - `evidence_items[]` records typed source, method, provenance, target ids,
     family ids, and one of `observed`, `candidate`, `constraint_only`,
     `not_evaluated`, or `unknown`. Array-probe overlap is always
@@ -3405,7 +3581,7 @@ external coding agent runtime, see:
   - `inspect-feature-expert SEQ_ID gene-locus-evidence PANEL_ID [isoform-evidence options] [--probe-effect-table PATH]... [--probe-effect-contrast TOKEN]... [--probe-effect-coordinate-system ID] [--upstream-bp N] [--downstream-bp N] [--occupancy-layout JSON_OR_@FILE | --occupancy-track NAME ...] [--motif TOKEN]... [--score-kind KIND] [--motif-threshold N] [--motif-top-hits N] [--allow-negative]`
   - `render-feature-expert-svg SEQ_ID gene-locus-evidence PANEL_ID [same options] OUTPUT.svg`
   - the pure-read result schema is `gentle.gene_locus_evidence_display.v1`.
-    It embeds the `gentle.gene_isoform_evidence.v1` ledger and adds
+    It embeds the `gentle.gene_isoform_evidence.v2` ledger and adds
     `transcript_metrics[]`, annotation-backed `codon_markers[]`, optional
     `probe_effect_overlays[]`, grouped `occupancy_groups[]`, continuous
     `motif_tracks[]`, deduplicated junction `assay_overlays[]`, a combined
@@ -6964,10 +7140,15 @@ Construct reasoning graph foundation (implemented first slice):
   - graph-level optional `input_fingerprint`:
     - SHA-256 identities for the complete source sequence/feature snapshot and
       normalized objective plus an explicit reasoning rule-set version
+    - optional `source_artifact_kind`, `source_artifact_id`, and
+      `source_artifact_sha256` bind a graph to the exact computational report
+      it explains; primer-selection graphs currently use
+      `source_artifact_kind = primer_design_report`
     - live readers report `current`, `stale`, or `unknown` freshness with
       reasons; older graphs without a fingerprint remain readable as `unknown`
-    - changed sequence/features, changed objective, or changed rule version
-      makes a fingerprinted graph stale until it is explicitly refreshed
+    - changed sequence/features, changed objective, changed rule version, or a
+      changed/missing recognized source artifact makes a fingerprinted graph
+      stale until it is explicitly refreshed
   - fact-level `task_severities[]`:
     - compact rule-based task interpretation for repeat/similarity facts
     - each row separates intrinsic evidence concern from objective priority:
@@ -7429,7 +7610,8 @@ Operation progress/cancellation semantics:
       "required_amplicon_motifs": [],
       "forbidden_amplicon_motifs": [],
       "fixed_amplicon_start_0based": null,
-      "fixed_amplicon_end_0based_exclusive": null
+      "fixed_amplicon_end_0based_exclusive": null,
+      "rejected_near_miss_limit": null
     },
     "min_amplicon_bp": 120,
     "max_amplicon_bp": 1200,
@@ -7446,7 +7628,15 @@ Operation progress/cancellation semantics:
   - `max_pairs` default: `200`
   - `report_id` default: auto-generated deterministic-safe id stem
   - `pair_constraints` default:
-    `{"require_roi_flanking":false,"required_amplicon_motifs":[],"forbidden_amplicon_motifs":[],"fixed_amplicon_start_0based":null,"fixed_amplicon_end_0based_exclusive":null}`
+    `{"require_roi_flanking":false,"required_amplicon_motifs":[],"forbidden_amplicon_motifs":[],"fixed_amplicon_start_0based":null,"fixed_amplicon_end_0based_exclusive":null,"rejected_near_miss_limit":null}`
+  - `pair_constraints.rejected_near_miss_limit` retains a bounded,
+    deterministic subset of evaluated pair-level rejections:
+    - omitted/`null`: `20`
+    - `0`: disabled
+    - maximum: `100`
+    - supported by `DesignPrimerPairs` and `DesignInsertionPrimerPairs`;
+      `DesignQpcrAssays` rejects a non-null value because its separate qPCR
+      report does not yet carry pair-selection near misses
 - Side constraints (`forward`, `reverse`, and qPCR `probe`) accept optional
   sequence-level filters:
   - `non_annealing_5prime_tail` (added to the final oligo but excluded from
@@ -7459,6 +7649,9 @@ Operation progress/cancellation semantics:
   - 3' GC clamp preference (`G/C` at terminal 3' base)
   - secondary-structure risk penalty (homopolymer and self-complementary runs)
   - primer-dimer risk penalty (global and 3'-anchored complementary runs)
+  - both backends rank retained pairs with the same GENtle additive model
+    `gentle_primer_pair_rank_v1`; Primer3 proposes candidates but does not
+    replace the report's GENtle score
 
 - Report schema:
   - `gentle.primer_design_report.v1`
@@ -7486,6 +7679,18 @@ Operation progress/cancellation semantics:
       - `primer_pair_complementary_run_bp`
       - `primer_pair_3prime_complementary_run_bp`
     - rule-pass flags and aggregate score
+    - `score_terms[]`, whose `raw_value * weight = contribution` rows sum to
+      the existing score; stable terms cover baseline, Tm delta, amplicon
+      length fit, extra anneal hits, primer-length preference, homopolymer and
+      self-complementarity excess, pair/global and pair/3'-end
+      complementarity excess, and 3' GC-clamp balance
+  - report-level score interpretation:
+    - `score_decomposition_status`, `score_decomposition_reason`
+    - `score_model = gentle_primer_pair_rank_v1`
+    - `score_direction = higher_is_better`
+    - status is `pass` when retained pairs carry exact terms and `not_run`
+      when no pair was retained
+    - no residual or backend-specific contribution is fabricated
   - optional rejection summary buckets (for explainability):
     - out-of-window
     - GC/Tm out of bounds
@@ -7493,6 +7698,33 @@ Operation progress/cancellation semantics:
     - primer sequence-constraint failure
     - pair constraint failure
     - amplicon-size or ROI-coverage failure
+    - pair-evaluation-limit skipped count
+  - bounded selection provenance:
+    - `rejected_near_misses[]` contains only evaluated pair-shaped candidates,
+      ordered by score (scored before unscored) and stable coordinates/sequence
+      tie-breaks
+    - each row carries the shared `PrimerDesignRejectionReason` census
+      vocabulary in `reasons[]`, exact `failed_checks[]`, coordinates,
+      sequences, and score when available
+    - `near_miss_capture` records status, scope, requested/effective limit,
+      eligible/retained/omitted rows, and deterministic comparison work
+    - internal capture is `incomplete` if the pair-evaluation ceiling was
+      reached; single-primer rejection buckets remain aggregate-only
+    - Primer3 capture is always `incomplete` when enabled because only
+      Primer3-returned pairs rejected by GENtle post-filters are inspectable;
+      Primer3-internal and single-primer rejections remain aggregate-only
+  - construct-reasoning projection:
+    - `construct_reasoning_graph_id` links the report to one persisted
+      `gentle.construct_reasoning_graph.v1`
+    - selected pairs become weighted-rule decision nodes; bounded rejected
+      pair intervals become `ContextEvidence` with report/op/run provenance
+    - the graph fingerprint binds the exact primer-design report content, so
+      report drift makes graph freshness stale
+    - generic construct-graph refresh never rewrites this report-bound graph;
+      a stale selection graph is refreshed by rerunning `DesignPrimerPairs`
+    - existing `ConstructReasoningOverlay::from_graph()` projects those
+      evidence rows into the linear DNA map; no separate primer-exclusion track
+      or GUI-local scoring is used
   - mutating artifact materialization per accepted pair:
     - one forward-primer sequence (`..._fwd`)
     - one reverse-primer sequence (`..._rev`)
@@ -8635,6 +8867,28 @@ Primer-design shell command family (implemented):
     project metadata store without changing that store schema. The individual
     report carries the v2 schema above and is available through list/show/export
     shell routes.
+- Gene transcript-assay routine composition:
+  - `primers compose-gene-assay-routine REQUEST_JSON_OR_@FILE [--path OUTPUT.json]`
+    produces `gentle.gene_transcript_assay_routine.v1`
+  - the request names an exported `gentle.gene_isoform_evidence.v1|v2` path,
+    optional expected SHA-256, and persisted transcript-assay panel report ids.
+    The input may be either a bare evidence report or the tagged
+    `FeatureExpertView::IsoformEvidence` JSON emitted by the shared expert
+    inspection path; the digest always covers the original input bytes
+  - composition is a pure read: it does not rerun primer design, cDNA product
+    tests, BLAST, or e-PCR and does not mutate the project
+  - the report carries the isoform-evidence digest, current canonical panel
+    digests, existing specificity acceptance status, uncovered transcript
+    classes, endpoint/junction/common-control roles, order-table rows, and a
+    conservative experimental sequence. Missing specificity is represented by
+    absent status plus `specificity_accepted = false`, never as pass
+  - a supplied expected isoform-evidence digest is checked before composition;
+    specificity acceptance remains bound to the existing panel digest and is
+    rejected as stale when those values differ
+  - antibody/epitope compatibility and scalar evidence weighting are not
+    inferred in v1. Additive antibody evidence requires a separately
+    provenance-backed contract rather than guessing from protein mass or probe
+    intensity
 - Experimental assay handoff schemas:
   - `gentle.experimental_assay_handoff.v1` is a deterministic, read-only
     per-panel package. `BuildExperimentalAssayHandoff` consumes one persisted

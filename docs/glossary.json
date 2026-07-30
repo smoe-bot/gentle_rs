@@ -2120,7 +2120,7 @@
          ],
          "path": "orthologs resolve-promoter-cohort",
          "summary": "Resolve an offline local ortholog mapping resource into strand-aware cross-species promoter windows using prepared genome catalogs.",
-         "usage": "orthologs resolve-promoter-cohort --anchor-species SPECIES --anchor-genome GENOME_ID --anchor-gene QUERY --target-species SPECIES [--target-species SPECIES ...] [--target-genome SPECIES=GENOME_ID] [--transcript SPECIES=TRANSCRIPT_ID] --orthologs ORTHOLOG_RESOURCE.json [--relationship manual|co-regulated|anti-co-regulated] [--upstream-bp N] [--downstream-bp N] [--ambiguity-policy reject|first] [--catalog GENOMES.json] [--cache-dir PATH] [--path OUTPUT.json]"
+         "usage": "orthologs resolve-promoter-cohort --anchor-species SPECIES --anchor-genome GENOME_ID --anchor-gene QUERY --target-species SPECIES [--target-species SPECIES ...] [--target-genome SPECIES=GENOME_ID] [--transcript SPECIES=TRANSCRIPT_ID] --orthologs ORTHOLOG_RESOURCE.json [--relationship manual|co-regulated|anti-co-regulated] [--upstream-bp N] [--downstream-bp N] [--ambiguity-policy reject|first|preserve] [--catalog GENOMES.json] [--cache-dir PATH] [--path OUTPUT.json]"
       },
       {
          "aliases": [
@@ -3216,7 +3216,7 @@
          ],
          "path": "arrays probe-regions",
          "summary": "Preflight chromosome-ordered Affymetrix CEL probe/probeset-region inspection without running summarization.",
-         "usage": "arrays probe-regions (--cel PATH ... | --dataset ID) (--gene SYMBOL|--genes CSV|--locus LOCUS|--loci CSV|--transcript-cluster-id ID|--probeset-id ID ...) [--metadata PATH] [--platform NAME] [--annotation-library PATH] [--condition-column NAME] [--sample-column NAME] [--block-column NAME] [--paired-by-replicate-suffix] [--normalization rma|quantile-feature|none] [--plot] [--output DIR] [--cache-dir DIR] [--dry-run]"
+         "usage": "arrays probe-regions (--cel PATH ... | --dataset ID) (--gene SYMBOL|--genes CSV|--locus LOCUS|--loci CSV|--transcript-cluster-id ID|--probeset-id ID ...) [--metadata PATH] [--platform NAME] [--annotation-library PATH] [--r-library-path PATH ...] [--condition-column NAME] [--sample-column NAME] [--block-column NAME] [--paired-by-replicate-suffix] [--normalization rma|quantile-feature|none] [--plot] [--output DIR] [--cache-dir DIR] [--dry-run]"
       },
       {
          "aliases": [],
@@ -3509,6 +3509,21 @@
       {
          "aliases": [],
          "engine_operations": [
+            "ComposeGeneTranscriptAssayRoutine"
+         ],
+         "interfaces": [
+            "cli-shell",
+            "gui-shell",
+            "mcp",
+            "cli-direct"
+         ],
+         "path": "primers compose-gene-assay-routine",
+         "summary": "Compose one exported gene isoform-evidence ledger and persisted transcript-assay panels into a deterministic, digest-backed experimental review manifest without rerunning design or specificity.",
+         "usage": "primers compose-gene-assay-routine REQUEST_JSON_OR_@FILE [--path OUTPUT.json]"
+      },
+      {
+         "aliases": [],
+         "engine_operations": [
             "BuildExperimentalAssayHandoff"
          ],
          "interfaces": [
@@ -3534,6 +3549,21 @@
          "path": "primers specificity",
          "summary": "Run local BLAST specificity interpretation for one persisted or explicit primer pair against a prepared genomic-DNA or transcriptome-cDNA resource.",
          "usage": "primers specificity REPORT_ID --pair-rank N --target-genome GENOME_ID [--readiness-max-amplicon-bp N] [--exploratory-max-amplicon-bp N] [--report-detail compact|full] [--catalog PATH] [--cache-dir DIR] [--path OUTPUT.json]"
+      },
+      {
+         "aliases": [],
+         "engine_operations": [
+            "AssessPrimerPairSpecificityCollection"
+         ],
+         "interfaces": [
+            "cli-shell",
+            "gui-shell",
+            "cli-direct",
+            "gui-menu"
+         ],
+         "path": "collections run primer-specificity",
+         "summary": "Map GENtle's existing local-BLAST primer specificity assessment over project sequences or a persisted gene-set resolution, retaining per-member failures and produced report IDs.",
+         "usage": "collections run primer-specificity [GENE_SET_REPORT_ID | --seq-ids SEQ_ID,...] [--member-report MEMBER_ID=PRIMER_REPORT_ID]... (--pair-rank N | --pair-index N) --target-genome GENOME_ID [--policy JSON_OR_@FILE] [--catalog PATH] [--cache-dir DIR] [--path OUTPUT.json]"
       },
       {
          "aliases": [],

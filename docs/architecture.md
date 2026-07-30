@@ -80,6 +80,12 @@ Sequence collection subject rule (target model):
   explicit members, local external mappings, genomic neighborhoods, or
   deterministic samples into auditable member rows. They are not a separate GUI
   object class with private behavior.
+- Portable collection members refer to report-owned biological-context rows
+  rather than duplicating assembly/annotation metadata on every member.
+  Coordinate- or reference-sensitive lifted operations must declare whether
+  they require a homogeneous context and reject missing or mixed contexts
+  before biological work begins. A membership-only fingerprint is never a
+  substitute for comparing those contexts.
 - Existing collection-like concepts keep their own semantics:
   - logical sets preserve membership and provenance without implying physical
     mixing
@@ -91,6 +97,13 @@ Sequence collection subject rule (target model):
     promoter windows, fragments, amplicons, and neighboring loci
   - storage collections preserve physical placement through containers,
     arrangements, racks, and future inventory/freezer views
+- Cross-species ortholog mappings remain a specialized, evidence-bearing
+  contract rather than a generic relationship inferred from matching symbols.
+  Mapping endpoints may cite report-owned biological contexts; context
+  agreement constrains taxon/reference interpretation but does not itself
+  establish orthology, paralogy, or functional equivalence. Provider-specific
+  relationship/confidence values remain preservable even when GENtle cannot
+  classify them into a canonical vocabulary.
 - Any operation that is valid for one stored sequence should declare how it
   lifts over a collection before a prominent GUI affordance is added:
   map per member, combine/pool, compare/align, arrange/place, derive new

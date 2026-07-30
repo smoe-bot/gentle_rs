@@ -39,7 +39,7 @@ use crate::{
         CandidateFeatureBoundaryMode, CandidateFeatureGeometryMode, CandidateFeatureStrandRelation,
         CandidateMacroTemplateParam, CandidateObjectiveDirection, CandidateObjectiveSpec,
         CandidateTieBreakPolicy, CandidateWeightedObjectiveTerm,
-        CdnaAssayTranscriptMapCoordinateMode, CdnaAssayTranscriptOrder,
+        CdnaAssayTranscriptMapCoordinateMode, CdnaAssayTranscriptOrder, CollectionSubjectRef,
         ConstructReasoningInspectionActionKind, CutRunAlignConfig, CutRunCoverageKind,
         CutRunInputFormat, CutRunReadLayout, CutRunSeedFilterConfig,
         DEFAULT_HOST_PROFILE_CATALOG_PATH, DEFAULT_JASPAR_PRESENTATION_RANDOM_SEED,
@@ -56,15 +56,15 @@ use crate::{
         FeatureRecordSplitRequest, FlexibilityModel, GUIDE_DESIGN_METADATA_KEY,
         GeneIsoformEvidenceRequest, GeneLocusEvidenceDisplayRequest, GeneSetCohortRelationship,
         GeneSetProducerFilter, GeneSetPromoterCohortReport, GeneSetRequest,
-        GeneSetResolutionReport, GeneSetResolutionReviewStatus, GenomeAnchorSide,
-        GenomeAnnotationScope, GenomeGeneExtractMode, GenomeTrackSource, GenomeTrackSubscription,
-        GentleEngine, GuideCandidate, GuideOligoExportFormat, GuideOligoPlateFormat,
-        GuidePracticalFilterConfig, InlineSequenceTopology, LabAssistantInstructionsFormat,
-        LineageMacroInstance, LineageMacroPortBinding, MacroInstanceStatus,
-        OligoOrderFormCreateRequest, Operation, OperationProgress, OrthologAmbiguityPolicy,
-        OrthologPromoterCohortReport, PLANNING_CLONING_CONSULTATION_SCHEMA,
-        PLANNING_ESTIMATE_SCHEMA, PLANNING_OBJECTIVE_SCHEMA, PLANNING_PROFILE_SCHEMA,
-        PLANNING_SUGGESTION_SCHEMA, PLANNING_SYNC_STATUS_SCHEMA,
+        GeneSetResolutionReport, GeneSetResolutionReviewStatus, GeneTranscriptAssayRoutineRequest,
+        GenomeAnchorSide, GenomeAnnotationScope, GenomeGeneExtractMode, GenomeTrackSource,
+        GenomeTrackSubscription, GentleEngine, GuideCandidate, GuideOligoExportFormat,
+        GuideOligoPlateFormat, GuidePracticalFilterConfig, InlineSequenceTopology,
+        LabAssistantInstructionsFormat, LineageMacroInstance, LineageMacroPortBinding,
+        MacroInstanceStatus, OligoOrderFormCreateRequest, Operation, OperationProgress,
+        OrthologAmbiguityPolicy, OrthologPromoterCohortReport,
+        PLANNING_CLONING_CONSULTATION_SCHEMA, PLANNING_ESTIMATE_SCHEMA, PLANNING_OBJECTIVE_SCHEMA,
+        PLANNING_PROFILE_SCHEMA, PLANNING_SUGGESTION_SCHEMA, PLANNING_SYNC_STATUS_SCHEMA,
         PRIMER_DESIGN_REPORTS_METADATA_KEY, PROTEIN_EXPRESSION_HANDOFF_SCHEMA,
         PROTEIN_EXPRESSION_REQUIREMENTS_SCHEMA, PairwiseAlignmentMode, PlanningCloningConsultation,
         PlanningCloningHelperVectorSummary, PlanningCloningHostProfileSummary,
@@ -73,10 +73,11 @@ use crate::{
         PlanningCloningVectorCandidate, PlanningEstimate, PlanningObjective, PlanningProfile,
         PlanningProfileScope, PlanningSuggestionStatus, PrimerDesignBackend,
         PrimerDesignPairConstraint, PrimerDesignReport, PrimerDesignSideConstraint,
-        PrimerSpecificityCheckMode, PrimerSpecificityPolicy, ProbeRegionRequest, ProjectFact,
-        ProjectFactDomain, ProjectFactGraph, ProjectFactTypeSpec, ProjectState,
-        PromoterArtifactManifestEntry, PromoterCohortKind, PromoterExpressionEvidenceInput,
-        PromoterTfbsGeneQuery, PromoterWindowCollapseMode, ProteinExpressionCdsAssessment,
+        PrimerSpecificityCheckMode, PrimerSpecificityCollectionMemberBinding,
+        PrimerSpecificityPolicy, ProbeRegionRequest, ProjectFact, ProjectFactDomain,
+        ProjectFactGraph, ProjectFactTypeSpec, ProjectState, PromoterArtifactManifestEntry,
+        PromoterCohortKind, PromoterExpressionEvidenceInput, PromoterTfbsGeneQuery,
+        PromoterWindowCollapseMode, ProteinExpressionCdsAssessment,
         ProteinExpressionFeatureSummary, ProteinExpressionHandoffReport,
         ProteinExpressionHostChassisCandidate, ProteinExpressionProductDefinition,
         ProteinExpressionProductReadiness, ProteinExpressionRequirements,
@@ -1938,6 +1939,7 @@ pub enum ShellCommand {
         probeset_ids: Vec<String>,
         platform: Option<String>,
         annotation_library_path: Option<String>,
+        r_library_paths: Vec<String>,
         condition_column: Option<String>,
         sample_column: Option<String>,
         block_column: Option<String>,
@@ -2455,6 +2457,17 @@ pub enum ShellCommand {
         cache_dir: Option<String>,
         path: Option<String>,
     },
+    CollectionsRunPrimerSpecificity {
+        collection_subject: CollectionSubjectRef,
+        member_bindings: Vec<PrimerSpecificityCollectionMemberBinding>,
+        pair_rank: Option<usize>,
+        pair_index: Option<usize>,
+        target_genome_id: String,
+        policy: PrimerSpecificityPolicy,
+        catalog_path: Option<String>,
+        cache_dir: Option<String>,
+        path: Option<String>,
+    },
     PrimersSpecificityPlan {
         primer_report_id: Option<String>,
         pair_rank: Option<usize>,
@@ -2581,6 +2594,10 @@ pub enum ShellCommand {
         operation_json: String,
         backend: Option<PrimerDesignBackend>,
         primer3_executable: Option<String>,
+    },
+    PrimersComposeGeneTranscriptAssayRoutine {
+        request_json: String,
+        path: Option<String>,
     },
     PrimersTestCdnaQpcrFasta {
         cdna_fasta_paths: Vec<String>,
@@ -5373,8 +5390,9 @@ fn parse_ortholog_ambiguity_policy(
         "" => Err(format!("{context} --ambiguity-policy must not be empty")),
         "reject" | "error" | "strict" => Ok(OrthologAmbiguityPolicy::Reject),
         "first" | "first_match" | "allow_first" => Ok(OrthologAmbiguityPolicy::First),
+        "preserve" => Ok(OrthologAmbiguityPolicy::Preserve),
         other => Err(format!(
-            "Invalid --ambiguity-policy '{other}' for {context}; expected reject or first"
+            "Invalid --ambiguity-policy '{other}' for {context}; expected reject, first, or preserve"
         )),
     }
 }
@@ -11262,6 +11280,21 @@ impl ShellCommand {
                     .filter(|v| !v.trim().is_empty())
                     .unwrap_or("none"),
             ),
+            Self::CollectionsRunPrimerSpecificity {
+                collection_subject,
+                member_bindings,
+                target_genome_id,
+                path,
+                ..
+            } => format!(
+                "map primer-pair specificity over {:?} collection members against prepared genome '{}' (explicit_bindings={}, path={})",
+                collection_subject.kind(),
+                target_genome_id,
+                member_bindings.len(),
+                path.as_deref()
+                    .filter(|value| !value.trim().is_empty())
+                    .unwrap_or("none"),
+            ),
             Self::PrimersSpecificityPlan {
                 primer_report_id,
                 forward_primer,
@@ -11430,6 +11463,14 @@ impl ShellCommand {
                     .map(str::trim)
                     .filter(|value| !value.is_empty())
                     .unwrap_or("default"),
+            ),
+            Self::PrimersComposeGeneTranscriptAssayRoutine { request_json, path } => format!(
+                "compose gene transcript-assay routine from JSON request (len={}, path={})",
+                request_json.len(),
+                path.as_deref()
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+                    .unwrap_or("none"),
             ),
             Self::PrimersTestCdnaQpcrFasta {
                 cdna_fasta_paths,
@@ -12868,6 +12909,7 @@ impl ShellCommand {
                 | Self::PrimersDesign { .. }
                 | Self::PrimersDesignQpcr { .. }
                 | Self::PrimersSpecificity { .. }
+                | Self::CollectionsRunPrimerSpecificity { .. }
                 | Self::PrimersSpecificityPlan { .. }
                 | Self::PrimersSpecificityImport { .. }
                 | Self::PrimersTranscriptAssaySpecificityPlan { .. }
@@ -13091,6 +13133,7 @@ pub(crate) fn arrays_shell_command_to_line(cmd: &ShellCommand) -> Option<String>
             probeset_ids,
             platform,
             annotation_library_path,
+            r_library_paths,
             condition_column,
             sample_column,
             block_column,
@@ -13132,6 +13175,9 @@ pub(crate) fn arrays_shell_command_to_line(cmd: &ShellCommand) -> Option<String>
             }
             if let Some(annotation_library_path) = annotation_library_path {
                 push_option(&mut tokens, "--annotation-library", annotation_library_path);
+            }
+            for r_library_path in r_library_paths {
+                push_option(&mut tokens, "--r-library-path", r_library_path);
             }
             if let Some(condition_column) = condition_column {
                 push_option(&mut tokens, "--condition-column", condition_column);
@@ -18316,11 +18362,7 @@ fn pool_artifact_descriptor_with_readiness(
     })
 }
 
-fn primer_specificity_report_descriptor(
-    id: &str,
-    description: &str,
-    args: Vec<Value>,
-) -> Value {
+fn primer_specificity_report_descriptor(id: &str, description: &str, args: Vec<Value>) -> Value {
     json!({
         "id": id,
         "kind": "operation",
@@ -19298,6 +19340,27 @@ fn annotated_introspection_capability_descriptors() -> Vec<Value> {
                 json!({"name": "REVERSE_PRIMER", "required": false, "subject_kind": "other", "detail": "explicit reverse primer sequence alternative"}),
                 json!({"name": "TARGET_GENOME_ID", "required": true, "subject_kind": "other", "detail": "prepared genomic-DNA or transcriptome-cDNA resource id"}),
                 json!({"name": "OUTPUT_PATH", "required": false, "subject_kind": "other", "detail": "optional external primer-specificity JSON output path"}),
+            ],
+        ),
+        primer_specificity_report_descriptor(
+            "AssessPrimerPairSpecificityCollection",
+            "Map the existing primer-pair specificity assessment over a typed project-sequence or persisted gene-set collection and return one aggregate collection report.",
+            vec![
+                json!({"name": "COLLECTION_SUBJECT", "required": true, "subject_kind": "other", "detail": "typed project_sequences or gene_set_resolution collection subject"}),
+                json!({"name": "MEMBER_BINDINGS", "required": false, "subject_kind": "report", "detail": "member-id to primer-design-report bindings; required for logical gene-set members and optional for uniquely resolvable project sequences"}),
+                json!({"name": "TARGET_GENOME_ID", "required": true, "subject_kind": "other", "detail": "prepared genomic-DNA or transcriptome-cDNA resource id"}),
+                json!({"name": "OUTPUT_PATH", "required": false, "subject_kind": "other", "detail": "optional external aggregate collection-report JSON path"}),
+            ],
+        ),
+        primer_specificity_report_descriptor(
+            "collections run primer-specificity",
+            "Run the shared primer-specificity operation once per bound collection member and return per-member status and produced report ids.",
+            vec![
+                json!({"name": "GENE_SET_REPORT_ID", "required": false, "subject_kind": "report", "detail": "persisted gene-set resolution artifact id; alternative to SEQ_IDS"}),
+                json!({"name": "SEQ_IDS", "required": false, "subject_kind": "sequence", "detail": "project sequence ids; alternative to GENE_SET_REPORT_ID"}),
+                json!({"name": "MEMBER_BINDINGS", "required": false, "subject_kind": "report", "detail": "repeated MEMBER_ID=PRIMER_REPORT_ID bindings"}),
+                json!({"name": "TARGET_GENOME_ID", "required": true, "subject_kind": "other", "detail": "prepared genomic-DNA or transcriptome-cDNA resource id"}),
+                json!({"name": "OUTPUT_PATH", "required": false, "subject_kind": "other", "detail": "optional external aggregate collection-report JSON path"}),
             ],
         ),
         pool_artifact_descriptor(
@@ -22507,6 +22570,22 @@ fn annotated_introspection_capability_descriptors() -> Vec<Value> {
             "registry": registry_metadata_for_introspection("DesignTranscriptAssayPanel")
         }),
         json!({
+            "id": "ComposeGeneTranscriptAssayRoutine",
+            "kind": "operation",
+            "mutating": "false",
+            "requires_confirmation": false,
+            "args": [
+                {"name": "ISOFORM_EVIDENCE_PATH", "required": true, "subject_kind": "other", "detail": "exported gentle.gene_isoform_evidence.v1/v2 JSON path"},
+                {"name": "PANEL_REPORT_IDS", "required": false, "subject_kind": "report", "detail": "persisted transcript assay panel report ids"}
+            ],
+            "reads": [],
+            "effects": [],
+            "precondition_expr": {"all": []},
+            "description": "Compose an immutable gene-level evidence and assay review manifest without rerunning design or specificity.",
+            "annotation_status": "fact_annotated",
+            "registry": registry_metadata_for_introspection("ComposeGeneTranscriptAssayRoutine")
+        }),
+        json!({
             "id": "BuildExperimentalAssayHandoff",
             "kind": "operation",
             "mutating": "false",
@@ -22723,6 +22802,22 @@ fn annotated_introspection_capability_descriptors() -> Vec<Value> {
             "description": "Generate and persist an exact-cDNA-equivalence-aware transcript assay panel; require_all is the default coverage policy.",
             "annotation_status": "fact_annotated",
             "registry": registry_metadata_for_introspection("primers design-transcript-assay-panel")
+        }),
+        json!({
+            "id": "primers compose-gene-assay-routine",
+            "kind": "operation",
+            "mutating": "false",
+            "requires_confirmation": false,
+            "args": [
+                {"name": "REQUEST_JSON", "required": true, "subject_kind": "other", "detail": "GeneTranscriptAssayRoutineRequest JSON or @file"},
+                {"name": "OUTPUT_PATH", "required": false, "subject_kind": "other", "detail": "optional external JSON output path"}
+            ],
+            "reads": [],
+            "effects": [],
+            "precondition_expr": {"all": []},
+            "description": "Compose an immutable gene-level evidence and assay review manifest without rerunning design or specificity.",
+            "annotation_status": "fact_annotated",
+            "registry": registry_metadata_for_introspection("primers compose-gene-assay-routine")
         }),
         json!({
             "id": "primers experimental-handoff",
@@ -26310,6 +26405,30 @@ fn annotated_introspection_capability_descriptors() -> Vec<Value> {
                 json!({"name": "--threshold", "required": true, "subject_kind": "other", "detail": "score threshold expression"}),
             ],
         ),
+        json!({
+            "id": "BuildGeneSetPromoterCohort",
+            "kind": "operation",
+            "mutating": "true",
+            "requires_confirmation": false,
+            "args": [
+                {"name": "GENOME_ID", "required": true, "subject_kind": "other", "detail": "reference/helper genome catalog id"},
+                {"name": "SOURCE|RESOLUTION", "required": true, "subject_kind": "other", "detail": "gene-set request or resolved gene-set report"},
+                {"name": "OUTPUT_PATH", "required": false, "subject_kind": "other", "detail": "optional external promoter-cohort JSON output path"}
+            ],
+            "reads": [],
+            "effects": [
+                {
+                    "fact": "artifact.written",
+                    "subject": {"arg": "OUTPUT_PATH"},
+                    "effect_kind": "may_on_success",
+                    "description": "Writes the optional external JSON export when OUTPUT_PATH is supplied."
+                }
+            ],
+            "precondition_expr": {"all": []},
+            "description": "Build and persist strand-aware promoter windows plus a collection-operation report for a resolved gene set.",
+            "annotation_status": "fact_annotated",
+            "registry": registry_metadata_for_introspection("BuildGeneSetPromoterCohort")
+        }),
         optional_artifact_resource_report_descriptor(
             "gene-sets promoter-cohort",
             "optional external gene-set promoter-cohort JSON output path",
@@ -26331,6 +26450,7 @@ fn annotated_introspection_capability_descriptors() -> Vec<Value> {
                 json!({"name": "--anchor-gene", "required": true, "subject_kind": "other", "detail": "anchor gene query"}),
                 json!({"name": "--orthologs", "required": true, "subject_kind": "other", "detail": "ortholog resource path"}),
                 json!({"name": "--target-species|--target-genome|--transcript", "required": false, "subject_kind": "other", "detail": "target species/genome/transcript selectors"}),
+                json!({"name": "--ambiguity-policy", "required": false, "subject_kind": "other", "detail": "reject, first, or preserve; preserve retains structured candidates without selecting one"}),
             ],
         ),
         optional_artifact_resource_report_descriptor(
@@ -27065,6 +27185,8 @@ fn capability_precondition_atoms(capability_id: &str) -> Option<Vec<Value>> {
         | "BuildRepeatEnvironmentCohort"
         | "features window-cohort-tfbs" => Some(vec![]),
         "AssessPrimerPairSpecificity"
+        | "AssessPrimerPairSpecificityCollection"
+        | "collections run primer-specificity"
         | "PreparePrimerPairSpecificityHandoff"
         | "ImportPrimerPairSpecificityHandoff"
         | "ExportPool"
@@ -27208,6 +27330,7 @@ fn capability_precondition_atoms(capability_id: &str) -> Option<Vec<Value>> {
         "primers design-transcript-assay-panel" | "DesignTranscriptAssayPanel" => Some(vec![
             json!({"fact": "sequence.exists", "subject": {"arg": "SEQ_ID"}}),
         ]),
+        "primers compose-gene-assay-routine" | "ComposeGeneTranscriptAssayRoutine" => Some(vec![]),
         "primers experimental-handoff" | "BuildExperimentalAssayHandoff" => Some(vec![
             json!({"fact": "report.exists", "subject": {"arg": "PANEL_REPORT_ID"}, "equals": "transcript_assay_panel"}),
         ]),
@@ -38750,6 +38873,7 @@ fn parse_arrays_probe_regions_command(tokens: &[String]) -> Result<ShellCommand,
     let mut probeset_ids = Vec::new();
     let mut platform: Option<String> = None;
     let mut annotation_library_path: Option<String> = None;
+    let mut r_library_paths = Vec::new();
     let mut condition_column: Option<String> = None;
     let mut sample_column: Option<String> = None;
     let mut block_column: Option<String> = None;
@@ -38858,6 +38982,14 @@ fn parse_arrays_probe_regions_command(tokens: &[String]) -> Result<ShellCommand,
                 }
                 annotation_library_path = Some(value);
             }
+            "--r-library-path" | "--r-lib" => {
+                let option = tokens[idx].clone();
+                let value = parse_option_path(tokens, &mut idx, &option, "arrays probe-regions")?;
+                if value.trim().is_empty() {
+                    return Err(format!("{option} must not be empty"));
+                }
+                r_library_paths.push(value);
+            }
             "--condition-column" => {
                 let value = parse_option_path(
                     tokens,
@@ -38938,6 +39070,7 @@ fn parse_arrays_probe_regions_command(tokens: &[String]) -> Result<ShellCommand,
         probeset_ids,
         platform,
         annotation_library_path,
+        r_library_paths,
         condition_column,
         sample_column,
         block_column,
@@ -40745,6 +40878,7 @@ pub fn parse_shell_tokens(tokens: &[String]) -> Result<ShellCommand, String> {
         "routines" => parse_routines_command(tokens),
         "orthologs" | "ortholog" => parse_orthologs_command(tokens),
         "gene-sets" | "gene_sets" | "genesets" => parse_gene_sets_command(tokens),
+        "collections" | "collection" => parse_collections_command(tokens),
         "gene-groups" | "gene_groups" | "genegroups" => parse_gene_groups_command(tokens),
         "reporters" => parse_reporters_command(tokens),
         "resources" => {
@@ -50014,6 +50148,7 @@ fn execute_reference_and_track_command(
             probeset_ids,
             platform,
             annotation_library_path,
+            r_library_paths,
             condition_column,
             sample_column,
             block_column,
@@ -50034,6 +50169,7 @@ fn execute_reference_and_track_command(
                 probeset_ids: probeset_ids.clone(),
                 platform: platform.clone(),
                 annotation_library_path: annotation_library_path.clone(),
+                r_library_paths: r_library_paths.clone(),
                 condition_column: condition_column.clone(),
                 sample_column: sample_column.clone(),
                 block_column: block_column.clone(),
@@ -52074,6 +52210,52 @@ fn execute_primers_command(
                 }),
             })
         }
+        ShellCommand::CollectionsRunPrimerSpecificity {
+            collection_subject,
+            member_bindings,
+            pair_rank,
+            pair_index,
+            target_genome_id,
+            policy,
+            catalog_path,
+            cache_dir,
+            path,
+        } => {
+            let before = engine
+                .state()
+                .metadata
+                .get(PRIMER_DESIGN_REPORTS_METADATA_KEY)
+                .cloned();
+            let op_result = engine
+                .apply(Operation::AssessPrimerPairSpecificityCollection {
+                    collection_subject: collection_subject.clone(),
+                    member_bindings: member_bindings.clone(),
+                    pair_rank: *pair_rank,
+                    pair_index: *pair_index,
+                    target_genome_id: target_genome_id.clone(),
+                    policy: policy.clone(),
+                    catalog_path: catalog_path.clone(),
+                    cache_dir: cache_dir.clone(),
+                    path: path.clone(),
+                })
+                .map_err(|error| error.to_string())?;
+            let report = op_result.collection_operation.clone().ok_or_else(|| {
+                "Collection primer specificity operation returned no collection report".to_string()
+            })?;
+            let after = engine
+                .state()
+                .metadata
+                .get(PRIMER_DESIGN_REPORTS_METADATA_KEY)
+                .cloned();
+            Ok(ShellRunResult {
+                state_changed: before != after,
+                output: json!({
+                    "schema": "gentle.collection_primer_specificity_command.v1",
+                    "report": report,
+                    "result": op_result,
+                }),
+            })
+        }
         ShellCommand::PrimersSpecificityPlan {
             primer_report_id,
             pair_rank,
@@ -52727,6 +52909,31 @@ fn execute_primers_command(
                 primer3_executable.as_deref(),
                 options,
             )
+        }
+        ShellCommand::PrimersComposeGeneTranscriptAssayRoutine { request_json, path } => {
+            let payload = parse_json_payload(request_json)?;
+            let request: GeneTranscriptAssayRoutineRequest = serde_json::from_str(&payload)
+                .map_err(|error| {
+                    format!(
+                        "Could not parse gene transcript-assay routine request from '{}': {error}",
+                        request_json
+                    )
+                })?;
+            let result = engine
+                .apply(Operation::ComposeGeneTranscriptAssayRoutine {
+                    request,
+                    path: path.clone(),
+                })
+                .map_err(|error| error.to_string())?;
+            Ok(ShellRunResult {
+                state_changed: false,
+                output: json!({
+                    "report": result.gene_transcript_assay_routine,
+                    "path": path,
+                    "warnings": result.warnings,
+                    "messages": result.messages,
+                }),
+            })
         }
         ShellCommand::PrimersTestCdnaQpcrFasta {
             cdna_fasta_paths,
@@ -58581,6 +58788,7 @@ fn execute_shell_command_with_options_dispatch_inner(
             | ShellCommand::PrimersDesign { .. }
             | ShellCommand::PrimersDesignQpcr { .. }
             | ShellCommand::PrimersSpecificity { .. }
+            | ShellCommand::CollectionsRunPrimerSpecificity { .. }
             | ShellCommand::PrimersSpecificityPlan { .. }
             | ShellCommand::PrimersSpecificityImport { .. }
             | ShellCommand::PrimersTranscriptAssaySpecificityPlan { .. }
@@ -58591,6 +58799,7 @@ fn execute_shell_command_with_options_dispatch_inner(
             | ShellCommand::PrimersTranscriptQpcrPanel { .. }
             | ShellCommand::PrimersDesignTranscriptAssayPanel { .. }
             | ShellCommand::PrimersDesignTranscriptAssayPanelRequest { .. }
+            | ShellCommand::PrimersComposeGeneTranscriptAssayRoutine { .. }
             | ShellCommand::PrimersTestCdnaQpcrFasta { .. }
             | ShellCommand::PrimersPrepareRestrictionCloning { .. }
             | ShellCommand::PrimersSeedRestrictionCloningHandoff { .. }
@@ -60316,6 +60525,7 @@ fn execute_shell_command_with_options_inner(
         | ShellCommand::PrimersDesign { .. }
         | ShellCommand::PrimersDesignQpcr { .. }
         | ShellCommand::PrimersSpecificity { .. }
+        | ShellCommand::CollectionsRunPrimerSpecificity { .. }
         | ShellCommand::PrimersSpecificityPlan { .. }
         | ShellCommand::PrimersSpecificityImport { .. }
         | ShellCommand::PrimersTranscriptAssaySpecificityPlan { .. }
@@ -60326,6 +60536,7 @@ fn execute_shell_command_with_options_inner(
         | ShellCommand::PrimersTranscriptQpcrPanel { .. }
         | ShellCommand::PrimersDesignTranscriptAssayPanel { .. }
         | ShellCommand::PrimersDesignTranscriptAssayPanelRequest { .. }
+        | ShellCommand::PrimersComposeGeneTranscriptAssayRoutine { .. }
         | ShellCommand::PrimersTestCdnaQpcrFasta { .. }
         | ShellCommand::PrimersPrepareRestrictionCloning { .. }
         | ShellCommand::PrimersSeedRestrictionCloningHandoff { .. }
