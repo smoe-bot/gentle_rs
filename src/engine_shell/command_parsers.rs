@@ -5480,7 +5480,7 @@ fn parse_primers_primerbank_command(tokens: &[String]) -> Result<ShellCommand, S
 pub(super) fn parse_primers_command(tokens: &[String]) -> Result<ShellCommand, String> {
     if tokens.len() < 2 {
         return Err(
-            "primers requires a subcommand: primerbank, design, design-qpcr, design-transcript-assay-panel, compose-gene-assay-routine, experimental-handoff, import-external-pairs, specificity, specificity-plan, specificity-import, transcript-assay-specificity-plan, transcript-assay-specificity-finalize, test-cdna-pcr, test-cdna-qpcr, test-cdna-qpcr-fasta, screen-cdna-qpcr, prepare-restriction-cloning, seed-restriction-cloning-handoff, restriction-cloning-vector-suggestions, list-restriction-cloning-handoffs, show-restriction-cloning-handoff, export-restriction-cloning-handoff, preflight, seed-from-feature, seed-from-splicing, seed-qpcr-from-feature, seed-qpcr-from-splicing, list-reports, show-report, export-report, list-qpcr-reports, show-qpcr-report, export-qpcr-report, list-transcript-assay-panels, show-transcript-assay-panel, export-transcript-assay-panel, oligo-order"
+            "primers requires a subcommand: primerbank, design, design-qpcr, design-transcript-assay-panel, compose-gene-assay-routine, experimental-handoff, import-external-pairs, screen-variants, specificity, specificity-plan, specificity-import, transcript-assay-specificity-plan, transcript-assay-specificity-finalize, test-cdna-pcr, test-cdna-qpcr, test-cdna-qpcr-fasta, screen-cdna-qpcr, prepare-restriction-cloning, seed-restriction-cloning-handoff, restriction-cloning-vector-suggestions, list-restriction-cloning-handoffs, show-restriction-cloning-handoff, export-restriction-cloning-handoff, preflight, seed-from-feature, seed-from-splicing, seed-qpcr-from-feature, seed-qpcr-from-splicing, list-reports, show-report, export-report, list-qpcr-reports, show-qpcr-report, export-qpcr-report, list-transcript-assay-panels, show-transcript-assay-panel, export-transcript-assay-panel, oligo-order"
                 .to_string(),
         );
     }
@@ -6282,6 +6282,47 @@ pub(super) fn parse_primers_command(tokens: &[String]) -> Result<ShellCommand, S
                 materialize_products,
                 product_gel_ladders,
                 path,
+            })
+        }
+        "screen-variants" => {
+            const USAGE: &str = "primers screen-variants REQUEST_JSON_OR_@FILE [--path OUTPUT.json] [--evidence-dir DIR]";
+            if tokens.len() < 3 {
+                return Err(USAGE.to_string());
+            }
+            let request_json = tokens[2].clone();
+            let mut path = None;
+            let mut evidence_dir = None;
+            let mut idx = 3usize;
+            while idx < tokens.len() {
+                match tokens[idx].as_str() {
+                    "--path" | "--output" => {
+                        let flag = tokens[idx].clone();
+                        path = Some(parse_option_path(
+                            tokens,
+                            &mut idx,
+                            &flag,
+                            "primers screen-variants",
+                        )?);
+                    }
+                    "--evidence-dir" => {
+                        evidence_dir = Some(parse_option_path(
+                            tokens,
+                            &mut idx,
+                            "--evidence-dir",
+                            "primers screen-variants",
+                        )?);
+                    }
+                    other => {
+                        return Err(format!(
+                            "Unknown option '{other}' for primers screen-variants\n       {USAGE}"
+                        ));
+                    }
+                }
+            }
+            Ok(ShellCommand::PrimersScreenVariants {
+                request_json,
+                path,
+                evidence_dir,
             })
         }
         "test-cdna-pcr" => {
@@ -7267,7 +7308,7 @@ pub(super) fn parse_primers_command(tokens: &[String]) -> Result<ShellCommand, S
             })
         }
         other => Err(format!(
-            "Unknown primers subcommand '{other}' (expected design, design-qpcr, design-transcript-assay-panel, compose-gene-assay-routine, experimental-handoff, specificity, specificity-plan, specificity-import, transcript-assay-specificity-plan, transcript-assay-specificity-finalize, test-cdna-pcr, test-cdna-qpcr, transcript-qpcr-panel, test-cdna-qpcr-fasta, screen-cdna-qpcr, prepare-restriction-cloning, seed-restriction-cloning-handoff, restriction-cloning-vector-suggestions, list-restriction-cloning-handoffs, show-restriction-cloning-handoff, export-restriction-cloning-handoff, preflight, seed-from-feature, seed-from-splicing, seed-qpcr-from-feature, seed-qpcr-from-splicing, list-reports, show-report, export-report, list-transcript-assay-panels, show-transcript-assay-panel, export-transcript-assay-panel, oligo-order)"
+            "Unknown primers subcommand '{other}' (expected design, design-qpcr, design-transcript-assay-panel, compose-gene-assay-routine, experimental-handoff, import-external-pairs, screen-variants, specificity, specificity-plan, specificity-import, transcript-assay-specificity-plan, transcript-assay-specificity-finalize, test-cdna-pcr, test-cdna-qpcr, transcript-qpcr-panel, test-cdna-qpcr-fasta, screen-cdna-qpcr, prepare-restriction-cloning, seed-restriction-cloning-handoff, restriction-cloning-vector-suggestions, list-restriction-cloning-handoffs, show-restriction-cloning-handoff, export-restriction-cloning-handoff, preflight, seed-from-feature, seed-from-splicing, seed-qpcr-from-feature, seed-qpcr-from-splicing, list-reports, show-report, export-report, list-transcript-assay-panels, show-transcript-assay-panel, export-transcript-assay-panel, oligo-order)"
         )),
     }
 }
@@ -11137,6 +11178,9 @@ pub(super) fn parse_rna_reads_command(tokens: &[String]) -> Result<ShellCommand,
             let mut read_files = Vec::<String>::new();
             let mut read_pairs = Vec::<(String, String)>::new();
             let mut read_id_allowlist: Option<String> = None;
+            let mut from_rna_report: Option<String> = None;
+            let mut salmon_unmapped_names: Option<String> = None;
+            let mut salmon_mappings_sam: Option<String> = None;
             let mut out_dir: Option<String> = None;
             let mut kmer_len = 21usize;
             let mut min_unique_kmer_hits = 1u64;
@@ -11225,6 +11269,30 @@ pub(super) fn parse_rna_reads_command(tokens: &[String]) -> Result<ShellCommand,
                             "rna-reads allele-hash-screen",
                         )?);
                     }
+                    "--from-rna-report" => {
+                        from_rna_report = Some(parse_option_path(
+                            tokens,
+                            &mut idx,
+                            "--from-rna-report",
+                            "rna-reads allele-hash-screen",
+                        )?);
+                    }
+                    "--salmon-unmapped-names" => {
+                        salmon_unmapped_names = Some(parse_option_path(
+                            tokens,
+                            &mut idx,
+                            "--salmon-unmapped-names",
+                            "rna-reads allele-hash-screen",
+                        )?);
+                    }
+                    "--salmon-mappings-sam" => {
+                        salmon_mappings_sam = Some(parse_option_path(
+                            tokens,
+                            &mut idx,
+                            "--salmon-mappings-sam",
+                            "rna-reads allele-hash-screen",
+                        )?);
+                    }
                     "--out" => {
                         out_dir = Some(parse_option_path(
                             tokens,
@@ -11290,9 +11358,18 @@ pub(super) fn parse_rna_reads_command(tokens: &[String]) -> Result<ShellCommand,
             let out_dir = out_dir
                 .filter(|value| !value.trim().is_empty())
                 .ok_or_else(|| "rna-reads allele-hash-screen requires --out OUT_DIR".to_string())?;
-            if read_files.is_empty() && read_pairs.is_empty() {
+            if (salmon_unmapped_names.is_some() || salmon_mappings_sam.is_some())
+                && read_files.is_empty()
+                && read_pairs.is_empty()
+            {
                 return Err(
-                    "rna-reads allele-hash-screen requires at least one --read-file PATH or --read-pair R1,R2"
+                    "rna-reads allele-hash-screen Salmon selectors require --read-file PATH or --read-pair R1,R2 as a sequence source"
+                        .to_string(),
+                );
+            }
+            if read_files.is_empty() && read_pairs.is_empty() && from_rna_report.is_none() {
+                return Err(
+                    "rna-reads allele-hash-screen requires --from-rna-report REPORT_ID, --read-file PATH, or --read-pair R1,R2"
                         .to_string(),
                 );
             }
@@ -11306,6 +11383,9 @@ pub(super) fn parse_rna_reads_command(tokens: &[String]) -> Result<ShellCommand,
                 read_files,
                 read_pairs,
                 read_id_allowlist,
+                from_rna_report,
+                salmon_unmapped_names,
+                salmon_mappings_sam,
                 out_dir,
                 kmer_len,
                 min_unique_kmer_hits,

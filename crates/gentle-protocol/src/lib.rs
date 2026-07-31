@@ -5307,6 +5307,7 @@ const PUBLIC_ENGINE_OPERATION_NAMES: &[&str] = &[
     "BuildExperimentalAssayHandoff",
     "SearchPrimerBank",
     "ImportExternalPrimerPairs",
+    "ScreenPrimerVariants",
     "TestCdnaPcr",
     "TestCdnaQpcr",
     "TestCdnaQpcrFasta",
@@ -5641,6 +5642,7 @@ const MCP_PROMINENT_GLOSSARY_COMMAND_PATHS: &[&str] = &[
     "features split",
     "features merge",
     "primers specificity",
+    "collections run primer-specificity",
     "primers specificity-plan",
     "primers specificity-import",
     "workflow",
@@ -6905,6 +6907,7 @@ fn infer_engine_operation_mutation(operation: &str) -> CapabilityMutation {
         || operation == "AlignSequences"
         || operation == "PreparePrimerPairSpecificityHandoff"
         || operation == "SearchPrimerBank"
+        || operation == "ScreenPrimerVariants"
         || operation == "TestCdnaPcr"
         || operation == "TestCdnaQpcr"
         || operation == "TestCdnaQpcrFasta"

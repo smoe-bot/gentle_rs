@@ -9,6 +9,9 @@
 //! - bug-regression coverage that spans multiple extracted engine submodules
 
 use super::*;
+use crate::allele_hash_screen::{
+    AlleleHashScreenRequest, AlleleReadClassification, AlleleReadSourceOrigin,
+};
 use crate::attract_motifs::{
     ATTRACT_MOTIF_SNAPSHOT_SCHEMA, AttractMotifRecord, AttractMotifSnapshot, AttractPfmRows,
 };
@@ -12038,6 +12041,66 @@ fn test_cdna_qpcr_assay_requires_probe_inside_cdna_product() {
 }
 
 #[test]
+fn test_cdna_pcr_assay_matches_mixed_iupac_base_as_allele_set() {
+    let transcript_sequences = [
+        ("TX_A", "AAAACCGGGGGATTT"),
+        ("TX_G", "AAAGCCGGGGGGTTT"),
+        ("TX_OTHER", "AAATCCGGGGGCTTT"),
+    ];
+    let spacer = "N".repeat(10);
+    let combined = transcript_sequences
+        .iter()
+        .map(|(_, sequence)| *sequence)
+        .collect::<Vec<_>>()
+        .join(&spacer);
+    let mut dna = seq(&combined);
+    let mut start = 0usize;
+    for (transcript_id, sequence) in transcript_sequences {
+        let end = start + sequence.len();
+        dna.features_mut().push(gb_io::seq::Feature {
+            kind: "mRNA".into(),
+            location: gb_io::seq::Location::simple_range(start as i64, end as i64),
+            qualifiers: vec![
+                ("gene".into(), Some("MIXED".to_string())),
+                ("transcript_id".into(), Some(transcript_id.to_string())),
+                ("label".into(), Some(format!("MIXED {transcript_id}"))),
+            ],
+        });
+        start = end + spacer.len();
+    }
+    let mut state = ProjectState::default();
+    state.sequences.insert("cdna_iupac".to_string(), dna);
+    let engine = GentleEngine::from_state(state);
+
+    let report = engine
+        .test_cdna_pcr_assay(
+            "cdna_iupac",
+            0,
+            "AAARCC",
+            "AAAYCC",
+            None,
+            Some(10),
+            Some(30),
+            Some(0),
+            Some(4),
+        )
+        .expect("mixed-IUPAC cDNA assay report");
+    let product_counts = report
+        .transcript_results
+        .iter()
+        .map(|row| (row.transcript_id.as_str(), row.products.len()))
+        .collect::<BTreeMap<_, _>>();
+    assert_eq!(product_counts["TX_A"], 1, "R/Y must accept A-oriented alleles");
+    assert_eq!(product_counts["TX_G"], 1, "R/Y must accept G-oriented alleles");
+    assert_eq!(
+        product_counts["TX_OTHER"],
+        0,
+        "R/Y must reject unrelated alleles"
+    );
+    assert_eq!(report.product_count, 2);
+}
+
+#[test]
 fn test_oligo_qc_flags_forward_probe_3prime_interaction() {
     let report = GentleEngine::build_oligo_qc_report(
         "qpcr",
@@ -13669,29 +13732,100 @@ fn experimental_assay_handoff_links_every_selected_pair_and_records_default_gate
     );
 
     let first_pair_id = handoff.cards[0].pair_id.clone();
-    let mut detected_variant = tempfile::NamedTempFile::new().expect("variant evidence fixture");
-    serde_json::to_writer_pretty(
-        &mut detected_variant,
-        &PrimerVariantEvidenceReport {
-            schema: PRIMER_VARIANT_EVIDENCE_SCHEMA.to_string(),
-            evidence_id: "variant_evidence_detected".to_string(),
-            pair_id: first_pair_id.clone(),
-            reference_assembly: "synthetic-assembly".to_string(),
-            source_name: "synthetic variants".to_string(),
-            source_release: "1".to_string(),
-            population: "synthetic".to_string(),
-            retrieval_time: "deterministic-fixture".to_string(),
-            content_sha256: "sha256:synthetic-detected".to_string(),
-            status: PrimerVariantEvidenceStatus::VariantDetected,
-            ..Default::default()
-        },
+    let first_reverse = first_assay.primer_pair.reverse.sequence.clone();
+    let forward_start_1based = 100usize;
+    let forward_end_1based = forward_start_1based + first_forward.len() - 1;
+    let reverse_start_1based = 300usize;
+    let reverse_end_1based = reverse_start_1based + first_reverse.len() - 1;
+    let terminal_reference = first_forward
+        .chars()
+        .last()
+        .expect("non-empty forward primer");
+    let terminal_alternate = if terminal_reference == 'A' { 'C' } else { 'A' };
+    let variant_fixture = tempdir().expect("generated variant evidence fixture");
+    let variant_vcf_path = variant_fixture.path().join("variants.vcf");
+    fs::write(
+        &variant_vcf_path,
+        format!(
+            "##fileformat=VCFv4.2\n##reference=synthetic-assembly\n##contig=<ID=chrSynthetic,length=1000>\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\nchrSynthetic\t{forward_end_1based}\trsTerminal\t{terminal_reference}\t{terminal_alternate}\t.\tPASS\tAF=0.2\n"
+        ),
     )
-    .expect("write detected variant evidence fixture");
+    .expect("write synthetic variant VCF");
+    let variant_evidence_dir = variant_fixture.path().join("evidence");
+    let variant_screen = engine
+        .apply(Operation::ScreenPrimerVariants {
+            request: Box::new(PrimerVariantScreenRequest {
+                reference_assembly: "synthetic-assembly".to_string(),
+                source: PrimerVariantSourceInput {
+                    vcf_path: Some(variant_vcf_path.to_string_lossy().to_string()),
+                    reference_assembly: "synthetic-assembly".to_string(),
+                    source_name: "synthetic variants".to_string(),
+                    source_release: "1".to_string(),
+                    population: "synthetic".to_string(),
+                    retrieval_time: "deterministic-fixture".to_string(),
+                    allele_frequency_info_field: Some("AF".to_string()),
+                    ..Default::default()
+                },
+                candidates: vec![PrimerVariantScreenCandidate {
+                    candidate_id: "experimental-handoff-selected-pair".to_string(),
+                    pair_id: Some(first_pair_id.clone()),
+                    source: PrimerVariantCandidateSource {
+                        candidate_id: "experimental-handoff-selected-pair".to_string(),
+                        source_kind: PrimerVariantCandidateSourceKind::DeNovo,
+                        source_id: first_assay.assay_id.clone(),
+                        provider: "GENtle synthetic test".to_string(),
+                        content_sha256: "sha256:synthetic-panel-source".to_string(),
+                        ..Default::default()
+                    },
+                    forward: PrimerVariantScreenOligo {
+                        sequence_5_to_3: first_forward.clone(),
+                        binding_segments: vec![PrimerVariantBindingSegment {
+                            reference_name: "chrSynthetic".to_string(),
+                            start_1based: forward_start_1based,
+                            end_1based: forward_end_1based,
+                            strand: PrimerVariantBindingStrand::Plus,
+                            oligo_start_0based: 0,
+                            oligo_end_0based_exclusive: first_forward.len(),
+                            reference_sequence_5_to_3: first_forward.clone(),
+                        }],
+                    },
+                    reverse: PrimerVariantScreenOligo {
+                        sequence_5_to_3: first_reverse.clone(),
+                        binding_segments: vec![PrimerVariantBindingSegment {
+                            reference_name: "chrSynthetic".to_string(),
+                            start_1based: reverse_start_1based,
+                            end_1based: reverse_end_1based,
+                            strand: PrimerVariantBindingStrand::Minus,
+                            oligo_start_0based: 0,
+                            oligo_end_0based_exclusive: first_reverse.len(),
+                            reference_sequence_5_to_3: GentleEngine::reverse_complement(
+                                &first_reverse,
+                            ),
+                        }],
+                    },
+                    ..Default::default()
+                }],
+                maximum_allowed_frequency: Some(0.01),
+                ..Default::default()
+            }),
+            path: None,
+            evidence_dir: Some(variant_evidence_dir.to_string_lossy().to_string()),
+        })
+        .expect("generate primer variant evidence")
+        .primer_variant_screen
+        .expect("primer variant screen report");
+    assert_eq!(
+        variant_screen.evidence_reports[0].status,
+        PrimerVariantEvidenceStatus::VariantDetected
+    );
+    let detected_variant_path =
+        variant_evidence_dir.join(format!("{first_pair_id}.primer_variant_evidence.json"));
+    assert!(detected_variant_path.is_file());
     let variant_handoff = engine
         .apply(Operation::BuildExperimentalAssayHandoff {
             panel_report_id: panel.report_id.clone(),
             policy: ExperimentalAssayReadinessPolicy::default(),
-            variant_evidence_paths: vec![detected_variant.path().to_string_lossy().to_string()],
+            variant_evidence_paths: vec![detected_variant_path.to_string_lossy().to_string()],
             order_form_id: None,
             path: None,
             order_table_path: None,
@@ -39235,6 +39369,121 @@ fn test_summarize_rna_read_gene_support_filters_requested_gene_in_multi_gene_spa
             .messages
             .iter()
             .any(|message| message.contains("accepted_target_reads=3"))
+    );
+}
+
+#[test]
+fn test_allele_hash_screen_sources_target_gene_reads_from_rna_report() {
+    let fixture_dir = PathBuf::from("test_files/fixtures/allele_hash_screen");
+    let read_path = fixture_dir.join("fus_reads.fastq");
+    let mut hits = Vec::<RnaReadInterpretationHit>::new();
+    crate::target_rescue::visit_read_records(
+        read_path.to_str().expect("UTF-8 fixture path"),
+        |record| {
+            let record_index = hits.len();
+            hits.push(RnaReadInterpretationHit {
+                record_index,
+                header_id: record.id,
+                read_length_bp: record.source_length,
+                sequence: record.sequence,
+                passed_seed_filter: true,
+                best_mapping: Some(RnaReadMappingHit {
+                    transcript_feature_id: 0,
+                    transcript_id: "FUS_TX1".to_string(),
+                    transcript_label: "FUS_TX1".to_string(),
+                    strand: "+".to_string(),
+                    target_start_1based: 1,
+                    target_end_1based: record.source_length,
+                    target_start_offset_0based: 0,
+                    target_end_offset_0based_exclusive: record.source_length,
+                    score: 100,
+                    identity_fraction: 1.0,
+                    query_coverage_fraction: 1.0,
+                    ..RnaReadMappingHit::default()
+                }),
+                ..RnaReadInterpretationHit::default()
+            });
+            Ok(())
+        },
+    )
+    .expect("read FUS fixture");
+
+    let mut dna = DNAsequence::from_sequence(&"A".repeat(61)).expect("synthetic FUS anchor");
+    dna.features_mut().push(gb_io::seq::Feature {
+        kind: "mRNA".into(),
+        location: gb_io::seq::Location::simple_range(0, 61),
+        qualifiers: vec![
+            ("gene".into(), Some("FUS".to_string())),
+            ("transcript_id".into(), Some("FUS_TX1".to_string())),
+            ("label".into(), Some("FUS_TX1".to_string())),
+        ],
+    });
+    let mut state = ProjectState::default();
+    state.sequences.insert("fus_anchor".to_string(), dna);
+    let mut engine = GentleEngine::from_state(state);
+    engine
+        .upsert_rna_read_report(RnaReadInterpretationReport {
+            schema: "gentle.rna_read_report.v1".to_string(),
+            report_id: "fus_aligned_reads".to_string(),
+            seq_id: "fus_anchor".to_string(),
+            seed_feature_id: 0,
+            input_path: read_path.display().to_string(),
+            input_format: RnaReadInputFormat::Fasta,
+            scope: SplicingScopePreset::TargetGroupTargetStrand,
+            target_gene_ids: vec!["FUS".to_string()],
+            read_count_total: hits.len(),
+            read_count_seed_passed: hits.len(),
+            read_count_aligned: hits.len(),
+            hits,
+            ..RnaReadInterpretationReport::default()
+        })
+        .expect("persist FUS RNA-read report");
+
+    let dir = tempdir().expect("temp dir");
+    let request = |out_dir: &Path| AlleleHashScreenRequest {
+        gene: "FUS".to_string(),
+        transcript_fasta: fixture_dir.join("fus_transcripts.fa").display().to_string(),
+        variant_table: Some(fixture_dir.join("fus_variants.tsv").display().to_string()),
+        out_dir: out_dir.display().to_string(),
+        kmer_len: 9,
+        min_unique_kmer_hits: 1,
+        ..AlleleHashScreenRequest::default()
+    };
+    let mut explicit_request = request(&dir.path().join("explicit"));
+    explicit_request.read_files = vec![read_path.display().to_string()];
+    let explicit = crate::allele_hash_screen::run_allele_hash_screen(explicit_request)
+        .expect("explicit fixture baseline");
+    let mut report_request = request(&dir.path().join("report"));
+    report_request.from_rna_report = Some("fus_aligned_reads".to_string());
+    let sourced = engine
+        .run_allele_hash_screen_with_project_sources(report_request)
+        .expect("report-sourced allele screen");
+
+    let classifications = |report: &crate::allele_hash_screen::AlleleHashScreenReport| {
+        report
+            .reads
+            .iter()
+            .map(|read| (read.read_id.clone(), read.classification))
+            .collect::<BTreeMap<_, _>>()
+    };
+    assert_eq!(classifications(&sourced), classifications(&explicit));
+    assert_eq!(
+        classifications(&sourced)["fus_hap2_alt_v1"],
+        AlleleReadClassification::Hap2
+    );
+    assert_eq!(
+        sourced
+            .source_provenance
+            .iter()
+            .find(|row| row.origin == AlleleReadSourceOrigin::RnaReportTargetMapped)
+            .map(|row| row.evidence_observation_count),
+        Some(5)
+    );
+    assert!(
+        sourced
+            .reads
+            .iter()
+            .all(|read| read.source_origins == vec![AlleleReadSourceOrigin::RnaReportTargetMapped])
     );
 }
 

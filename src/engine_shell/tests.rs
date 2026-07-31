@@ -10,6 +10,10 @@
 //! - CLI-like round trips that should stay in parity with GUI shell mode
 
 use super::*;
+use crate::allele_hash_screen::{
+    ALLELE_HASH_SCREEN_SCHEMA, AlleleHashScreenReport, AlleleReadClassification,
+    AlleleReadSourceOrigin,
+};
 use crate::dna_sequence::DNAsequence;
 use crate::engine::FEATURE_LOCATION_EDIT_SCHEMA_V2;
 use crate::engine::{
@@ -6979,6 +6983,24 @@ fn parse_primers_import_external_pairs_with_evaluation_options() {
     )
     .expect_err("specificity cache requires target genome");
     assert!(error.contains("--specificity-target-genome"));
+}
+
+#[test]
+fn parse_primers_screen_variants_with_artifact_outputs() {
+    let command = parse_shell_line(
+        "primers screen-variants @variant_request.json --path screen.json --evidence-dir evidence",
+    )
+    .expect("parse primer variant screen");
+    assert!(matches!(
+        command,
+        ShellCommand::PrimersScreenVariants {
+            request_json,
+            path,
+            evidence_dir,
+        } if request_json == "@variant_request.json"
+            && path.as_deref() == Some("screen.json")
+            && evidence_dir.as_deref() == Some("evidence")
+    ));
 }
 
 #[test]
@@ -18608,6 +18630,126 @@ fn execute_primers_import_external_pairs_returns_provenance_and_metrics() {
         Some(1)
     );
     assert!(output_path.is_file());
+}
+
+#[test]
+fn execute_primers_screen_variants_emits_handoff_ready_evidence() {
+    let td = tempfile::tempdir().expect("tempdir");
+    let vcf_path = td.path().join("variants.vcf");
+    std::fs::write(
+        &vcf_path,
+        concat!(
+            "##fileformat=VCFv4.2\n",
+            "##reference=GRCh38\n",
+            "##contig=<ID=chr1,length=1000>\n",
+            "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n",
+            "chr1\t111\trsTerminal\tC\tT\t.\tPASS\tAF=0.2\n"
+        ),
+    )
+    .expect("write variant VCF");
+    let request_path = td.path().join("request.json");
+    std::fs::write(
+        &request_path,
+        serde_json::to_vec_pretty(&serde_json::json!({
+            "schema": "gentle.primer_variant_screen_request.v1",
+            "reference_assembly": "GRCh38",
+            "source": {
+                "vcf_path": vcf_path,
+                "reference_assembly": "GRCh38",
+                "source_name": "synthetic variants",
+                "source_release": "1",
+                "population": "synthetic",
+                "retrieval_time": "deterministic-fixture",
+                "allele_frequency_info_field": "AF"
+            },
+            "candidates": [{
+                "candidate_id": "shell-pair",
+                "source": {
+                    "candidate_id": "shell-pair",
+                    "source_kind": "external",
+                    "source_id": "shell-fixture",
+                    "provider": "synthetic",
+                    "content_sha256": "sha256:synthetic"
+                },
+                "forward": {
+                    "sequence_5_to_3": "AACCGGTTAACC",
+                    "binding_segments": [{
+                        "reference_name": "chr1",
+                        "start_1based": 100,
+                        "end_1based": 111,
+                        "strand": "plus",
+                        "oligo_start_0based": 0,
+                        "oligo_end_0based_exclusive": 12,
+                        "reference_sequence_5_to_3": "AACCGGTTAACC"
+                    }]
+                },
+                "reverse": {
+                    "sequence_5_to_3": "GGAACCTTGGAA",
+                    "binding_segments": [{
+                        "reference_name": "chr1",
+                        "start_1based": 200,
+                        "end_1based": 211,
+                        "strand": "minus",
+                        "oligo_start_0based": 0,
+                        "oligo_end_0based_exclusive": 12,
+                        "reference_sequence_5_to_3": "TTCCAAGGTTCC"
+                    }]
+                }
+            }],
+            "maximum_allowed_frequency": 0.01,
+            "degenerate_rescue_minimum_frequency": 0.05,
+            "allow_critical_3prime_degenerate_rescue": true
+        }))
+        .expect("serialize screen request"),
+    )
+    .expect("write screen request");
+    let output_path = td.path().join("screen.json");
+    let evidence_dir = td.path().join("evidence");
+    let command = parse_shell_line(&format!(
+        "primers screen-variants @{} --path {} --evidence-dir {}",
+        request_path.display(),
+        output_path.display(),
+        evidence_dir.display()
+    ))
+    .expect("parse screen command");
+    let mut engine = GentleEngine::default();
+    let result = execute_shell_command(&mut engine, &command).expect("execute variant screen");
+    assert!(!result.state_changed);
+    assert_eq!(
+        result.output["schema"].as_str(),
+        Some("gentle.primer_variant_screen_command.v1")
+    );
+    assert_eq!(
+        result.output["report"]["evidence_reports"][0]["status"].as_str(),
+        Some("variant_detected")
+    );
+    assert_eq!(
+        result.output["report"]["evidence_reports"][0]["degenerate_rescue_suggestions"][0]
+            ["schema"]
+            .as_str(),
+        Some("gentle.primer_variant_degenerate_rescue.v1")
+    );
+    assert_eq!(
+        result.output["report"]["evidence_reports"][0]["degenerate_rescue_suggestions"][0]
+            ["adjusted_forward_sequence_5_to_3"]
+            .as_str(),
+        Some("AACCGGTTAACY")
+    );
+    assert!(output_path.is_file());
+    let evidence_paths = std::fs::read_dir(&evidence_dir)
+        .expect("read evidence directory")
+        .map(|entry| entry.expect("evidence entry").path())
+        .collect::<Vec<_>>();
+    assert_eq!(evidence_paths.len(), 1);
+    let evidence: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(&evidence_paths[0]).expect("read generated evidence"),
+    )
+    .expect("parse generated evidence");
+    assert_eq!(
+        evidence["schema"].as_str(),
+        Some("gentle.primer_variant_evidence.v1")
+    );
+    assert_eq!(evidence["overlaps"][0]["critical_three_prime"], true);
 }
 
 #[test]
@@ -38641,7 +38783,7 @@ fn parse_rna_reads_commands() {
     ));
 
     let allele_hash = parse_shell_line(
-        "rna-reads allele-hash-screen --gene FUS --transcript-fasta tx.fa --variant-table vars.tsv --read-file reads_single.fq --read-pair reads_1.fq,reads_2.fq --read-id-allowlist ids.txt --kmer-len 9 --min-unique-kmer-hits 2 --max-inline-read-calls 250 --out out/allele",
+        "rna-reads allele-hash-screen --gene FUS --transcript-fasta tx.fa --variant-table vars.tsv --read-file reads_single.fq --read-pair reads_1.fq,reads_2.fq --read-id-allowlist ids.txt --from-rna-report fus_reads --salmon-unmapped-names unmapped_names.txt --salmon-mappings-sam mappings.sam --kmer-len 9 --min-unique-kmer-hits 2 --max-inline-read-calls 250 --out out/allele",
     )
     .expect("parse rna-reads allele-hash-screen");
     assert!(matches!(
@@ -38653,6 +38795,9 @@ fn parse_rna_reads_commands() {
             read_files,
             read_pairs,
             read_id_allowlist,
+            from_rna_report,
+            salmon_unmapped_names,
+            salmon_mappings_sam,
             out_dir,
             kmer_len,
             min_unique_kmer_hits,
@@ -38664,11 +38809,36 @@ fn parse_rna_reads_commands() {
             && read_files == vec!["reads_single.fq".to_string()]
             && read_pairs == vec![("reads_1.fq".to_string(), "reads_2.fq".to_string())]
             && read_id_allowlist.as_deref() == Some("ids.txt")
+            && from_rna_report.as_deref() == Some("fus_reads")
+            && salmon_unmapped_names.as_deref() == Some("unmapped_names.txt")
+            && salmon_mappings_sam.as_deref() == Some("mappings.sam")
             && out_dir == "out/allele"
             && kmer_len == 9
             && min_unique_kmer_hits == 2
             && max_inline_read_calls == 250
     ));
+
+    let allele_hash_report_only = parse_shell_line(
+        "rna-reads allele-hash-screen --gene FUS --transcript-fasta tx.fa --variant-table vars.tsv --from-rna-report fus_reads --out out/report-only",
+    )
+    .expect("parse report-only rna-reads allele-hash-screen");
+    assert!(matches!(
+        allele_hash_report_only,
+        ShellCommand::RnaReadsAlleleHashScreen {
+            from_rna_report,
+            read_files,
+            read_pairs,
+            ..
+        } if from_rna_report.as_deref() == Some("fus_reads")
+            && read_files.is_empty()
+            && read_pairs.is_empty()
+    ));
+
+    let salmon_without_sequences = parse_shell_line(
+        "rna-reads allele-hash-screen --gene FUS --transcript-fasta tx.fa --variant-table vars.tsv --salmon-unmapped-names unmapped_names.txt --out out/invalid",
+    )
+    .expect_err("Salmon selectors without read sequences must fail");
+    assert!(salmon_without_sequences.contains("sequence source"));
 
     let allele_hash_vcf = parse_shell_line(
         "rna-reads allele-hash-screen --gene FUS --transcript-fasta tx.fa --vcf reviewed.vcf.gz --transcript-map transcript_map.tsv --vcf-sample ALS_SAMPLE --read-file reads.fq --out out/allele-vcf",
@@ -38959,6 +39129,52 @@ fn parse_rna_reads_commands() {
         align_selected_invalid.contains("Invalid --record-indices value"),
         "unexpected parse error: {align_selected_invalid}"
     );
+}
+
+#[test]
+fn execute_rna_reads_allele_hash_screen_applies_salmon_source_selectors() {
+    let fixture_dir =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("test_files/fixtures/allele_hash_screen");
+    let out_dir = tempdir().expect("temp output");
+    let command = parse_shell_line(&format!(
+        "rna-reads allele-hash-screen --gene FUS --transcript-fasta {} --variant-table {} --read-file {} --salmon-unmapped-names {} --salmon-mappings-sam {} --kmer-len 9 --out {}",
+        fixture_dir.join("fus_transcripts.fa").display(),
+        fixture_dir.join("fus_variants.tsv").display(),
+        fixture_dir.join("fus_reads.fastq").display(),
+        fixture_dir.join("salmon_unmapped_names.txt").display(),
+        fixture_dir.join("salmon_mappings.sam").display(),
+        out_dir.path().display(),
+    ))
+    .expect("parse Salmon-backed allele screen");
+    let mut engine = GentleEngine::default();
+    let run = execute_shell_command(&mut engine, &command).expect("execute allele screen");
+    assert!(!run.state_changed);
+    let report: AlleleHashScreenReport =
+        serde_json::from_value(run.output).expect("typed allele report");
+    assert_eq!(report.schema, ALLELE_HASH_SCREEN_SCHEMA);
+    assert_eq!(
+        report
+            .source_provenance
+            .iter()
+            .find(|row| row.origin == AlleleReadSourceOrigin::SalmonUnassigned)
+            .map(|row| row.evidence_observation_count),
+        Some(4)
+    );
+    assert_eq!(
+        report
+            .source_provenance
+            .iter()
+            .find(|row| row.origin == AlleleReadSourceOrigin::SalmonTargetMapped)
+            .map(|row| row.evidence_observation_count),
+        Some(1)
+    );
+    let anti_bias = report
+        .reads
+        .iter()
+        .find(|read| read.read_id == "fus_hap2_alt_v1")
+        .expect("anti-reference-bias read");
+    assert_eq!(anti_bias.classification, AlleleReadClassification::Hap2);
+    assert_eq!(anti_bias.reference_hits, 0);
 }
 
 #[test]

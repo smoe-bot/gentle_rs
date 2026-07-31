@@ -28,7 +28,7 @@ use crate::{
     agent_transport::{
         agent_system_availability, discover_models_for_agent_system, load_agent_system_catalog,
     },
-    allele_hash_screen::{AlleleHashScreenRequest, AlleleReadPairInput, run_allele_hash_screen},
+    allele_hash_screen::{AlleleHashScreenRequest, AlleleReadPairInput},
     amino_acids::{STOP_CODON, UNKNOWN_CODON},
     attract_motifs,
     dna_ladder::LadderMolecule,
@@ -75,10 +75,10 @@ use crate::{
         PlanningProfileScope, PlanningSuggestionStatus, PrimerDesignBackend,
         PrimerDesignPairConstraint, PrimerDesignReport, PrimerDesignSideConstraint,
         PrimerSpecificityCheckMode, PrimerSpecificityCollectionMemberBinding,
-        PrimerSpecificityPolicy, ProbeRegionRequest, ProjectFact, ProjectFactDomain,
-        ProjectFactGraph, ProjectFactTypeSpec, ProjectState, PromoterArtifactManifestEntry,
-        PromoterCohortKind, PromoterExpressionEvidenceInput, PromoterTfbsGeneQuery,
-        PromoterWindowCollapseMode, ProteinExpressionCdsAssessment,
+        PrimerSpecificityPolicy, PrimerVariantScreenRequest, ProbeRegionRequest, ProjectFact,
+        ProjectFactDomain, ProjectFactGraph, ProjectFactTypeSpec, ProjectState,
+        PromoterArtifactManifestEntry, PromoterCohortKind, PromoterExpressionEvidenceInput,
+        PromoterTfbsGeneQuery, PromoterWindowCollapseMode, ProteinExpressionCdsAssessment,
         ProteinExpressionFeatureSummary, ProteinExpressionHandoffReport,
         ProteinExpressionHostChassisCandidate, ProteinExpressionProductDefinition,
         ProteinExpressionProductReadiness, ProteinExpressionRequirements,
@@ -2521,6 +2521,11 @@ pub enum ShellCommand {
         product_gel_ladders: Vec<String>,
         path: Option<String>,
     },
+    PrimersScreenVariants {
+        request_json: String,
+        path: Option<String>,
+        evidence_dir: Option<String>,
+    },
     PrimersTestCdnaPcr {
         seq_id: String,
         feature_id: usize,
@@ -3058,6 +3063,9 @@ pub enum ShellCommand {
         read_files: Vec<String>,
         read_pairs: Vec<(String, String)>,
         read_id_allowlist: Option<String>,
+        from_rna_report: Option<String>,
+        salmon_unmapped_names: Option<String>,
+        salmon_mappings_sam: Option<String>,
         out_dir: String,
         kmer_len: usize,
         min_unique_kmer_hits: u64,
@@ -11369,6 +11377,16 @@ impl ShellCommand {
                 specificity_target_genome_id.as_deref().unwrap_or("not_run"),
                 materialize_products,
             ),
+            Self::PrimersScreenVariants {
+                request_json,
+                path,
+                evidence_dir,
+            } => format!(
+                "screen assembly-aware primer binding geometry against a local variant source (request_len={}, path={}, evidence_dir={})",
+                request_json.len(),
+                path.as_deref().unwrap_or("none"),
+                evidence_dir.as_deref().unwrap_or("none"),
+            ),
             Self::PrimersTestCdnaPcr {
                 seq_id,
                 feature_id,
@@ -16639,6 +16657,36 @@ fn external_primer_pair_import_descriptor(id: &str, description: &str) -> Value 
     })
 }
 
+fn primer_variant_screen_descriptor(id: &str, description: &str) -> Value {
+    json!({
+        "id": id,
+        "kind": "operation",
+        "mutating": "false",
+        "requires_confirmation": false,
+        "args": [
+            {"name": "REQUEST_JSON", "required": true, "subject_kind": "other", "detail": "assembly-aware primer/probe geometry plus one local VCF, VCF.gz, or prepared variant-resource manifest"},
+            {"name": "OUTPUT_PATH", "required": false, "subject_kind": "other", "detail": "optional external gentle.primer_variant_screen.v1 JSON path"},
+            {"name": "EVIDENCE_DIR", "required": false, "subject_kind": "other", "detail": "optional directory for one gentle.primer_variant_evidence.v1 JSON report per physical primer pair"}
+        ],
+        "reads": [],
+        "effects": [
+            {
+                "fact": "artifact.written",
+                "subject": {"arg": "OUTPUT_PATH"},
+                "effect_kind": "external_handoff"
+            },
+            {
+                "effect_kind": "may_on_success",
+                "description": "May write one generated primer-variant evidence artifact per physical pair under EVIDENCE_DIR."
+            }
+        ],
+        "precondition_expr": {"all": []},
+        "description": description,
+        "annotation_status": "fact_annotated",
+        "registry": registry_metadata_for_introspection(id)
+    })
+}
+
 fn save_file_operation_descriptor() -> Value {
     json!({
         "id": "SaveFile",
@@ -19386,7 +19434,7 @@ fn annotated_introspection_capability_descriptors() -> Vec<Value> {
         ),
         primer_specificity_report_descriptor(
             "collections run primer-specificity",
-            "Run the shared primer-specificity operation once per bound collection member and return per-member status and produced report ids.",
+            "Map GENtle's existing local-BLAST primer specificity assessment over project sequences or a persisted gene-set resolution, retaining per-member failures and produced report IDs.",
             vec![
                 json!({"name": "GENE_SET_REPORT_ID", "required": false, "subject_kind": "report", "detail": "persisted gene-set resolution artifact id; alternative to SEQ_IDS"}),
                 json!({"name": "SEQ_IDS", "required": false, "subject_kind": "sequence", "detail": "project sequence ids; alternative to GENE_SET_REPORT_ID"}),
@@ -22706,6 +22754,14 @@ fn annotated_introspection_capability_descriptors() -> Vec<Value> {
             "primers import-external-pairs",
             "Import a JSON or TSV external primer-pair batch and evaluate every unique pair without treating source targeting or validation claims as biological evidence.",
         ),
+        primer_variant_screen_descriptor(
+            "ScreenPrimerVariants",
+            "Screen explicit assembly-aware primer and probe binding geometry against one local variant resource, preserving source attribution and conservative frequency semantics.",
+        ),
+        primer_variant_screen_descriptor(
+            "primers screen-variants",
+            "Screen explicit assembly-aware primer and probe binding geometry against one local VCF, VCF.gz, or prepared manifest and optionally emit handoff-ready per-pair evidence.",
+        ),
         cdna_assay_test_descriptor(
             "TestCdnaPcr",
             "Test supplied PCR primers against transcript-derived cDNA templates for one loaded splicing group.",
@@ -23490,9 +23546,12 @@ fn annotated_introspection_capability_descriptors() -> Vec<Value> {
             "args": [
                 json!({"name": "--gene", "required": true, "subject_kind": "other", "detail": "target gene symbol"}),
                 json!({"name": "--transcript-fasta", "required": true, "subject_kind": "other", "detail": "local transcript FASTA input path"}),
-                json!({"name": "--variant-table", "required": true, "subject_kind": "other", "detail": "transcript-coordinate TSV variant table"}),
-                json!({"name": "--read-file", "required": true, "subject_kind": "other", "detail": "FASTA/FASTQ read input path; may be repeated"}),
+                json!({"name": "--variant-table", "required": false, "subject_kind": "other", "detail": "transcript-coordinate TSV variant table; alternative to --vcf plus --transcript-map"}),
+                json!({"name": "--read-file", "required": false, "subject_kind": "other", "detail": "FASTA/FASTQ read input path; may be repeated and is required when Salmon selectors are used"}),
                 json!({"name": "--read-id-allowlist", "required": false, "subject_kind": "other", "detail": "optional read id allowlist path"}),
+                json!({"name": "--from-rna-report", "required": false, "subject_kind": "report", "detail": "persisted RNA-read report whose target-gene-aligned retained reads are screened directly"}),
+                json!({"name": "--salmon-unmapped-names", "required": false, "subject_kind": "other", "detail": "Salmon unmapped_names path used as an ID selector over explicit read inputs"}),
+                json!({"name": "--salmon-mappings-sam", "required": false, "subject_kind": "other", "detail": "Salmon mapping SAM used to select reads mapped to target transcripts from explicit read inputs"}),
                 json!({"name": "--kmer-len", "required": false, "subject_kind": "other", "detail": "k-mer length"}),
                 json!({"name": "--min-unique-kmer-hits", "required": false, "subject_kind": "other", "detail": "minimum unique haplotype k-mer hits for a haplotype call"}),
                 json!({"name": "--out", "required": true, "subject_kind": "other", "detail": "external allele-hash screen output directory"}),
@@ -23506,7 +23565,7 @@ fn annotated_introspection_capability_descriptors() -> Vec<Value> {
                 }
             ],
             "precondition_expr": {"all": []},
-            "description": "Run a deterministic allele-aware RNA-read k-mer screen against transcript-coordinate variant evidence without project-state preconditions.",
+            "description": "Run a deterministic allele-aware RNA-read k-mer screen from explicit reads and/or target-gene reads resolved from a persisted RNA-read report, with optional Salmon cohort selectors.",
             "annotation_status": "fact_annotated",
             "registry": registry_metadata_for_introspection("rna-reads allele-hash-screen")
         }),
@@ -27440,6 +27499,7 @@ fn capability_precondition_atoms(capability_id: &str) -> Option<Vec<Value>> {
         "primers import-external-pairs" | "ImportExternalPrimerPairs" => Some(vec![
             json!({"fact": "sequence.exists", "subject": {"arg": "SEQ_ID"}}),
         ]),
+        "primers screen-variants" | "ScreenPrimerVariants" => Some(vec![]),
         "primers list-transcript-assay-panels" => Some(vec![]),
         "primers show-transcript-assay-panel" | "primers export-transcript-assay-panel" => {
             Some(vec![
@@ -52612,6 +52672,38 @@ fn execute_primers_command(
                 }),
             })
         }
+        ShellCommand::PrimersScreenVariants {
+            request_json,
+            path,
+            evidence_dir,
+        } => {
+            let request = parse_required_json_payload::<PrimerVariantScreenRequest>(
+                request_json,
+                "primer variant screen request",
+            )?;
+            let op_result = engine
+                .apply(Operation::ScreenPrimerVariants {
+                    request: Box::new(request),
+                    path: path.clone(),
+                    evidence_dir: evidence_dir.clone(),
+                })
+                .map_err(|error| error.to_string())?;
+            let report = op_result
+                .primer_variant_screen
+                .as_ref()
+                .map(|report| (**report).clone())
+                .ok_or_else(|| "Primer variant screen operation returned no report".to_string())?;
+            Ok(ShellRunResult {
+                state_changed: false,
+                output: json!({
+                    "schema": "gentle.primer_variant_screen_command.v1",
+                    "report": report,
+                    "path": path,
+                    "evidence_dir": evidence_dir,
+                    "result": op_result,
+                }),
+            })
+        }
         ShellCommand::PrimersTestCdnaPcr {
             seq_id,
             feature_id,
@@ -57451,32 +57543,40 @@ fn execute_rna_reads_command(
             read_files,
             read_pairs,
             read_id_allowlist,
+            from_rna_report,
+            salmon_unmapped_names,
+            salmon_mappings_sam,
             out_dir,
             kmer_len,
             min_unique_kmer_hits,
             max_inline_read_calls,
         } => {
-            let report = run_allele_hash_screen(AlleleHashScreenRequest {
-                gene: gene.clone(),
-                transcript_fasta: transcript_fasta.clone(),
-                variant_table: variant_table.clone(),
-                vcf: vcf.clone(),
-                transcript_map: transcript_map.clone(),
-                vcf_sample: vcf_sample.clone(),
-                read_files: read_files.clone(),
-                read_pairs: read_pairs
-                    .iter()
-                    .map(|(read1, read2)| AlleleReadPairInput {
-                        read1: read1.clone(),
-                        read2: read2.clone(),
-                    })
-                    .collect(),
-                read_id_allowlist: read_id_allowlist.clone(),
-                out_dir: out_dir.clone(),
-                kmer_len: *kmer_len,
-                min_unique_kmer_hits: *min_unique_kmer_hits,
-                max_inline_read_calls: *max_inline_read_calls,
-            })?;
+            let report =
+                engine.run_allele_hash_screen_with_project_sources(AlleleHashScreenRequest {
+                    gene: gene.clone(),
+                    transcript_fasta: transcript_fasta.clone(),
+                    variant_table: variant_table.clone(),
+                    vcf: vcf.clone(),
+                    transcript_map: transcript_map.clone(),
+                    vcf_sample: vcf_sample.clone(),
+                    read_files: read_files.clone(),
+                    read_pairs: read_pairs
+                        .iter()
+                        .map(|(read1, read2)| AlleleReadPairInput {
+                            read1: read1.clone(),
+                            read2: read2.clone(),
+                        })
+                        .collect(),
+                    read_id_allowlist: read_id_allowlist.clone(),
+                    from_rna_report: from_rna_report.clone(),
+                    salmon_unmapped_names: salmon_unmapped_names.clone(),
+                    salmon_mappings_sam: salmon_mappings_sam.clone(),
+                    out_dir: out_dir.clone(),
+                    kmer_len: *kmer_len,
+                    min_unique_kmer_hits: *min_unique_kmer_hits,
+                    max_inline_read_calls: *max_inline_read_calls,
+                    ..AlleleHashScreenRequest::default()
+                })?;
             Ok(ShellRunResult {
                 state_changed: false,
                 output: serde_json::to_value(&report)
@@ -58966,6 +59066,7 @@ fn execute_shell_command_with_options_dispatch_inner(
             | ShellCommand::PrimersTranscriptAssaySpecificityPlan { .. }
             | ShellCommand::PrimersTranscriptAssaySpecificityFinalize { .. }
             | ShellCommand::PrimersImportExternalPairs { .. }
+            | ShellCommand::PrimersScreenVariants { .. }
             | ShellCommand::PrimersTestCdnaPcr { .. }
             | ShellCommand::PrimersTestCdnaQpcr { .. }
             | ShellCommand::PrimersTranscriptQpcrPanel { .. }
@@ -60704,6 +60805,7 @@ fn execute_shell_command_with_options_inner(
         | ShellCommand::PrimersTranscriptAssaySpecificityPlan { .. }
         | ShellCommand::PrimersTranscriptAssaySpecificityFinalize { .. }
         | ShellCommand::PrimersImportExternalPairs { .. }
+        | ShellCommand::PrimersScreenVariants { .. }
         | ShellCommand::PrimersTestCdnaPcr { .. }
         | ShellCommand::PrimersTestCdnaQpcr { .. }
         | ShellCommand::PrimersTranscriptQpcrPanel { .. }

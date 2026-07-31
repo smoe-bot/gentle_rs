@@ -4472,6 +4472,8 @@ pub struct OpResult {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub external_primer_pair_import_report: Option<Box<ExternalPrimerPairImportReport>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub primer_variant_screen: Option<Box<PrimerVariantScreenReport>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub transcript_qpcr_panel: Option<Box<TranscriptQpcrPanelReport>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub transcript_assay_panel: Option<Box<TranscriptAssayPanelReport>>,
@@ -9284,6 +9286,254 @@ pub enum PrimerVariantEvidenceStatus {
     NotEvaluated,
 }
 
+pub const PRIMER_VARIANT_RESOURCE_MANIFEST_SCHEMA: &str =
+    "gentle.primer_variant_resource_manifest.v1";
+pub const PRIMER_VARIANT_SCREEN_REQUEST_SCHEMA: &str = "gentle.primer_variant_screen_request.v1";
+pub const PRIMER_VARIANT_SCREEN_SCHEMA: &str = "gentle.primer_variant_screen.v1";
+pub const PRIMER_VARIANT_DEGENERATE_RESCUE_SCHEMA: &str =
+    "gentle.primer_variant_degenerate_rescue.v1";
+
+fn default_primer_variant_critical_3prime_bases() -> usize {
+    5
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+/// Orientation of an oligo-binding segment on the reference contig.
+pub enum PrimerVariantBindingStrand {
+    #[default]
+    Plus,
+    Minus,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+/// How probe-binding variants contribute to the pair-level evidence status.
+pub enum PrimerVariantProbeOverlapPolicy {
+    #[default]
+    Relevant,
+    ReportOnly,
+    Ignore,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+/// Assay region intersected by one variant allele.
+pub enum PrimerVariantOverlapKind {
+    #[default]
+    Primer,
+    Probe,
+    AmpliconOnly,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+/// Length-based variant class retained without claiming normalization.
+pub enum PrimerVariantKind {
+    Snv,
+    Mnv,
+    Insertion,
+    Deletion,
+    #[default]
+    Complex,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+/// Why an overlap can or cannot contribute to a mixed-base rescue proposal.
+pub enum PrimerVariantDegenerateRescueEligibility {
+    Eligible,
+    NotPrimerOverlap,
+    NotSimpleSnv,
+    IncompatibleReference,
+    SourceFiltered,
+    MissingFrequency,
+    BelowMinimumFrequency,
+    CriticalThreePrimeExcluded,
+    AlternateAlreadyRepresented,
+    #[default]
+    NotRequested,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(default, deny_unknown_fields)]
+/// One contiguous genomic segment contributing bases to an oligo binding site.
+///
+/// `reference_sequence_5_to_3` follows increasing reference coordinates. The
+/// oligo offsets follow the supplied oligo sequence in synthesis orientation.
+pub struct PrimerVariantBindingSegment {
+    pub reference_name: String,
+    pub start_1based: usize,
+    pub end_1based: usize,
+    #[serde(default)]
+    pub strand: PrimerVariantBindingStrand,
+    pub oligo_start_0based: usize,
+    pub oligo_end_0based_exclusive: usize,
+    pub reference_sequence_5_to_3: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(default, deny_unknown_fields)]
+/// One contiguous reference segment in the intended amplicon.
+pub struct PrimerVariantAmpliconSegment {
+    pub reference_name: String,
+    pub start_1based: usize,
+    pub end_1based: usize,
+    pub reference_sequence_5_to_3: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(default, deny_unknown_fields)]
+/// One primer or probe plus its current assembly-aware binding geometry.
+pub struct PrimerVariantScreenOligo {
+    pub sequence_5_to_3: String,
+    #[serde(default)]
+    pub binding_segments: Vec<PrimerVariantBindingSegment>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+/// Declared origin of a candidate sequence; this remains provenance, not
+/// GENtle-computed validation.
+pub enum PrimerVariantCandidateSourceKind {
+    DeNovo,
+    PrimerBank,
+    CommercialCatalogue,
+    Literature,
+    Laboratory,
+    External,
+    #[default]
+    Unknown,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(default, deny_unknown_fields)]
+/// Immutable source attribution retained alongside GENtle-derived findings.
+pub struct PrimerVariantCandidateSource {
+    pub candidate_id: String,
+    #[serde(default)]
+    pub source_kind: PrimerVariantCandidateSourceKind,
+    pub source_id: String,
+    pub provider: String,
+    pub catalogue_id: String,
+    pub version: String,
+    pub url: String,
+    pub organism: String,
+    pub target_claim: String,
+    pub source_date: String,
+    pub content_sha256: String,
+    #[serde(default)]
+    pub annotations: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(default, deny_unknown_fields)]
+/// One physical primer pair and its explicit assembly-aware target geometry.
+pub struct PrimerVariantScreenCandidate {
+    pub candidate_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pair_id: Option<String>,
+    #[serde(default)]
+    pub source: PrimerVariantCandidateSource,
+    pub forward: PrimerVariantScreenOligo,
+    pub reverse: PrimerVariantScreenOligo,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub probe: Option<PrimerVariantScreenOligo>,
+    #[serde(default)]
+    pub amplicon_segments: Vec<PrimerVariantAmpliconSegment>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(default, deny_unknown_fields)]
+/// Provenance supplied with a direct local VCF/VCF.gz input.
+pub struct PrimerVariantSourceInput {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vcf_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub manifest_path: Option<String>,
+    pub reference_assembly: String,
+    pub source_name: String,
+    pub source_release: String,
+    pub population: String,
+    pub retrieval_time: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub allele_frequency_info_field: Option<String>,
+    /// INFO keys copied verbatim into overlap rows for downstream inspection.
+    #[serde(default)]
+    pub annotation_info_fields: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expected_content_sha256: Option<String>,
+    #[serde(default)]
+    pub contig_aliases: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(default, deny_unknown_fields)]
+/// Offline variant-resource manifest whose relative VCF path is resolved next
+/// to the manifest file.
+pub struct PrimerVariantResourceManifest {
+    pub schema: String,
+    pub vcf_path: String,
+    pub reference_assembly: String,
+    pub source_name: String,
+    pub source_release: String,
+    pub population: String,
+    pub retrieval_time: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub allele_frequency_info_field: Option<String>,
+    /// INFO keys copied verbatim into overlap rows for downstream inspection.
+    #[serde(default)]
+    pub annotation_info_fields: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expected_content_sha256: Option<String>,
+    #[serde(default)]
+    pub contig_aliases: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default, deny_unknown_fields)]
+/// Shared request for screening one or more physical primer pairs in one VCF
+/// pass. Duplicate physical pairs retain all source rows.
+pub struct PrimerVariantScreenRequest {
+    pub schema: String,
+    /// Assembly used to assign the candidate binding coordinates.
+    pub reference_assembly: String,
+    #[serde(default)]
+    pub source: PrimerVariantSourceInput,
+    #[serde(default)]
+    pub candidates: Vec<PrimerVariantScreenCandidate>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub maximum_allowed_frequency: Option<f64>,
+    #[serde(default = "default_primer_variant_critical_3prime_bases")]
+    pub critical_3prime_bases: usize,
+    #[serde(default)]
+    pub probe_overlap_policy: PrimerVariantProbeOverlapPolicy,
+    /// Enables mixed-base rescue proposals for simple primer SNVs at or above
+    /// this population allele frequency. Missing frequency never qualifies.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub degenerate_rescue_minimum_frequency: Option<f64>,
+    /// Critical 3-prime changes require an explicit opt-in because a mixed
+    /// base there can alter extension efficiency and allele balance.
+    #[serde(default)]
+    pub allow_critical_3prime_degenerate_rescue: bool,
+}
+
+impl Default for PrimerVariantScreenRequest {
+    fn default() -> Self {
+        Self {
+            schema: PRIMER_VARIANT_SCREEN_REQUEST_SCHEMA.to_string(),
+            reference_assembly: String::new(),
+            source: PrimerVariantSourceInput::default(),
+            candidates: Vec::new(),
+            maximum_allowed_frequency: None,
+            critical_3prime_bases: default_primer_variant_critical_3prime_bases(),
+            probe_overlap_policy: PrimerVariantProbeOverlapPolicy::default(),
+            degenerate_rescue_minimum_frequency: None,
+            allow_critical_3prime_degenerate_rescue: false,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 #[serde(default)]
 /// One population/reference variant overlapping an assay oligo.
@@ -9293,12 +9543,87 @@ pub struct PrimerVariantOverlap {
     pub variant_id: String,
     pub reference_name: String,
     pub position_1based: usize,
+    pub reference_end_1based: usize,
     pub reference_allele: String,
     pub alternate_allele: String,
+    #[serde(default)]
+    pub overlap_kind: PrimerVariantOverlapKind,
+    #[serde(default)]
+    pub variant_kind: PrimerVariantKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub oligo_position_1based: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub oligo_end_position_1based: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub distance_from_3prime_end: Option<usize>,
+    pub critical_three_prime: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reference_match: Option<bool>,
+    pub source_filter: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub allele_frequency: Option<f64>,
+    /// Selected source INFO values, retained as uninterpreted provenance.
+    #[serde(default)]
+    pub source_annotations: BTreeMap<String, String>,
     pub relevant_under_policy: bool,
+    #[serde(default)]
+    pub degenerate_rescue_eligibility: PrimerVariantDegenerateRescueEligibility,
     pub note: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[serde(default)]
+/// One source allele contributing to an IUPAC mixed-base change.
+pub struct PrimerVariantDegenerateRescueAllele {
+    pub variant_id: String,
+    pub reference_allele: String,
+    pub alternate_allele: String,
+    /// Alternate base in the primer's 5-prime-to-3-prime synthesis orientation.
+    pub primer_oriented_alternate_base: String,
+    pub allele_frequency: f64,
+    pub source_filter: String,
+    #[serde(default)]
+    pub source_annotations: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[serde(default)]
+/// One position changed from the original oligo to a mixed IUPAC base.
+pub struct PrimerVariantDegenerateRescueChange {
+    pub role: String,
+    pub original_oligo_id: String,
+    pub oligo_position_1based: usize,
+    pub original_iupac_base: String,
+    pub adjusted_iupac_base: String,
+    #[serde(default)]
+    pub represented_bases: Vec<String>,
+    pub critical_three_prime: bool,
+    #[serde(default)]
+    pub contributing_variants: Vec<PrimerVariantDegenerateRescueAllele>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[serde(default)]
+/// A deterministic post-screen mixed-base oligo proposal.
+///
+/// This describes a synthesis mixture, not a genotype call, and always has a
+/// new physical pair identity that requires its own assay validation.
+pub struct PrimerVariantDegenerateRescueSuggestion {
+    pub schema: String,
+    pub original_pair_id: String,
+    pub adjusted_pair_id: String,
+    pub original_forward_sequence_5_to_3: String,
+    pub adjusted_forward_sequence_5_to_3: String,
+    pub original_reverse_sequence_5_to_3: String,
+    pub adjusted_reverse_sequence_5_to_3: String,
+    #[serde(default)]
+    pub changes: Vec<PrimerVariantDegenerateRescueChange>,
+    pub forward_mixture_complexity: usize,
+    pub reverse_mixture_complexity: usize,
+    pub pair_mixture_complexity: usize,
+    pub requires_new_validation: bool,
+    #[serde(default)]
+    pub warnings: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
@@ -9317,10 +9642,52 @@ pub struct PrimerVariantEvidenceReport {
     pub normalization_method: String,
     pub retrieval_time: String,
     pub content_sha256: String,
+    pub request_sha256: String,
+    pub source_path: String,
+    #[serde(default)]
+    pub candidate_sources: Vec<PrimerVariantCandidateSource>,
+    #[serde(default = "default_primer_variant_critical_3prime_bases")]
+    pub critical_3prime_bases: usize,
+    #[serde(default)]
+    pub probe_overlap_policy: PrimerVariantProbeOverlapPolicy,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub degenerate_rescue_minimum_frequency: Option<f64>,
+    #[serde(default)]
+    pub allow_critical_3prime_degenerate_rescue: bool,
+    #[serde(default)]
+    pub screened_reference_names: Vec<String>,
+    pub vcf_record_count: usize,
+    pub overlapping_record_count: usize,
     #[serde(default)]
     pub status: PrimerVariantEvidenceStatus,
     #[serde(default)]
     pub overlaps: Vec<PrimerVariantOverlap>,
+    #[serde(default)]
+    pub degenerate_rescue_suggestions: Vec<PrimerVariantDegenerateRescueSuggestion>,
+    #[serde(default)]
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[serde(default)]
+/// Deterministic wrapper for all per-pair v1 evidence reports produced from one
+/// VCF pass.
+pub struct PrimerVariantScreenReport {
+    pub schema: String,
+    pub screen_id: String,
+    pub request_sha256: String,
+    pub reference_assembly: String,
+    pub source_name: String,
+    pub source_release: String,
+    pub population: String,
+    pub source_path: String,
+    pub content_sha256: String,
+    pub candidate_count: usize,
+    pub unique_pair_count: usize,
+    pub vcf_record_count: usize,
+    pub overlapping_record_count: usize,
+    #[serde(default)]
+    pub evidence_reports: Vec<PrimerVariantEvidenceReport>,
     #[serde(default)]
     pub warnings: Vec<String>,
 }

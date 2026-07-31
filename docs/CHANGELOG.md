@@ -14,6 +14,20 @@ understand what changed.
 
 ## 2026-07-31
 
+- Added project-backed and Salmon-aware read sourcing to
+  `rna-reads allele-hash-screen`: target-gene accepted reads can flow directly
+  from a persisted RNA-read report, Salmon outputs select IDs from explicit
+  sequence files, and `gentle.rna_allele_hash_screen.v2` records per-read and
+  aggregate source provenance while retaining v1 deserialization.
+- Added offline, assembly-aware primer/probe variation screening through
+  `ScreenPrimerVariants` and `primers screen-variants`: one local VCF pass now
+  emits source-fingerprinted, strand-aware, handoff-ready
+  `gentle.primer_variant_evidence.v1` reports without treating unknown allele
+  frequency or incompatible reference evidence as clear. An optional
+  frequency-gated follow-up now proposes newly identified mixed-IUPAC primer
+  pairs for frequent simple SNPs, preserves selected VCF annotations for
+  inspection, and reuses IUPAC-aware cDNA matching without treating a synthesis
+  mixture as a genotype or splice-effect correction.
 - Linked reasoning-guided dotplots back to their recommending
   construct-reasoning graphs in interactive and exported lineage views;
   lineage details now distinguish verified, failed, unknown, and absent/manual
