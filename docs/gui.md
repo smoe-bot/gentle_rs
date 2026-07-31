@@ -2143,6 +2143,12 @@ Node click behavior in lineage `Graph` view:
     - mode/model/backend depending on artifact family
     - point/bin count for dotplot/flexibility artifacts
     - pair/assay count for persisted primer/qPCR reports
+  - reasoning-guided dotplots are linked from the construct-reasoning graph
+    that recommended them; citation-free dotplots are labelled as manual/no
+    reasoning citation rather than failed
+  - selected dotplot details show the citation as visually distinct `PASS`,
+    `FAIL`, or `UNKNOWN`, plus rationale, action id, driving evidence ids,
+    verification reasons, and a shortcut back to the recommending graph
 
 Node groups in lineage view:
 
@@ -5224,9 +5230,20 @@ Tutorial projects:
   - the same window now also exposes local ortholog promoter cohorts through
     the shared `ResolveOrthologPromoterCohort` and
     `SummarizeOrthologPromoterComparison` operations:
+    - the ambiguity selector exposes `reject`, deterministic warning-bearing
+      `first`, and `preserve`; preserved mappings remain unresolved and are
+      displayed as reviewable candidate rows with identity, relationship,
+      confidence, source, evidence, genome, and context
     - rows show per-species promoter windows, strand/TSS placement, pairwise
       TFBS similarity, relationship expectation flags, and CUT&RUN support
       states
+    - optional normalized CUT&RUN JSON names the method, unit, shared
+      comparison reference, provenance, and one source-bound value per
+      resolved promoter; incomplete records remain `not_comparable` and do
+      not cause raw cross-species intensity comparison
+    - `Export ortholog cohort JSON...` and `Export ortholog comparison
+      JSON...` rerun the same shared operations with an output path instead of
+      serializing GUI-only state
     - wording frames the result as cross-species association evidence, not
       proof of conserved regulation
   - the same window now also exposes `Inspect TFBS occupancy support`, which

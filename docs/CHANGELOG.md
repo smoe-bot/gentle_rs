@@ -14,6 +14,18 @@ understand what changed.
 
 ## 2026-07-31
 
+- Linked reasoning-guided dotplots back to their recommending
+  construct-reasoning graphs in interactive and exported lineage views;
+  lineage details now distinguish verified, failed, unknown, and absent/manual
+  citations and expose the stored rationale and driving evidence ids.
+- Kept tutorial evidence digests byte-exact while tolerating Windows CRLF
+  checkouts: the tutorial runner stages an LF-normalized UTF-8 input only when
+  that normalized content exactly matches the pinned SHA-256 digest. Windows
+  builds also no longer import the Unix-only SIGUSR1 `AtomicBool`.
+- Persisted construct-reasoning inspection provenance on stored dotplots:
+  payloads and list summaries now retain operation/run identity plus a verified
+  graph/action/fact/evidence/request citation, while manual absence remains
+  distinct from failed or unknown verification.
 - Preserved an existing gene-set resolution's operation/run identity when
   deriving a promoter cohort, preventing one logical source set from appearing
   as duplicate lineage nodes. Anonymous inline resolutions still receive a
@@ -23,6 +35,16 @@ understand what changed.
   hard-coding Clariom D Human, allows only an unambiguous package-local
   fallback, and refuses probeset runs that would otherwise emit coordinate
   columns without annotations.
+- Completed Promoter design parity for ortholog ambiguity review and export:
+  the GUI now exposes `reject|first|preserve`, renders preserved mapping
+  candidates, and exports cohort/comparison JSON through the shared engine
+  operations.
+- Added an additive, fail-closed normalized CUT&RUN contract to
+  `gentle.ortholog_promoter_comparison.v1`. Quantitative cross-species rows
+  require explicit method, unit, shared reference, provenance, one
+  source-bound value per resolved promoter, and matching selected evidence;
+  otherwise GENtle retains qualitative states and reports `not_comparable`
+  without comparing raw intensity.
 
 ## 2026-07-30
 

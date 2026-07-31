@@ -1211,11 +1211,16 @@ UniProt mapping capability status:
     stores the resulting dotplot payload, and optionally invokes
     `RenderDotplotSvg` for an evidence artifact. The structured response also
     includes the resolved `compute_parameters` block used for the shared
-    operation. A fingerprinted stale graph is rejected until the reasoning
-    build route that created it is rerun, preventing old action ranges from
-    being run against changed sequence/features, objective intent, or reasoning
-    rules. Legacy graphs without fingerprints remain readable with `unknown`
-    freshness.
+    operation. The stored dotplot and its list summary retain `op_id`, `run_id`,
+    and a typed `gentle.dotplot_inspection_provenance_citation.v1` citation to
+    the graph, action, rationale, source facts/annotations/candidates/summaries,
+    driving evidence, fingerprint, and resolved dotplot parameters. A
+    fingerprinted stale graph is rejected until the reasoning build route that
+    created it is rerun, preventing old action ranges from being run against
+    changed sequence/features, objective intent, or reasoning rules. Request or
+    source mismatches persist as `status=fail`; unverifiable legacy snapshots
+    remain `unknown`. Manual dotplots omit the citation rather than recording a
+    failed one.
   - `construct-reasoning set-annotation-status` updates one persisted
     annotation candidate in place and returns:
     - the updated portable graph
@@ -5350,7 +5355,7 @@ Tutorial companion:
   - Optional `--relationship` records an expected cross-species association
     without deriving evidence flags until a comparison is run.
   - Returns portable schema `gentle.ortholog_promoter_cohort.v1`.
-- `orthologs promoter-comparison --cohort COHORT.json --motif TOKEN [--motif TOKEN ...|--motifs CSV] [--score-kind KIND] [--allow-negative] [--relationship manual|co-regulated|anti-co-regulated] [--expression-json JSON] [--expression-source-label LABEL] [--cutrun-dataset-id ID] [--cutrun-read-report-id ID] [--path OUTPUT.json]`
+- `orthologs promoter-comparison --cohort COHORT.json --motif TOKEN [--motif TOKEN ...|--motifs CSV] [--score-kind KIND] [--allow-negative] [--relationship manual|co-regulated|anti-co-regulated] [--expression-json JSON] [--expression-source-label LABEL] [--cutrun-dataset-id ID] [--cutrun-read-report-id ID] [--cutrun-normalization-json JSON_OR_@FILE] [--path OUTPUT.json]`
   - Runs engine `SummarizeOrthologPromoterComparison`.
   - Compares a resolved ortholog promoter cohort across separate evidence
     channels: promoter-sequence identity, TFBS score-track similarity, motif
@@ -5358,9 +5363,19 @@ Tutorial companion:
     comparability states.
   - CUT&RUN source ids can assign species/genome-matched occupancy support
     (`confirmed`, `nearby`, `motif_only`, `occupancy_only`, or `no_data`).
-    Rows without matching provenance are `not_comparable`; raw cross-species
-    peak intensity is not compared unless future normalized/provenanced
-    evidence is supplied.
+    Rows without matching provenance are `not_comparable`.
+  - `--cutrun-normalization-json` accepts an inline JSON object, a JSON file
+    path, or `@FILE`. The record supplies `normalization_method`, `unit`,
+    `comparison_reference`, `provenance`, and `values[]`; every value names
+    its species, normalized value, and contributing selected dataset/read
+    report ids. Optional `gene_label`, `transcript_id`, and per-value
+    `provenance` disambiguate assignments.
+  - Quantitative output is fail-closed. Missing/incomplete metadata, unmatched
+    promoter values, unselected sources, or species/genome-incompatible
+    sources produce `cutrun_quantitative_comparison.status=not_comparable`
+    and no numeric pairwise rows. Qualitative motif/occupancy states remain
+    available, and raw peak/signal/read-count values are never compared
+    directly across species.
   - Optional `--relationship` emits non-blocking expectation flags:
     co-regulated flags unexpected TFBS/CUT&RUN divergence, while
     anti-co-regulated flags unexpected concordance.

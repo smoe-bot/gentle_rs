@@ -3082,6 +3082,99 @@ fn execute_construct_reasoning_inspection_action_commands_list_and_run_dotplot()
                 run.output["dotplot"]["span_end_0based"].as_u64(),
                 Some(expected_dotplot_request.span_end_0based as u64)
             );
+            assert_eq!(
+                run.output["dotplot"]["op_id"],
+                run.output["result"]["op_id"]
+            );
+            assert_eq!(
+                run.output["dotplot"]["run_id"].as_str(),
+                Some("interactive")
+            );
+            let citation = &run.output["dotplot"]["inspection_provenance"];
+            assert_eq!(
+                citation["schema"].as_str(),
+                Some("gentle.dotplot_inspection_provenance_citation.v1")
+            );
+            assert_eq!(citation["status"].as_str(), Some("pass"));
+            assert_eq!(citation["graph_id"].as_str(), Some(graph.graph_id.as_str()));
+            assert_eq!(
+                citation["action_id"].as_str(),
+                Some(protocol_action.action_id.as_str())
+            );
+            assert_eq!(
+                citation["rationale"].as_str(),
+                Some(protocol_action.rationale.as_str())
+            );
+            assert_eq!(
+                citation["source_fact_ids"],
+                serde_json::to_value(&protocol_action.source_fact_ids).expect("fact ids")
+            );
+            assert_eq!(
+                citation["driving_evidence_ids"],
+                serde_json::to_value(&protocol_action.driving_evidence_ids)
+                    .expect("driving evidence ids")
+            );
+            let stored = engine
+                .get_dotplot_view("reasoning_action_plot")
+                .expect("stored reasoning-guided dotplot");
+            assert_eq!(
+                stored
+                    .inspection_provenance
+                    .as_ref()
+                    .map(|citation| citation.status),
+                Some(crate::engine::DotplotInspectionProvenanceStatus::Pass)
+            );
+            let listed_summary = engine
+                .list_dotplot_views(Some("seq_reasoning_similarity"))
+                .into_iter()
+                .find(|row| row.dotplot_id == "reasoning_action_plot")
+                .expect("listed reasoning-guided dotplot");
+            assert_eq!(
+                listed_summary
+                    .inspection_provenance
+                    .as_ref()
+                    .map(|citation| citation.action_id.as_str()),
+                Some(protocol_action.action_id.as_str())
+            );
+            execute_shell_command(
+                &mut engine,
+                &ShellCommand::ConstructReasoningRunInspectionAction {
+                    graph_id: graph.graph_id.clone(),
+                    action_id: direct_action.action_id.clone(),
+                    word_size: 4,
+                    step_bp: 1,
+                    max_mismatches: 0,
+                    tile_bp: Some(128),
+                    dotplot_id: Some("reasoning_action_plot_direct".to_string()),
+                    render_svg_path: None,
+                },
+            )
+            .expect("run direct-repeat inspection action");
+            let direct_stored = engine
+                .get_dotplot_view("reasoning_action_plot_direct")
+                .expect("stored direct-repeat reasoning-guided dotplot");
+            let reverse_citation = stored
+                .inspection_provenance
+                .as_ref()
+                .expect("reverse-complement citation");
+            let direct_citation = direct_stored
+                .inspection_provenance
+                .as_ref()
+                .expect("direct-repeat citation");
+            assert_eq!(
+                reverse_citation.dotplot_mode,
+                DotplotMode::SelfReverseComplement
+            );
+            assert_eq!(direct_citation.dotplot_mode, DotplotMode::SelfForward);
+            assert_ne!(reverse_citation.action_id, direct_citation.action_id);
+            assert_eq!(
+                reverse_citation.driving_evidence_ids, protocol_action.driving_evidence_ids,
+                "reverse-complement citation must retain its action-owned evidence set"
+            );
+            assert_eq!(
+                direct_citation.driving_evidence_ids, direct_action.driving_evidence_ids,
+                "direct-repeat citation must retain its action-owned evidence set"
+            );
             assert!(run.output["render_result"].is_object());
             assert!(svg_path.exists());
 
@@ -32031,7 +32124,7 @@ fn parse_orthologs_resolve_promoter_cohort_and_comparison() {
     assert!(invalid_policy.contains("expected reject, first, or preserve"));
 
     let compare = parse_shell_line(
-        r#"orthologs promoter-comparison --cohort cohort.json --motif TP73 --motifs SP1,BACH2 --score-kind llr_background_tail_log10 --allow-negative --relationship anti-co-regulated --expression-json '{"gene_label":"TP73","condition":"case","value":7.5,"unit":"TPM"}' --source-label rna_demo --cutrun-dataset-id cutrun_demo --path comparison.json"#,
+        r#"orthologs promoter-comparison --cohort cohort.json --motif TP73 --motifs SP1,BACH2 --score-kind llr_background_tail_log10 --allow-negative --relationship anti-co-regulated --expression-json '{"gene_label":"TP73","condition":"case","value":7.5,"unit":"TPM"}' --source-label rna_demo --cutrun-dataset-id cutrun_demo --cutrun-normalization-json '{"normalization_method":"spike_in_scaled_cpm","unit":"normalized_fragments_per_million","comparison_reference":"batch_1","provenance":"synthetic parser test","values":[]}' --path comparison.json"#,
     )
     .expect("parse ortholog promoter comparison");
     match compare {
@@ -32046,6 +32139,7 @@ fn parse_orthologs_resolve_promoter_cohort_and_comparison() {
             expression_source_label,
             cutrun_dataset_ids,
             cutrun_read_report_ids,
+            cutrun_normalization,
             output,
         } => {
             assert!(cohort.is_none());
@@ -32062,6 +32156,9 @@ fn parse_orthologs_resolve_promoter_cohort_and_comparison() {
             assert_eq!(expression_source_label.as_deref(), Some("rna_demo"));
             assert_eq!(cutrun_dataset_ids, vec!["cutrun_demo".to_string()]);
             assert!(cutrun_read_report_ids.is_empty());
+            let normalization = cutrun_normalization.expect("CUT&RUN normalization input");
+            assert_eq!(normalization.normalization_method, "spike_in_scaled_cpm");
+            assert_eq!(normalization.comparison_reference, "batch_1");
             assert_eq!(output.as_deref(), Some("comparison.json"));
         }
         other => panic!("unexpected command: {other:?}"),

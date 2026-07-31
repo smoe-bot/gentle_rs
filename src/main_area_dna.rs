@@ -99,14 +99,16 @@ use crate::{
         AttractPwmMappingPolicy, AttractRegionClass, AttractSplicingEvidenceHitRow,
         AttractSplicingEvidenceSettings, AttractSplicingEvidenceView,
         CandidateFeatureStrandRelation, CandidateRecord, CandidateSetOperator,
-        ConstructReasoningGraph, ConstructReasoningGraphFreshness,
-        ConstructReasoningGraphSnapshotStatus, ConstructReasoningInspectionAction, ConstructRole,
+        ConstructReasoningActionDotplotRequest, ConstructReasoningGraph,
+        ConstructReasoningGraphFreshness, ConstructReasoningGraphSnapshotStatus,
+        ConstructReasoningInspectionAction, ConstructRole,
         CutRunMotifAbsentOccupancyInterpretation, CutRunMotifContextScope,
         CutRunRegulatoryEvidenceSourceKind, CutRunRegulatorySupportReport,
         CutRunRegulatoryTfbsConfirmationStatus, CutRunSupportStrength, DecisionMethod,
-        DesignDecisionNode, DesignFact, DisplaySettings, DisplayTarget, DotplotMode,
-        DotplotOverlayAnchorExonRef, DotplotOverlayXAxisMode, DotplotView, EditableStatus, Engine,
-        EngineError, ErrorCode, EvidenceClass, ExonSkipSelectionCriterion, ExonSkipSelectionPlan,
+        DesignDecisionNode, DesignFact, DisplaySettings, DisplayTarget,
+        DotplotInspectionRequestSnapshot, DotplotMode, DotplotOverlayAnchorExonRef,
+        DotplotOverlayXAxisMode, DotplotView, EditableStatus, Engine, EngineError, ErrorCode,
+        EvidenceClass, ExonSkipSelectionCriterion, ExonSkipSelectionPlan,
         ExperimentalAssayHandoffReport, ExperimentalAssayReadinessPolicy,
         ExperimentalAssayReadinessState, ExportFormat, FlexibilityModel, FlexibilityTrack,
         GenomeAnchorPreparedFallbackPolicy, GenomeAnchorSide, GentleEngine,
@@ -158,6 +160,7 @@ use crate::{
         TranscriptAssayPracticalityClassification, TranscriptAssayPracticalityPolicy,
         TranscriptAssayUseTier, VariantAlleleChoice, VariantPromoterContextReport, Workflow,
         construct_reasoning_action_dotplot_request,
+        construct_reasoning_dotplot_inspection_provenance,
         resolve_formula_roi_range_inputs_0based_on_sequence,
         resolve_selection_formula_range_0based_on_sequence,
     },
@@ -206,7 +209,8 @@ use crate::{
 use eframe::egui::{self, Frame, PointerState, Vec2};
 use gentle_gui::theme;
 use gentle_protocol::{
-    GeneSetCohortRelationship, OrthologAmbiguityPolicy, OrthologCutRunSupportStatus,
+    GeneSetCohortRelationship, OrthologAmbiguityPolicy, OrthologCutRunNormalizationInput,
+    OrthologCutRunQuantitativeComparisonStatus, OrthologCutRunSupportStatus,
     OrthologPromoterCohortReport, OrthologPromoterComparisonReport,
 };
 use serde::{Deserialize, Serialize};
@@ -1750,6 +1754,14 @@ struct ConstructReasoningInspectorCache {
 
 type ConstructReasoningDotplotAction = ConstructReasoningInspectionAction;
 
+#[derive(Clone, Debug)]
+struct ConstructReasoningDotplotProvenanceContext {
+    graph: ConstructReasoningGraph,
+    action: ConstructReasoningInspectionAction,
+    snapshot_status: ConstructReasoningGraphSnapshotStatus,
+    resolved_request: ConstructReasoningActionDotplotRequest,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct ConstructReasoningOverlaySyncKey {
     seq_id: String,
@@ -1846,6 +1858,8 @@ struct VariantFollowupUiState {
     ortholog_cache_dir: String,
     ortholog_cutrun_dataset_ids: String,
     ortholog_cutrun_read_report_ids: String,
+    ortholog_cutrun_normalization_json: String,
+    ortholog_ambiguity_policy: OrthologAmbiguityPolicy,
     ortholog_relationship: GeneSetCohortRelationship,
     tfbs_focus_half_window_bp: String,
     retain_downstream_from_tss_bp: String,
@@ -1924,6 +1938,8 @@ impl Default for VariantFollowupUiState {
             ortholog_cache_dir: String::new(),
             ortholog_cutrun_dataset_ids: String::new(),
             ortholog_cutrun_read_report_ids: String::new(),
+            ortholog_cutrun_normalization_json: String::new(),
+            ortholog_ambiguity_policy: OrthologAmbiguityPolicy::Reject,
             ortholog_relationship: GeneSetCohortRelationship::Unspecified,
             cached_ortholog_promoter_cohort: None,
             cached_ortholog_promoter_comparison: None,
@@ -13384,7 +13400,8 @@ impl MainAreaDna {
         &mut self,
         action: &ConstructReasoningDotplotAction,
     ) -> Result<(), String> {
-        self.ensure_construct_reasoning_inspection_action_is_current()?;
+        let (graph, snapshot_status) =
+            self.resolve_construct_reasoning_inspection_action_context(action)?;
         let seq_id = self.seq_id.clone().ok_or_else(|| {
             "No active sequence selected for reasoning-guided dotplot".to_string()
         })?;
@@ -13392,6 +13409,16 @@ impl MainAreaDna {
         let dotplot_request =
             construct_reasoning_action_dotplot_request(action, &seq_id, sequence_len)
                 .map_err(|err| err.message)?;
+        if matches!(
+            dotplot_request.mode,
+            DotplotMode::PairForward | DotplotMode::PairReverseComplement
+        ) {
+            return Err(format!(
+                "Inspection action '{}' requests pairwise dotplot mode '{}' but does not encode a reference sequence",
+                action.action_id,
+                dotplot_request.mode.as_str()
+            ));
+        }
         let viewport_start_0based = dotplot_request.span_start_0based;
         let viewport_end_0based_exclusive = dotplot_request.span_end_0based;
         let half_window_bp = viewport_end_0based_exclusive
@@ -13411,14 +13438,30 @@ impl MainAreaDna {
         self.dotplot_ui.reference_span_end_0based.clear();
         self.dotplot_ui.flex_track_id.clear();
         self.clear_dotplot_query_override();
-        self.dotplot_ui.dotplot_id = dotplot_request.store_as;
+        self.dotplot_ui.dotplot_id = dotplot_request.store_as.clone();
         self.primary_map_mode = PrimaryMapMode::Dotplot;
-        self.compute_primary_dotplot();
+        self.compute_primary_dotplot_with_inspection_context(Some(
+            ConstructReasoningDotplotProvenanceContext {
+                graph,
+                action: action.clone(),
+                snapshot_status,
+                resolved_request: dotplot_request,
+            },
+        ));
         self.open_dotplot_window();
         Ok(())
     }
 
-    fn ensure_construct_reasoning_inspection_action_is_current(&self) -> Result<(), String> {
+    fn resolve_construct_reasoning_inspection_action_context(
+        &self,
+        action: &ConstructReasoningDotplotAction,
+    ) -> Result<
+        (
+            ConstructReasoningGraph,
+            ConstructReasoningGraphSnapshotStatus,
+        ),
+        String,
+    > {
         let graph_id = self
             .focused_construct_reasoning_graph_id
             .as_deref()
@@ -13428,18 +13471,45 @@ impl MainAreaDna {
                     .map(|cache| cache.graph_id.as_str())
             })
             .filter(|graph_id| !graph_id.trim().is_empty());
-        let (Some(graph_id), Some(engine)) = (graph_id, self.engine.as_ref()) else {
-            return Ok(());
-        };
+        let engine = self.engine.as_ref().ok_or_else(|| {
+            "Could not verify reasoning-guided dotplot provenance: no engine is attached"
+                .to_string()
+        })?;
         let engine = engine
             .read()
             .map_err(|_| "Could not verify construct-reasoning graph freshness".to_string())?;
-        let graph = engine
-            .construct_reasoning_graph(graph_id)
-            .map_err(|error| error.message)?;
+        let graph = if let Some(graph_id) = graph_id {
+            engine
+                .construct_reasoning_graph(graph_id)
+                .map_err(|error| error.message)?
+        } else {
+            let active_seq_id = self.seq_id.as_deref().unwrap_or_default();
+            engine
+                .construct_reasoning_store()
+                .graphs
+                .into_values()
+                .filter(|graph| {
+                    graph.seq_id.eq_ignore_ascii_case(active_seq_id)
+                        && graph
+                            .inspection_actions
+                            .iter()
+                            .any(|row| row.action_id == action.action_id)
+                })
+                .max_by(|left, right| {
+                    left.generated_at_unix_ms
+                        .cmp(&right.generated_at_unix_ms)
+                        .then(left.graph_id.cmp(&right.graph_id))
+                })
+                .ok_or_else(|| {
+                    format!(
+                        "Could not find the construct-reasoning graph for inspection action '{}'",
+                        action.action_id
+                    )
+                })?
+        };
         let status = engine.construct_reasoning_graph_snapshot_status(&graph);
         if status.freshness != ConstructReasoningGraphFreshness::Stale {
-            return Ok(());
+            return Ok((graph, status));
         }
         let reasons = if status.reasons.is_empty() {
             "current sequence, objective, or reasoning rules changed".to_string()
@@ -13447,7 +13517,8 @@ impl MainAreaDna {
             status.reasons.join(" ")
         };
         Err(format!(
-            "Construct-reasoning graph '{graph_id}' is stale; refresh it before running this inspection action. {reasons}"
+            "Construct-reasoning graph '{}' is stale; refresh it before running this inspection action. {reasons}",
+            graph.graph_id
         ))
     }
 
