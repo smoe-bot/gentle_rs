@@ -122,6 +122,43 @@ cargo run --bin gentle_cli -- arrays import-apt-probe-region-output \
   --genome-build GRCh38.p14
 ```
 
+## Probe-Set Activity Presentation
+
+For figure preparation from a local full E-MTAB-14704/Affymetrix working set,
+GENtle keeps the code path in Git while leaving bulky CEL-derived
+intermediates outside the repository. The helper below renders a selected
+gene-panel view from explicit local inputs:
+
+```bash
+python3 scripts/render_clariomd_probe_set_activity.py \
+  --raw-features analysis/e_mtab_14704_tp73_microarray/all_arrays_raw_features.tsv \
+  --sqlite analysis/e_mtab_14704_tp73_microarray/Rlib/pd.clariom.d.human/extdata/pd.clariom.d.human.sqlite \
+  --vendor-probeset-zip data/publication_resources/rostock_p73_clariomd_e_mtab_14704/library/Clariom_D_Human-na36-hg38-probeset-csv.zip \
+  --output-dir analysis/e_mtab_14704_tp73_microarray/gene_panel_probe_set_activity \
+  --genes TP73,FUS,PATZ1,E2F1,TARDBP,PLK1,TERT,HDAC1,HDAC2,HDAC6
+```
+
+Expected local-only outputs include:
+
+- `probe_set_activity_summary.tsv`: probeset-level raw PM-probe means and
+  group-level log2 contrasts.
+- `probe_level_activity.tsv`: selected PM-probe raw intensities.
+- `gene_contrast_probe_set_summary.png/.svg/.pdf`: compact per-gene contrast
+  distributions.
+- `probe_set_individual_arrays_heatmap_10_gene.png/.pdf`: the nine arrays as
+  individual columns, grouped by paired experiment/time/person. Rows follow the
+  `--genes` order and are sorted within each gene by mean paired
+  `TAp73alpha_i - GFP_i`.
+- `probe_set_paired_contrast_heatmap_10_gene.png/.pdf`: within-experiment
+  contrasts such as `TAp73alpha_i - GFP_i` and `DNp73beta_i - GFP_i`, using the
+  same row order as the individual-array heatmap.
+- `paired_gene_level_summary.tsv`: per-gene median paired contrasts.
+
+These outputs are deliberately uncommitted derived analysis artifacts. The raw
+feature table can be regenerated from CEL files with APT-style probe extraction
+or equivalent local tooling; the script only consumes that explicit table and
+does not claim a formal expression model or isoform-support verdict.
+
 ## Committed Fixture Validation Path
 
 The committed validation fixture is deterministic and safe for CI:
