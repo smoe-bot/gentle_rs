@@ -1,14 +1,13 @@
 # TSS-local regulatory-feature similarity in the tall locus reports
 
-> **Historical publication; refresh required.** The retained figures and receipts
-> are from `49596e68`, not the subsequent renderer fixes. Review found mirrored
-> minus-strand query strips and overlapping CD44/SERPINE1 interpretation footers,
-> as well as missing checks binding selected TSS metadata and the source figures.
-> Their hashes are preserved; passing an integrity check does not validate the
-> old presentation. Regenerate from the original locus JSON/SVG and reference
-> inputs with the corrected preparation/comparison/rendering pipeline before
-> using these figures for interpretation. The new upper-genome TSS-stretch
-> references described below are not yet present in these historical files.
+> **Corrected real-data refresh.** The retained candidates, comparison, figures,
+> and receipts were regenerated from exact producer revision `00887e42` after
+> re-exporting the three locus JSON/SVG pairs offline with verified genome
+> anchors. They include source-report/SVG binding, strand-aware query plotting,
+> content-aware footer placement, and labelled upper-genome TSS-stretch
+> references. The preparation also accepts an assembly anchor such as `GRCh38`
+> only as an exact delimited token of a receipt-bound catalog identifier such as
+> `Human GRCh38 Ensembl 116`; near-substrings and other assemblies fail closed.
 
 This bundle extends the existing tall `CD44`, `TGFB1`, and `SERPINE1`
 promoter–reporter architecture reports. Their transcript models, proposed

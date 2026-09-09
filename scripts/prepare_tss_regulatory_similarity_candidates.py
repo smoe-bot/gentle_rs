@@ -8,6 +8,7 @@ from collections import defaultdict
 import hashlib
 import json
 from pathlib import Path
+import re
 import subprocess
 from typing import Any
 
@@ -130,12 +131,27 @@ def validate_selected_region(row, reference, windows, transcripts, sequences) ->
             "selected sequence digest, length or orientation mismatch")
 
 
+def reference_ids_compatible(promoterome_id: str, anchor_id: str) -> bool:
+    """Match an assembly anchor to a receipt-bound catalog identifier.
+
+    Locus reports carry the assembly identifier (for example ``GRCh38``), while
+    prepared-genome receipts carry a catalog identifier (for example
+    ``Human GRCh38 Ensembl 116``).  Accept only exact normalized equality or an
+    exact delimited token; never a substring such as ``GRCh3`` in ``GRCh38``.
+    """
+    promoterome_tokens = {
+        token.casefold() for token in re.findall(r"[A-Za-z0-9_.-]+", promoterome_id)
+    }
+    return anchor_id.casefold() == promoterome_id.casefold() or anchor_id.casefold() in promoterome_tokens
+
+
 def validate_locus_reference(report, windows, genome_id) -> None:
     anchor = (report.get("sequence_binding") or {}).get("genome_anchor") or {}
     chromosomes = {window["chromosome"] for window in windows}
     strands = {window["strand"] for window in windows}
     require(len(chromosomes) == len(strands) == 1, "gene has mixed chromosome/strand TSS windows")
-    require(anchor.get("genome_id") == genome_id
+    require(isinstance(anchor.get("genome_id"), str)
+            and reference_ids_compatible(genome_id, anchor["genome_id"])
             and anchor.get("chromosome") == next(iter(chromosomes))
             and report.get("gene_strand") == next(iter(strands))
             and report.get("isoform_evidence", {}).get("chromosome") == anchor.get("chromosome"),

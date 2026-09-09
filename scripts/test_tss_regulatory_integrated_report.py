@@ -157,6 +157,15 @@ def plot_fixture(strand="+", match_counts=(2,)):
 
 
 class SourceBindingTests(unittest.TestCase):
+    def test_locus_assembly_anchor_matches_delimited_catalog_identifier(self):
+        self.assertTrue(PREPARE.reference_ids_compatible(
+            "Human GRCh38 Ensembl 116", "GRCh38"))
+        self.assertTrue(PREPARE.reference_ids_compatible("GRCh38", "grch38"))
+        self.assertFalse(PREPARE.reference_ids_compatible(
+            "Human GRCh38 Ensembl 116", "GRCh3"))
+        self.assertFalse(PREPARE.reference_ids_compatible(
+            "Human GRCh38 Ensembl 116", "GRCh37"))
+
     def test_preparation_binds_sources_and_extracts_both_strands(self):
         for strand, expected_base in [("+", "A"), ("-", "T")]:
             with self.subTest(strand=strand), TemporaryDirectory() as tmp:
