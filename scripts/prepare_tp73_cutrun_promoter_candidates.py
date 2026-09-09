@@ -84,7 +84,8 @@ def extract_fasta(path: Path, wanted: set[str]) -> dict[str, str]:
     return {name: "".join(chunks) for name, chunks in found.items()}
 
 
-def selected_inputs(promoterome: Path):
+def selected_inputs(promoterome: Path, selected_transcripts=None):
+    selected_transcripts = selected_transcripts or SELECTED_TRANSCRIPTS
     receipt = validate_promoterome(promoterome)
     require(receipt["genome_id"] == "Human GRCh38 Ensembl 116",
             "TP73 track selection requires Human GRCh38 Ensembl 116")
@@ -97,7 +98,7 @@ def selected_inputs(promoterome: Path):
             "promoter window inventory disagrees with receipt")
     require(len(mappings) == receipt["included_transcript_count"],
             "transcript inventory disagrees with receipt")
-    expected = {transcript: gene for gene, transcripts in SELECTED_TRANSCRIPTS.items()
+    expected = {transcript: gene for gene, transcripts in selected_transcripts.items()
                 for transcript in transcripts}
     selected = [row for row in mappings if row["transcript_id"] in expected]
     require(len(selected) == len(expected)
@@ -132,8 +133,17 @@ def prepare(args, *, open_bigwig=None) -> None:
     require(not output.exists() or not any(output.iterdir()), "Output directory must be absent or empty")
     promoterome = args.promoterome.resolve()
     track_root = args.track_root.resolve()
-    receipt, windows, selected_mappings, sequences = selected_inputs(promoterome)
-    selected_ids = set().union(*SELECTED_TRANSCRIPTS.values())
+    selected_transcripts = SELECTED_TRANSCRIPTS
+    if getattr(args, "target_transcripts", None) is not None:
+        raw = json.loads(args.target_transcripts.resolve(strict=True).read_text(encoding="utf-8"))
+        require(isinstance(raw, dict) and raw, "target transcript selection must be a non-empty object")
+        selected_transcripts = {gene: set(transcripts) for gene, transcripts in raw.items()}
+        require(all(isinstance(gene, str) and gene and isinstance(transcripts, set) and transcripts
+                    and all(isinstance(item, str) and item for item in transcripts)
+                    for gene, transcripts in selected_transcripts.items()),
+                "target transcript selection contains invalid values")
+    receipt, windows, selected_mappings, sequences = selected_inputs(promoterome, selected_transcripts)
+    selected_ids = set().union(*selected_transcripts.values())
     promoter_ids = sorted(sequences)
     repo = Path(__file__).resolve().parents[1]
     revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo, text=True).strip()
@@ -249,7 +259,7 @@ def prepare(args, *, open_bigwig=None) -> None:
             "regions": regions,
             "sequence_equivalence_classes": equivalence_classes,
             "selection_policy": {
-                "genes": sorted(SELECTED_TRANSCRIPTS),
+                "genes": sorted(selected_transcripts),
                 "transcripts": sorted(selected_ids),
                 "window": {"upstream_bp": receipt["upstream_bp"], "downstream_bp": receipt["downstream_bp"]},
                 "cutrun_support_rule": (
@@ -286,6 +296,7 @@ def main() -> None:
     parser.add_argument("--track-root", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--source-revision", required=True)
+    parser.add_argument("--target-transcripts", type=Path)
     prepare(parser.parse_args())
 
 

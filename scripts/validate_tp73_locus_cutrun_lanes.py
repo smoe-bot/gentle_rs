@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail closed unless the three TP73 locus reports retain all known BigWig lanes."""
+"""Fail closed unless requested TP73 locus reports retain all known BigWig lanes."""
 
 from __future__ import annotations
 
@@ -35,15 +35,16 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def declared_files(values: list[str], option: str) -> dict[str, Path]:
+def declared_files(values: list[str], option: str, expected_genes=None) -> dict[str, Path]:
+    expected_genes = expected_genes or EXPECTED_GENES
     result: dict[str, Path] = {}
     for value in values:
         gene, separator, filename = value.partition("=")
-        require(separator == "=" and gene in EXPECTED_GENES and gene not in result,
+        require(separator == "=" and gene in expected_genes and gene not in result,
                 f"{option} requires one unique GENE=PATH for each expected gene")
         result[gene] = Path(filename).resolve(strict=True)
-    require(set(result) == EXPECTED_GENES,
-            f"{option} must declare exactly {sorted(EXPECTED_GENES)}")
+    require(set(result) == set(expected_genes),
+            f"{option} must declare exactly {sorted(expected_genes)}")
     return result
 
 
@@ -224,6 +225,7 @@ def main() -> None:
     parser.add_argument("--request", action="append", required=True, metavar="GENE=PATH")
     parser.add_argument("--source-revision", required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--expected-gene", action="append")
     args = parser.parse_args()
     require(args.assembly_id.strip() == args.assembly_id and args.assembly_id,
             "--assembly-id must be a non-empty exact identifier")
@@ -233,17 +235,20 @@ def main() -> None:
     ).strip()
     require(args.source_revision == revision,
             "--source-revision must be the current checkout's full HEAD SHA")
-    reports = declared_files(args.report, "--report")
-    requests = declared_files(args.request, "--request")
+    expected_genes = set(args.expected_gene or EXPECTED_GENES)
+    require(expected_genes and all(gene and gene.upper() == gene for gene in expected_genes),
+            "--expected-gene values must be uppercase symbols")
+    reports = declared_files(args.report, "--report", expected_genes)
+    requests = declared_files(args.request, "--request", expected_genes)
     require(not args.output.exists(), f"Refusing to overwrite output: {args.output}")
     genes = [validate_gene(gene, reports[gene], requests[gene], args.assembly_id)
-             for gene in sorted(EXPECTED_GENES)]
+             for gene in sorted(expected_genes)]
     receipt = {
         "schema": SCHEMA,
         "source_revision": revision,
         "assembly_id": args.assembly_id,
         "requirements": {
-            "expected_genes": sorted(EXPECTED_GENES),
+            "expected_genes": sorted(expected_genes),
             "expected_lanes_per_gene": EXPECTED_LANES,
             "missing_intervals_are_zero": False,
             "native_signal_comparison": "exact_interval_multiset_with_importer_six_decimal_scores",
