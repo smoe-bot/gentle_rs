@@ -2,6 +2,16 @@
 
 ## 2026-09-09 - Promoterome preparation and ordered similarity inspection
 
+- Integrated the selected-gene promoterome result into the prior regulatory
+  evidence view at transcript-oriented −500/+200 bp. Every overlapping Ensembl
+  feature is clipped to the displayed stretch and receives its own complete
+  other-promoter recurrence summary, while the 15-factor TFBS predictions and
+  12 CUT&RUN/H3K4me3 lanes appear only once per connected stretch. The first
+  result localizes broad recurrence to an approximately 100-bp repeat-rich
+  tract in distal `SERPINE1` promoter `ENSR7_93H5NS`; `CD44`, `TGFB1`, and the
+  proximal `SERPINE1` feature intersections show no substantial ≥40-bp
+  recurrence. This motivates a split/deletion contrast, not a functional claim.
+
 - Retained the first TP73 CUT&RUN-supported promoterome comparison for the
   selected CD44, TGFB1 and SERPINE1 transcript models. Seven distinct
   GRCh38/Ensembl-116 −2,000/+200 TSS windows pass an inspectable matched-GFP
