@@ -20,7 +20,7 @@ python3 scripts/export_target_tss_fastas.py \
   --expected-genome-id 'Human GRCh38 Ensembl 116' \
   --source-revision "$(git rev-parse HEAD)" \
   --gene CD44 --gene TGFB1 --gene SERPINE1 --gene PATZ1 --gene TP73 \
-  --output docs/examples/regulatory_region_comparison/target_tss_fastas
+  --output docs/examples/regulatory_region_comparison/target_tss_fastas/bundle
 ```
 
 The exporter validates the promoterome receipt and all consumed source hashes,
