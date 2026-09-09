@@ -1,0 +1,998 @@
+{
+  "assembly_id": "GRCh38",
+  "downstream_bp": 200,
+  "files": [
+    {
+      "filename": "CD44_TSS_minus500_plus200.fasta",
+      "gene_id": "ENSG00000026508",
+      "gene_symbol": "CD44",
+      "record_count": 31,
+      "records": [
+        {
+          "chromosome": "11",
+          "gene_id": "ENSG00000026508",
+          "genomic_end_1based": 35138921,
+          "genomic_start_1based": 35138221,
+          "promoter_id": "promoter_5cb11c3a8c991e5309b9",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "3dd71189603dd83f1fd2b86572acb996fa8fe075bbbb9f1e4036a8f435d7aae1",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000263398",
+            "ENST00000278386",
+            "ENST00000415148",
+            "ENST00000433892",
+            "ENST00000434472",
+            "ENST00000526025",
+            "ENST00000526669",
+            "ENST00000904010",
+            "ENST00000904011",
+            "ENST00000904012",
+            "ENST00000904013",
+            "ENST00000904014",
+            "ENST00000904015",
+            "ENST00000904016",
+            "ENST00000904017",
+            "ENST00000904018",
+            "ENST00000904019",
+            "ENST00000904020",
+            "ENST00000904021",
+            "ENST00000904022",
+            "ENST00000904023",
+            "ENST00000935511",
+            "ENST00000969332",
+            "ENST00000969333",
+            "ENST00000969334",
+            "ENST00000969335",
+            "ENST00000969336",
+            "ENST00000969337",
+            "ENST00000969338",
+            "ENST00000969339",
+            "ENST00000969340",
+            "ENST00000969341",
+            "ENST00000969342",
+            "ENST00000969343",
+            "ENST00000969344",
+            "ENST00000969345",
+            "ENST00000969346",
+            "ENST00000969347",
+            "ENST00000969348",
+            "ENST00000969349",
+            "ENST00000969350",
+            "ENST00000969351",
+            "ENST00000969352",
+            "ENST00000969353",
+            "ENST00000969354",
+            "ENST00000969355",
+            "ENST00000969356",
+            "ENST00000969357",
+            "ENST00000969358",
+            "ENST00000969359",
+            "ENST00000969360",
+            "ENST00000969361",
+            "ENST00000969362",
+            "ENST00000969363",
+            "ENST00000969364",
+            "ENST00000969365",
+            "ENST00000969366",
+            "ENST00000969367",
+            "ENST00000969368",
+            "ENST00000969369",
+            "ENST00000969370",
+            "ENST00000969371",
+            "ENST00000969372",
+            "ENST00000969373",
+            "ENST00000969374",
+            "ENST00000969375",
+            "ENST00000969376",
+            "ENST00000969377",
+            "ENST00001106678",
+            "ENST00001106679",
+            "ENST00001113209",
+            "ENST00001113210",
+            "ENST00001113211",
+            "ENST00001113212",
+            "ENST00001125469",
+            "ENST00001125470",
+            "ENST00001126756",
+            "ENST00001143352"
+          ],
+          "tss_1based": 35138721
+        },
+        {
+          "chromosome": "11",
+          "gene_id": "ENSG00000026508",
+          "genomic_end_1based": 35139371,
+          "genomic_start_1based": 35138671,
+          "promoter_id": "promoter_7e38106c6b3906d5ced2",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "85f1a4d7fa3f04bbbfa4c312fa3ce8e3b88b2611ddef7847f3d7ba51d74e67bb",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000428726",
+            "ENST00000528086"
+          ],
+          "tss_1based": 35139171
+        },
+        {
+          "chromosome": "11",
+          "gene_id": "ENSG00000026508",
+          "genomic_end_1based": 35139382,
+          "genomic_start_1based": 35138682,
+          "promoter_id": "promoter_23f81423fb90a666337b",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "94037751afdf71609a0f76ccdfb72bcac3db6597cbf0ccfe36cd69592ab0c244",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000425428"
+          ],
+          "tss_1based": 35139182
+        },
+        {
+          "chromosome": "11",
+          "gene_id": "ENSG00000026508",
+          "genomic_end_1based": 35139462,
+          "genomic_start_1based": 35138762,
+          "promoter_id": "promoter_566c79ab2b2679691190",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "f2002faaf6b57cf5d0ce51816ab84f349638a520d9943c44a71e910b18d70a2a",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000525211"
+          ],
+          "tss_1based": 35139262
+        },
+        {
+          "chromosome": "11",
+          "gene_id": "ENSG00000026508",
+          "genomic_end_1based": 35139504,
+          "genomic_start_1based": 35138804,
+          "promoter_id": "promoter_7b63fbb5c60426ba1b09",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "9d1706ce9394043b7c986b945d97b7d565de6135b52a443bb895fa3335d274cf",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000352818"
+          ],
+          "tss_1based": 35139304
+        },
+        {
+          "chromosome": "11",
+          "gene_id": "ENSG00000026508",
+          "genomic_end_1based": 35139506,
+          "genomic_start_1based": 35138806,
+          "promoter_id": "promoter_bb5d1b5f8323d09048c9",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "50b1c1d70e248d3e75719d34474b48224465b1df9d7cec4b4a1c122b262f9619",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000442151"
+          ],
+          "tss_1based": 35139306
+        },
+        {
+          "chromosome": "11",
+          "gene_id": "ENSG00000026508",
+          "genomic_end_1based": 35176775,
+          "genomic_start_1based": 35176075,
+          "promoter_id": "promoter_18fdc4590a27cf88a0c5",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "85909f724b62e083096f998904ec935c19f9673c5dd2a22e44e4a27d9ee8682b",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000526000"
+          ],
+          "tss_1based": 35176575
+        },
+        {
+          "chromosome": "11",
+          "gene_id": "ENSG00000026508",
+          "genomic_end_1based": 35176828,
+          "genomic_start_1based": 35176128,
+          "promoter_id": "promoter_35ee5b4a2120faf12200",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "c35d018b7dfb6488c8aa3bb43019d33fd36dec058fe7a5e22ffed5091d14900a",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000279452"
+          ],
+          "tss_1based": 35176628
+        },
+        {
+          "chromosome": "11",
+          "gene_id": "ENSG00000026508",
+          "genomic_end_1based": 35176841,
+          "genomic_start_1based": 35176141,
+          "promoter_id": "promoter_f038fb758f6c1933e388",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "278d366f4279023f55e5ec71f731984a6ac34ee01ac7658f3d956898838b4783",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000527889"
+          ],
+          "tss_1based": 35176641
+        },
+        {
+          "chromosome": "11",
+          "gene_id": "ENSG00000026508",
+          "genomic_end_1based": 35176862,
+          "genomic_start_1based": 35176162,
+          "promoter_id": "promoter_1065fc08e3cf8dabc5f6",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "0c416c53391e57a30f0a7d6a765d3b5a02987b4da790b060a55d534c446f87e8",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000531118"
+          ],
+          "tss_1based": 35176662
+        },
+        {
+          "chromosome": "11",
+          "gene_id": "ENSG00000026508",
+          "genomic_end_1based": 35176899,
+          "genomic_start_1based": 35176199,
+          "promoter_id": "promoter_abb38df2d0f889c6027b",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "6be8ab7ab56896432b9287d5cee52d4b34e4dccf12bd42517e20db91330f510f",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000528455"
+          ],
+          "tss_1based": 35176699
+        },
+        {
+          "chromosome": "11",
+          "gene_id": "ENSG00000026508",
+          "genomic_end_1based": 35180479,
+          "genomic_start_1based": 35179779,
+          "promoter_id": "promoter_643239afc8f3b899c371",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "b78f947f09c3bae4810eae15ec7b167c2d84cf05b222223c6b05f573f2c6bc23",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000531873"
+          ],
+          "tss_1based": 35180279
+        },
+        {
+          "chromosome": "11",
+          "gene_id": "ENSG00000026508",
+          "genomic_end_1based": 35180558,
+          "genomic_start_1based": 35179858,
+          "promoter_id": "promoter_f4911c30e096c6a0e22a",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "38d2d380d8bc3b5313c4d0b8d774389c1b55edb1831103ab580694b1c20841fb",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000525209"
+          ],
+          "tss_1based": 35180358
+        },
+        {
+          "chromosome": "11",
+          "gene_id": "ENSG00000026508",
+          "genomic_end_1based": 35187043,
+          "genomic_start_1based": 35186343,
+          "promoter_id": "promoter_559f737e83ccb74a04b3",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "b35dd5814d0b6b6651180999e17fa219b38b54b11397a912cc97f0a886d6b5fd",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000531110"
+          ],
+          "tss_1based": 35186843
+        },
+        {
+          "chromosome": "11",
+          "gene_id": "ENSG00000026508",
+          "genomic_end_1based": 35187062,
+          "genomic_start_1based": 35186362,
+          "promoter_id": "promoter_921f505b3012175028e2",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "2a5f4a73f9ba42578d18ac2921d8c651061347005c92eed4bb8d62eadd7f9347",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000525685"
+          ],
+          "tss_1based": 35186862
+        },
+        {
+          "chromosome": "11",
+          "gene_id": "ENSG00000026508",
+          "genomic_end_1based": 35190035,
+          "genomic_start_1based": 35189335,
+          "promoter_id": "promoter_ef4d1892a4d3b66008b1",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "edead33f837c46765152e0bca21a74e4dd5bebed71947b5e1d82f1bce761b477",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000534296"
+          ],
+          "tss_1based": 35189835
+        },
+        {
+          "chromosome": "11",
+          "gene_id": "ENSG00000026508",
+          "genomic_end_1based": 35190082,
+          "genomic_start_1based": 35189382,
+          "promoter_id": "promoter_adf608884c1e154c3f11",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "af82852dd6577c62777f62618d6c4f64b266320ff7946679e9bfa325aef71a4e",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000525688"
+          ],
+          "tss_1based": 35189882
+        },
+        {
+          "chromosome": "11",
+          "gene_id": "ENSG00000026508",
+          "genomic_end_1based": 35190091,
+          "genomic_start_1based": 35189391,
+          "promoter_id": "promoter_1d094299b74f9b564123",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "3a17e920f15eaf598abd52859a7fe88ff310e80d6933b00881303b92beb5d5dc",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000278385"
+          ],
+          "tss_1based": 35189891
+        },
+        {
+          "chromosome": "11",
+          "gene_id": "ENSG00000026508",
+          "genomic_end_1based": 35190100,
+          "genomic_start_1based": 35189400,
+          "promoter_id": "promoter_2a63edc29891799cf926",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "fbeff8b145867f94f784e9b602a86a88c21c9604b416b572cb1fa1217c30c5a9",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000533222"
+          ],
+          "tss_1based": 35189900
+        },
+        {
+          "chromosome": "11",
+          "gene_id": "ENSG00000026508",
+          "genomic_end_1based": 35190126,
+          "genomic_start_1based": 35189426,
+          "promoter_id": "promoter_451882b1375da490e6ca",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "de93be643c90e9d66439205bf15b43c9e2838cf25c00abef7985d699fb1a991a",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000525241"
+          ],
+          "tss_1based": 35189926
+        },
+        {
+          "chromosome": "11",
+          "gene_id": "ENSG00000026508",
+          "genomic_end_1based": 35190210,
+          "genomic_start_1based": 35189510,
+          "promoter_id": "promoter_3c5f7fbcb67d575806aa",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "231862d5c052ed0a00e82bc3679b45bec901a5747aa2f691662391d5608369bd",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000524922"
+          ],
+          "tss_1based": 35190010
+        },
+        {
+          "chromosome": "11",
+          "gene_id": "ENSG00000026508",
+          "genomic_end_1based": 35197362,
+          "genomic_start_1based": 35196662,
+          "promoter_id": "promoter_4a5b6f163b4ff71d9ed4",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "5af3514444f3bff175b20d51b9e76043b5ba72b01ae9a60fe2c636c97b88a44a",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000528922"
+          ],
+          "tss_1based": 35197162
+        },
+        {
+          "chromosome": "11",
+          "gene_id": "ENSG00000026508",
+          "genomic_end_1based": 35198057,
+          "genomic_start_1based": 35197357,
+          "promoter_id": "promoter_53d0f86f6b0201267846",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "ec74e5997c6f00fbc873644d78b132adc4c895257e43568a2e8a9d0d9b64c8dd",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000525348"
+          ],
+          "tss_1based": 35197857
+        },
+        {
+          "chromosome": "11",
+          "gene_id": "ENSG00000026508",
+          "genomic_end_1based": 35201283,
+          "genomic_start_1based": 35200583,
+          "promoter_id": "promoter_e0d704cd80cbef81945b",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "f3b64febb19ee1a1a81165652a0bb4c8a9d0617db83a457e2260cd9738715b49",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000526553"
+          ],
+          "tss_1based": 35201083
+        },
+        {
+          "chromosome": "11",
+          "gene_id": "ENSG00000026508",
+          "genomic_end_1based": 35201344,
+          "genomic_start_1based": 35200644,
+          "promoter_id": "promoter_9df52de53d878d1283c8",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "985a4f6e34c26592da43222f2d858a9ebb8dd6483d91ada31c13410e4ba3db78",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000534082"
+          ],
+          "tss_1based": 35201144
+        },
+        {
+          "chromosome": "11",
+          "gene_id": "ENSG00000026508",
+          "genomic_end_1based": 35201821,
+          "genomic_start_1based": 35201121,
+          "promoter_id": "promoter_859e4cd92752b8665dd4",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "c6748348ac044da93320550b113a90ace49e5972286182553b543ac6f2b69452",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000525293"
+          ],
+          "tss_1based": 35201621
+        },
+        {
+          "chromosome": "11",
+          "gene_id": "ENSG00000026508",
+          "genomic_end_1based": 35201879,
+          "genomic_start_1based": 35201179,
+          "promoter_id": "promoter_70ff99efd16049955144",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "bb9f032905c49eb6978a67c24cb4eb1cf386a2208b34de088fa5192b42f32b16",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000528672"
+          ],
+          "tss_1based": 35201679
+        },
+        {
+          "chromosome": "11",
+          "gene_id": "ENSG00000026508",
+          "genomic_end_1based": 35205915,
+          "genomic_start_1based": 35205215,
+          "promoter_id": "promoter_db79ccddaa41a924dedd",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "bb1c81cc670b00f06911dc1fb6f8af46713b7619b004c7664648a8b9b6ad52c4",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000532339"
+          ],
+          "tss_1based": 35205715
+        },
+        {
+          "chromosome": "11",
+          "gene_id": "ENSG00000026508",
+          "genomic_end_1based": 35214866,
+          "genomic_start_1based": 35214166,
+          "promoter_id": "promoter_8bf1c3a00f496a84bdf6",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "b11295fbcb9529af54689d7ebd6e10bd8c1650edc6192f90433f9935f383de1a",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000527326"
+          ],
+          "tss_1based": 35214666
+        },
+        {
+          "chromosome": "11",
+          "gene_id": "ENSG00000026508",
+          "genomic_end_1based": 35219129,
+          "genomic_start_1based": 35218429,
+          "promoter_id": "promoter_2e9fb98e00f7328f6213",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "4dca31276a5555cae6edfeee3612cccf0081662eef5f0c43278bb428d452750e",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000531141"
+          ],
+          "tss_1based": 35218929
+        },
+        {
+          "chromosome": "11",
+          "gene_id": "ENSG00000026508",
+          "genomic_end_1based": 35219544,
+          "genomic_start_1based": 35218844,
+          "promoter_id": "promoter_4e655d4e816a0202ddfc",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "733007a743eeffeb527b4cf2b1dc1b45552077d706d3ac5c1ff0315371a3ef73",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000525469"
+          ],
+          "tss_1based": 35219344
+        }
+      ],
+      "sha256": "f0c9f166557c7d32308343e0a6a645f3359635b55350140c55bb132b5e1bfd8c"
+    },
+    {
+      "filename": "TGFB1_TSS_minus500_plus200.fasta",
+      "gene_id": "ENSG00000105329",
+      "gene_symbol": "TGFB1",
+      "record_count": 6,
+      "records": [
+        {
+          "chromosome": "19",
+          "gene_id": "ENSG00000105329",
+          "genomic_end_1based": 41342530,
+          "genomic_start_1based": 41341830,
+          "promoter_id": "promoter_5053c8345f5e3f5b8ffd",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "f9a958afccf1e2dcb2e316e50b47211719ac8c73b887c47cbe49d708e235c5ef",
+          "strand": "-",
+          "transcript_ids": [
+            "ENST00000598758"
+          ],
+          "tss_1based": 41342030
+        },
+        {
+          "chromosome": "19",
+          "gene_id": "ENSG00000105329",
+          "genomic_end_1based": 41348841,
+          "genomic_start_1based": 41348141,
+          "promoter_id": "promoter_b21ac556fc830b218dfd",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "c4a642e5c63213e510fbbd5c0f99584b52ed6409811c9e2c991629e25af0dbfb",
+          "strand": "-",
+          "transcript_ids": [
+            "ENST00000597453"
+          ],
+          "tss_1based": 41348341
+        },
+        {
+          "chromosome": "19",
+          "gene_id": "ENSG00000105329",
+          "genomic_end_1based": 41353544,
+          "genomic_start_1based": 41352844,
+          "promoter_id": "promoter_f6b8dfa5f3f13d738da4",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "9a75f89911a01a6ef3097c374dc98612a4f611353c3c52295707118ff1e69501",
+          "strand": "-",
+          "transcript_ids": [
+            "ENST00000600196",
+            "ENST00000677934"
+          ],
+          "tss_1based": 41353044
+        },
+        {
+          "chromosome": "19",
+          "gene_id": "ENSG00000105329",
+          "genomic_end_1based": 41354414,
+          "genomic_start_1based": 41353714,
+          "promoter_id": "promoter_6a038806209b9c3e00a0",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "bffc26abd475d71e3de519a4a43a55b04d32a79dcf0344b6f1e3f2794e067483",
+          "strand": "-",
+          "transcript_ids": [
+            "ENST00001090432"
+          ],
+          "tss_1based": 41353914
+        },
+        {
+          "chromosome": "19",
+          "gene_id": "ENSG00000105329",
+          "genomic_end_1based": 41354422,
+          "genomic_start_1based": 41353722,
+          "promoter_id": "promoter_0c7303b1bf23e0934772",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "a4deb657273dc0867292e3022b77078fda11acdc604829f85ad59218bd07c846",
+          "strand": "-",
+          "transcript_ids": [
+            "ENST00000221930",
+            "ENST00001122012"
+          ],
+          "tss_1based": 41353922
+        },
+        {
+          "chromosome": "19",
+          "gene_id": "ENSG00000105329",
+          "genomic_end_1based": 41354461,
+          "genomic_start_1based": 41353761,
+          "promoter_id": "promoter_36a1b28d8f28c83a9602",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "73282f7808d9862937655b0ab8e05adbf42479fa96936fd16dc9eada0d3e80dd",
+          "strand": "-",
+          "transcript_ids": [
+            "ENST00000890114",
+            "ENST00000966383",
+            "ENST00000966384",
+            "ENST00001090430",
+            "ENST00001090431",
+            "ENST00001090433",
+            "ENST00001111147",
+            "ENST00001114525",
+            "ENST00001114526",
+            "ENST00001136818"
+          ],
+          "tss_1based": 41353961
+        }
+      ],
+      "sha256": "c98f734ba0f1c402c886ef6b6b5dc7b33e4c873de93f69f765085513485d31a6"
+    },
+    {
+      "filename": "SERPINE1_TSS_minus500_plus200.fasta",
+      "gene_id": "ENSG00000106366",
+      "gene_symbol": "SERPINE1",
+      "record_count": 4,
+      "records": [
+        {
+          "chromosome": "7",
+          "gene_id": "ENSG00000106366",
+          "genomic_end_1based": 101122358,
+          "genomic_start_1based": 101121658,
+          "promoter_id": "promoter_379bd0de7dda774c7927",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "9809fb36bea7a5e226042a27df3880446942c08b7463546b4129b2b1e661e545",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000950058"
+          ],
+          "tss_1based": 101122158
+        },
+        {
+          "chromosome": "7",
+          "gene_id": "ENSG00000106366",
+          "genomic_end_1based": 101126801,
+          "genomic_start_1based": 101126101,
+          "promoter_id": "promoter_bd61be147c132c2eecfd",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "9c0b7bb95d1303be4c70d40d3832c25794e0d37c3309ea59fe1889c7d9ecf380",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000870828",
+            "ENST00000950059",
+            "ENST00000950060",
+            "ENST00000950061",
+            "ENST00000950062",
+            "ENST00001041162",
+            "ENST00001041163",
+            "ENST00001106562",
+            "ENST00001116474",
+            "ENST00001122286",
+            "ENST00001139435"
+          ],
+          "tss_1based": 101126601
+        },
+        {
+          "chromosome": "7",
+          "gene_id": "ENSG00000106366",
+          "genomic_end_1based": 101127304,
+          "genomic_start_1based": 101126604,
+          "promoter_id": "promoter_f26b9f97102c9a4a9c88",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "56f0dad537e7c2d4dc7689285d34b65ce4bfc3fb16d6fd7e0029f8e0bc88b370",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000223095"
+          ],
+          "tss_1based": 101127104
+        },
+        {
+          "chromosome": "7",
+          "gene_id": "ENSG00000106366",
+          "genomic_end_1based": 101127319,
+          "genomic_start_1based": 101126619,
+          "promoter_id": "promoter_1f2e2d1a12ac0de9f1eb",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "ccaf0d2cd94ca634de33852a1a13372fb072c251329abd03da811831319ea5d5",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000950063",
+            "ENST00001041164"
+          ],
+          "tss_1based": 101127119
+        }
+      ],
+      "sha256": "e427b19bb4a2a2de1d76a53050fcb3507c49b623e3b6fd3cd195872910b90699"
+    },
+    {
+      "filename": "PATZ1_TSS_minus500_plus200.fasta",
+      "gene_id": "ENSG00000100105",
+      "gene_symbol": "PATZ1",
+      "record_count": 5,
+      "records": [
+        {
+          "chromosome": "22",
+          "gene_id": "ENSG00000100105",
+          "genomic_end_1based": 31343785,
+          "genomic_start_1based": 31343085,
+          "promoter_id": "promoter_6b19b7707b386ab8c524",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "0a4781acbd05c53e3c5832c810ff76f5bd1eef1fd7183f2017bd189beffb39b7",
+          "strand": "-",
+          "transcript_ids": [
+            "ENST00000494109"
+          ],
+          "tss_1based": 31343285
+        },
+        {
+          "chromosome": "22",
+          "gene_id": "ENSG00000100105",
+          "genomic_end_1based": 31344091,
+          "genomic_start_1based": 31343391,
+          "promoter_id": "promoter_18fbc879a6dc8f8f2fab",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "8120c1d3f5c7138eb0a6222d815366a9f29c347801ebed4879c0d082e58ba405",
+          "strand": "-",
+          "transcript_ids": [
+            "ENST00000465287"
+          ],
+          "tss_1based": 31343591
+        },
+        {
+          "chromosome": "22",
+          "gene_id": "ENSG00000100105",
+          "genomic_end_1based": 31346846,
+          "genomic_start_1based": 31346146,
+          "promoter_id": "promoter_81f92d584f943b812244",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "75e91bfc77f58423f41cd8d3f083c9cdcdf4b2188c6c0d5a74e96fbeac490e89",
+          "strand": "-",
+          "transcript_ids": [
+            "ENST00000266269"
+          ],
+          "tss_1based": 31346346
+        },
+        {
+          "chromosome": "22",
+          "gene_id": "ENSG00000100105",
+          "genomic_end_1based": 31347079,
+          "genomic_start_1based": 31346379,
+          "promoter_id": "promoter_073b87f1f2bb6a2d2567",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "769c5848ba0cb68584e1d38f1401d3c4b83b1099a77ee34f0383c2d2e74004c2",
+          "strand": "-",
+          "transcript_ids": [
+            "ENST00000215919",
+            "ENST00000351933",
+            "ENST00000405309",
+            "ENST00000930049",
+            "ENST00000930050",
+            "ENST00000941424",
+            "ENST00001069189",
+            "ENST00001069190",
+            "ENST00001135483"
+          ],
+          "tss_1based": 31346579
+        },
+        {
+          "chromosome": "22",
+          "gene_id": "ENSG00000100105",
+          "genomic_end_1based": 31347105,
+          "genomic_start_1based": 31346405,
+          "promoter_id": "promoter_c32c403b26913e8d4ee2",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "bf905a26e11df491bd6bf5d01ebd84ff20b828ad2fc29639064e4bdea674ef10",
+          "strand": "-",
+          "transcript_ids": [
+            "ENST00000930048"
+          ],
+          "tss_1based": 31346605
+        }
+      ],
+      "sha256": "96a7d15b08d6df85d7729d734123f6bee2a0d21d367e0c19ca1a0d744a725895"
+    },
+    {
+      "filename": "TP73_TSS_minus500_plus200.fasta",
+      "gene_id": "ENSG00000078900",
+      "gene_symbol": "TP73",
+      "record_count": 12,
+      "records": [
+        {
+          "chromosome": "1",
+          "gene_id": "ENSG00000078900",
+          "genomic_end_1based": 3652507,
+          "genomic_start_1based": 3651807,
+          "promoter_id": "promoter_f398d87d13640f1e4c09",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "a2b829d91efa308c3f382340cc2da3e2097afc9a7d216d008cdedd908c9e2ecf",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000354437",
+            "ENST00000604074",
+            "ENST00001140270"
+          ],
+          "tss_1based": 3652307
+        },
+        {
+          "chromosome": "1",
+          "gene_id": "ENSG00000078900",
+          "genomic_end_1based": 3652716,
+          "genomic_start_1based": 3652016,
+          "promoter_id": "promoter_39c5b6ea27443d267487",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "313adfaf8bf02411b88665e3f91ec1ad42cbba7280161543f880d9f877558e09",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000378295"
+          ],
+          "tss_1based": 3652516
+        },
+        {
+          "chromosome": "1",
+          "gene_id": "ENSG00000078900",
+          "genomic_end_1based": 3652765,
+          "genomic_start_1based": 3652065,
+          "promoter_id": "promoter_372c8abbbbee471348bc",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "c498a5ca4e6b0a75789bc1bcf9392aa552b81e98ca86525341be955f4ad14b0c",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000603362",
+            "ENST00000604479"
+          ],
+          "tss_1based": 3652565
+        },
+        {
+          "chromosome": "1",
+          "gene_id": "ENSG00000078900",
+          "genomic_end_1based": 3669234,
+          "genomic_start_1based": 3668534,
+          "promoter_id": "promoter_d39ca28a46df60c05819",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "d1c3ae5a85b9d96c612da07b15d1e6dbcf14c5f45473366d7585c0675e66ff62",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000713570",
+            "ENST00000908821"
+          ],
+          "tss_1based": 3669034
+        },
+        {
+          "chromosome": "1",
+          "gene_id": "ENSG00000078900",
+          "genomic_end_1based": 3675483,
+          "genomic_start_1based": 3674783,
+          "promoter_id": "promoter_08f138aec0ca5057cd28",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "bc71c80bcec3dcdaab32839b89e98cc14e10a555d032964421ecc22ba6410513",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000917568",
+            "ENST00001089267"
+          ],
+          "tss_1based": 3675283
+        },
+        {
+          "chromosome": "1",
+          "gene_id": "ENSG00000078900",
+          "genomic_end_1based": 3675518,
+          "genomic_start_1based": 3674818,
+          "promoter_id": "promoter_4db96ed6696530b86ad9",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "e7af4f236e040bbf6413390ef60ecd2c9a19ff6df23953096502c876c2da6b27",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000713571",
+            "ENST00000713572"
+          ],
+          "tss_1based": 3675318
+        },
+        {
+          "chromosome": "1",
+          "gene_id": "ENSG00000078900",
+          "genomic_end_1based": 3675772,
+          "genomic_start_1based": 3675072,
+          "promoter_id": "promoter_48f22c74cf4aa536b5d2",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "698caa81cfbde4bafb850d6f57fbb85a326ed5d97d3de8ce356414b64da75f94",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000917569"
+          ],
+          "tss_1based": 3675572
+        },
+        {
+          "chromosome": "1",
+          "gene_id": "ENSG00000078900",
+          "genomic_end_1based": 3690872,
+          "genomic_start_1based": 3690172,
+          "promoter_id": "promoter_c98a9da5b28360f76615",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "289275c195cc09872f53c6118a329eb956a03b0026ac2b452eac72e43114e6ee",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000378280",
+            "ENST00000378285",
+            "ENST00000378288"
+          ],
+          "tss_1based": 3690672
+        },
+        {
+          "chromosome": "1",
+          "gene_id": "ENSG00000078900",
+          "genomic_end_1based": 3690907,
+          "genomic_start_1based": 3690207,
+          "promoter_id": "promoter_88909bff64418a45d509",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "cc834ee4812ca49876635e11cddc1c8dbb4452e2d0fdfb538319195bb5ecf2f1",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000603364"
+          ],
+          "tss_1based": 3690707
+        },
+        {
+          "chromosome": "1",
+          "gene_id": "ENSG00000078900",
+          "genomic_end_1based": 3698246,
+          "genomic_start_1based": 3697546,
+          "promoter_id": "promoter_95fba9dde6d617210b1c",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "fbd9c350ab023d0fd0697a99c36cd8a3024fc83e34c433796f928801d70d8ab5",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000604194"
+          ],
+          "tss_1based": 3698046
+        },
+        {
+          "chromosome": "1",
+          "gene_id": "ENSG00000078900",
+          "genomic_end_1based": 3698258,
+          "genomic_start_1based": 3697558,
+          "promoter_id": "promoter_8d59cc72104c3772181f",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "e52d19690a9f15fa677e2ce57618891b1467be8735e567597fe9de714096271a",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000378290"
+          ],
+          "tss_1based": 3698058
+        },
+        {
+          "chromosome": "1",
+          "gene_id": "ENSG00000078900",
+          "genomic_end_1based": 3727678,
+          "genomic_start_1based": 3726978,
+          "promoter_id": "promoter_2dadd11cd2035b0ea120",
+          "sequence_length_bp": 701,
+          "sequence_sha256": "b2c105f06ff61995012aec264bc5517772900208aa5d5cf3a2d477e236e9d813",
+          "strand": "+",
+          "transcript_ids": [
+            "ENST00000604566"
+          ],
+          "tss_1based": 3727478
+        }
+      ],
+      "sha256": "7c08b64cc533cbe4a5fc33b5a4f6814c00a15d5fad551daa0f71d9c6bef64a7a"
+    }
+  ],
+  "non_claims": [
+    "Transcript annotation does not establish TSS usage in the assayed cells.",
+    "A TSS window is sequence context, not proof of promoter activity."
+  ],
+  "producer_sha256": "f6e03366d9bc3b8eeb6c320fa0720f93df86fc344f42a52119c765054dff8072",
+  "record_policy": "One record per distinct genomic TSS window and strand; shared transcripts are listed in the FASTA header.",
+  "schema": "gentle.target_tss_fasta_export.v1",
+  "sequence_orientation": "transcript_5prime_to_3prime",
+  "sha256sums_sha256": "80880404816b2dffe6aec1606c37c9fe9f6048c66582d2b3a68faef045a07af2",
+  "source": {
+    "dataset_id": "human_grch38_ensembl116_promoterome_2000_200_v1",
+    "genome_id": "Human GRCh38 Ensembl 116",
+    "promoter_fasta_sha256": "6f2cecc5fa347adb5cc541eeac2ea540de641ed15e507dd83e963e0c1ddc8096",
+    "promoter_transcripts_sha256": "5f680ac53e6e1b79629d05965b54ccffbef20d584918719d7b5ec75ee8c41af4",
+    "promoter_windows_sha256": "6e98d2e7969fbcf5a1a291ff6adba742a6679d6147bd0d16e761d9aa4adf87ab",
+    "promoterome_receipt_sha256": "fe86c9adb0381e0f128fcf129ccc52a22ef7eaa0d9035e2b6c51f61f17dfafc5"
+  },
+  "source_revision": "ec0b2144494d2d679c95e11a10291bfc240c4812",
+  "upstream_bp": 500
+}

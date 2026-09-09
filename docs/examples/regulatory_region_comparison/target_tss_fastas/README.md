@@ -30,3 +30,14 @@ source sequence, and records source and output digests in `manifest.json` and
 
 Transcript annotation does not establish which TSS is used in the assayed
 cells, and a TSS window is not proof of promoter activity.
+
+## Current Ensembl 116 export
+
+- `CD44_TSS_minus500_plus200.fasta`: 31 distinct TSSs, 109 transcripts
+- `TGFB1_TSS_minus500_plus200.fasta`: 6 distinct TSSs, 17 transcripts
+- `SERPINE1_TSS_minus500_plus200.fasta`: 4 distinct TSSs, 15 transcripts
+- `PATZ1_TSS_minus500_plus200.fasta`: 5 distinct TSSs, 13 transcripts
+- `TP73_TSS_minus500_plus200.fasta`: 12 distinct TSSs, 20 transcripts
+
+The complete per-record coordinates, transcript membership, sequence hashes,
+and source bindings are retained in `bundle/manifest.json`.
