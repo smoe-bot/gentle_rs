@@ -63,7 +63,7 @@ class CompositeLocusTssPdfTests(unittest.TestCase):
         self.report.write_text(json.dumps({
             "schema": target.TSS_REPORT_SCHEMA,
             "score_policy": {"score_kind": "llr_background_tail_log10"},
-            "reference": {"assembly": "GRCh38"},
+            "reference": {"genome_id": "Human GRCh38 Ensembl 116", "assembly": "GRCh38"},
             "verification": "bundle_consistency_verified; prepared_reference_not_assessed",
             "non_claims": "predictions are not measured binding",
             "panel_resolution": {"matrices": [{"specification": {"source_id": "MA9991.1"}}]},
@@ -249,6 +249,60 @@ class CompositeLocusTssPdfTests(unittest.TestCase):
         self.assertEqual(receipt["locus_matrix_bindings"], [{
             "source_id": "MA9991.1", "locus_track_id": "synthetic_matrix",
         }])
+
+    def annotation_comparison_fixture(self):
+        report = self.root / "annotation-comparison.json"
+        report.write_text(json.dumps({
+            "schema": target.ANNOTATION_COMPARISON_SCHEMA,
+            "primary": {"genome_id": "Human GRCh38 Ensembl 116"},
+            "secondary": {"genome_id": "Human GRCh38 NCBI RefSeq GCF_000001405.40"},
+            "inputs": {"primary_tss_report": {"sha256": digest(self.report)}},
+            "genes": [{"gene_symbol": "GENE", "primary_transcript_count": 1,
+                       "secondary_transcript_count": 1}],
+        }))
+        svg = self.root / "GENE_Ensembl_RefSeq_TSS_comparison.svg"
+        svg.write_text(
+            f'<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="400" '
+            f'data-gentle-schema="{target.ANNOTATION_COMPARISON_SCHEMA}" data-gentle-gene="GENE" '
+            'data-gentle-plot-left="255" data-gentle-plot-right="1050"/>'
+        )
+        receipt = self.root / "annotation-comparison.receipt.json"
+        receipt.write_text(json.dumps({
+            "schema": target.ANNOTATION_COMPARISON_RECEIPT_SCHEMA,
+            "report_sha256": digest(report),
+            "outputs": {report.name: digest(report), svg.name: digest(svg)},
+        }))
+        return report, receipt, svg
+
+    def test_optional_annotation_comparison_is_second_bound_page(self):
+        report, receipt, svg = self.annotation_comparison_fixture()
+        args = self.args()
+        args.annotation_comparison_report = report
+        args.annotation_comparison_receipt = receipt
+        args.annotation_comparison_svg = svg
+        with mock.patch.object(target.subprocess, "run", side_effect=self.fake_run):
+            result = target.compose(args)
+        self.assertEqual(result["page_order"], [
+            "locus_context", "transcript_start_annotation_comparison", "selected_tss_tfbs",
+        ])
+        self.assertEqual(result["inputs"]["annotation_comparison"]["secondary"]["genome_id"],
+                         "Human GRCh38 NCBI RefSeq GCF_000001405.40")
+
+    def test_partial_or_tampered_annotation_comparison_fails_before_rendering(self):
+        report, receipt, svg = self.annotation_comparison_fixture()
+        args = self.args()
+        args.annotation_comparison_report = report
+        args.annotation_comparison_receipt = receipt
+        with mock.patch.object(target.subprocess, "run") as renderer:
+            with self.assertRaisesRegex(ValueError, "requires report, receipt and SVG"):
+                target.compose(args)
+            renderer.assert_not_called()
+        args.annotation_comparison_svg = svg
+        svg.write_text(svg.read_text().replace('data-gentle-gene="GENE"', 'data-gentle-gene="OTHER"'))
+        with mock.patch.object(target.subprocess, "run") as renderer:
+            with self.assertRaisesRegex(ValueError, "output hash mismatch"):
+                target.compose(args)
+            renderer.assert_not_called()
 
     def genbank_fixture(self):
         index = json.loads(self.index.read_text())

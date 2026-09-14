@@ -5,6 +5,7 @@
 //! The first extracted slice is intentionally small: stable identifier aliases,
 //! shared analysis enums, and the portable engine error payload.
 
+pub mod annotation_comparison;
 pub mod biological_context;
 pub mod collection_subjects;
 pub mod construct_reasoning;
@@ -42,6 +43,15 @@ use std::{
     sync::LazyLock,
 };
 
+pub use annotation_comparison::{
+    AnnotationComparisonFileBinding, GeneTranscriptStartAnnotationComparison,
+    PrimaryTranscriptStartCluster, SecondaryTranscriptStartCluster,
+    TRANSCRIPT_START_ANNOTATION_COMPARISON_RECEIPT_SCHEMA,
+    TRANSCRIPT_START_ANNOTATION_COMPARISON_SCHEMA, TranscriptAnnotationSourceIdentity,
+    TranscriptStartAnnotationComparisonInputs, TranscriptStartAnnotationComparisonPageBinding,
+    TranscriptStartAnnotationComparisonProducer, TranscriptStartAnnotationComparisonReceipt,
+    TranscriptStartAnnotationComparisonReport, TranscriptStartNearestCluster,
+};
 pub use biological_context::{
     BiologicalContext, BiologicalContextRegistry, BiologicalContextResolutionError,
     DEFAULT_BIOLOGICAL_CONTEXT_ID, LEGACY_BIOLOGICAL_CONTEXT_ID,
