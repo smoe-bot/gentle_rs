@@ -79,6 +79,18 @@ class CompareTranscriptStartsTests(unittest.TestCase):
             svg = (args.output_dir / "PLUS_Ensembl_RefSeq_TSS_comparison.svg").read_text()
             self.assertIn('data-gentle-plot-left="255"', svg)
             self.assertIn("+5 bp", svg)
+            minus_svg = (args.output_dir / "MINUS_Ensembl_RefSeq_TSS_comparison.svg").read_text()
+            self.assertIn(">2,110</text>", minus_svg)
+
+    def test_marker_positions_follow_transcript_orientation(self):
+        self.assertLess(
+            target.marker_x(100, 0, 200, "+"),
+            target.marker_x(150, 0, 200, "+"),
+        )
+        self.assertGreater(
+            target.marker_x(100, 0, 200, "-"),
+            target.marker_x(150, 0, 200, "-"),
+        )
 
     def test_annotation_hash_mismatch_fails_closed(self):
         with tempfile.TemporaryDirectory() as raw:
