@@ -259,10 +259,12 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
-def marker_x(tss: int, start: int, end: int) -> float:
+def marker_x(tss: int, start: int, end: int, strand: str) -> float:
     if end == start:
         return (PLOT_LEFT + PLOT_RIGHT) / 2
-    return PLOT_LEFT + (tss - start) * (PLOT_RIGHT - PLOT_LEFT) / (end - start)
+    require(strand in {"+", "-"}, "comparison plot requires a +/- strand")
+    offset = tss - start if strand == "+" else end - tss
+    return PLOT_LEFT + offset * (PLOT_RIGHT - PLOT_LEFT) / (end - start)
 
 
 def esc(value: Any) -> str:
@@ -297,17 +299,17 @@ def render_gene_svg(report: dict[str, Any], gene: dict[str, Any]) -> str:
         f'<text class="lab" x="440" y="149">RefSeq: {gene["secondary_transcript_count"]} transcripts, {gene["secondary_tss_cluster_count"]} TSS coordinates</text>',
         f'<text class="lab" x="840" y="149">Exact shared coordinates: {gene["exact_shared_tss_count"]}</text>',
         f'<line class="axis" x1="{PLOT_LEFT}" x2="{PLOT_RIGHT}" y1="214" y2="214"/>',
-        f'<text class="small" x="{PLOT_LEFT}" y="201">{axis_start:,}</text>',
-        f'<text class="small" x="{PLOT_RIGHT}" y="201" text-anchor="end">{axis_end:,}</text>',
+        f'<text class="small" x="{PLOT_LEFT}" y="201">{(axis_start if gene["strand"] == "+" else axis_end):,}</text>',
+        f'<text class="small" x="{PLOT_RIGHT}" y="201" text-anchor="end">{(axis_end if gene["strand"] == "+" else axis_start):,}</text>',
         '<text class="lab" x="36" y="236">Ensembl</text>',
         '<text class="lab" x="36" y="282">NCBI RefSeq</text>',
     ]
     for row in gene["primary_clusters"]:
-        x = marker_x(row["tss_1based"], axis_start, axis_end)
+        x = marker_x(row["tss_1based"], axis_start, axis_end, gene["strand"])
         cls = "sel" if row["selected_for_reporter"] else "ens"
         out.append(f'<line class="{cls}" x1="{x:.3f}" x2="{x:.3f}" y1="220" y2="248" data-tss="{row["tss_1based"]}"/>')
     for row in gene["secondary_clusters"]:
-        x = marker_x(row["tss_1based"], axis_start, axis_end)
+        x = marker_x(row["tss_1based"], axis_start, axis_end, gene["strand"])
         out.append(f'<line class="ref" x1="{x:.3f}" x2="{x:.3f}" y1="266" y2="294" data-tss="{row["tss_1based"]}"/>')
     out.extend([
         '<text class="small" x="1080" y="236">orange = reporter-selected Ensembl TSS</text>',
