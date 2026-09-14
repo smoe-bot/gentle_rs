@@ -21,6 +21,11 @@ remain in the complete TSS supplement. Every page is 1400 pixels wide and every
 detailed score axis uses the locus renderer's exact x=255..1050 plot frame, so
 context and detail pages remain horizontally registered in a PDF viewer.
 
+An optional checksum-bound [transcript-start annotation comparison](transcript_start_annotation_comparison.md)
+can be inserted as page 2. It displays Ensembl and NCBI RefSeq starts on the
+same genomic axis and reports coordinate deltas without altering the primary
+transcript models or inventing a consensus annotation.
+
 In newly rendered locus overviews, each constituent TSS window has a labelled
 row, exact start marker and translucent colour band. Overlapping windows blend;
 the darker area denotes overlap, not stronger CUT&RUN or motif evidence. The

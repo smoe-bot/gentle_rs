@@ -25,6 +25,8 @@ TSS_INDEX_SCHEMA = "gentle.tss_tfbs_profile_index.v1"
 TSS_RECEIPT_SCHEMA = "gentle.tss_tfbs_profile_receipt.v1"
 OUTPUT_SCHEMA = "gentle.integrated_locus_tss_tfbs_pdf_receipt.v2"
 TARGET_FASTA_SCHEMA = "gentle.target_tss_fasta_export.v1"
+ANNOTATION_COMPARISON_SCHEMA = "gentle.transcript_start_annotation_comparison.v1"
+ANNOTATION_COMPARISON_RECEIPT_SCHEMA = "gentle.transcript_start_annotation_comparison_receipt.v1"
 LOCUS_PAGE_WIDTH = 1400.0
 LOCUS_PLOT_LEFT = 255.0
 LOCUS_PLOT_RIGHT = 1050.0
@@ -81,6 +83,48 @@ def svg_frame(svg_path: Path) -> tuple[float, float, float]:
     left = float(root.get("data-gentle-plot-left", "nan"))
     right = float(root.get("data-gentle-plot-right", "nan"))
     return width, left, right
+
+
+def annotation_comparison_page(
+    gene: str,
+    report_path: Path,
+    receipt_path: Path,
+    svg_path: Path,
+    tss_report_path: Path,
+    tss_report: dict[str, Any],
+) -> dict[str, Any]:
+    report = read_json(report_path)
+    receipt = read_json(receipt_path)
+    require(report.get("schema") == ANNOTATION_COMPARISON_SCHEMA,
+            "unexpected annotation-comparison report schema")
+    require(receipt.get("schema") == ANNOTATION_COMPARISON_RECEIPT_SCHEMA,
+            "unexpected annotation-comparison receipt schema")
+    require(normalized_digest(receipt.get("report_sha256")) == sha256(report_path),
+            "annotation-comparison report/receipt hash mismatch")
+    bound_output(receipt, report_path.name, report_path)
+    bound_output(receipt, svg_path.name, svg_path)
+    genes = [row for row in report.get("genes", []) if row.get("gene_symbol") == gene]
+    require(len(genes) == 1, "annotation comparison must contain the requested gene exactly once")
+    primary = report.get("primary", {})
+    require(primary.get("genome_id") == tss_report.get("reference", {}).get("genome_id"),
+            "annotation comparison and TSS report primary references disagree")
+    primary_input = report.get("inputs", {}).get("primary_tss_report", {})
+    require(normalized_digest(primary_input.get("sha256")) == sha256(tss_report_path),
+            "annotation comparison is not bound to this TSS report")
+    root = ET.fromstring(svg_path.read_bytes())
+    require(root.get("data-gentle-schema") == ANNOTATION_COMPARISON_SCHEMA
+            and root.get("data-gentle-gene") == gene,
+            "annotation-comparison SVG schema/gene mismatch")
+    width, left, right = svg_frame(svg_path)
+    require(width == LOCUS_PAGE_WIDTH and left == LOCUS_PLOT_LEFT and right == LOCUS_PLOT_RIGHT,
+            "annotation-comparison page does not share the canonical locus horizontal frame")
+    return {
+        "report": {"path": str(report_path), "sha256": sha256(report_path)},
+        "receipt": {"path": str(receipt_path), "sha256": sha256(receipt_path)},
+        "svg": {"path": str(svg_path), "sha256": sha256(svg_path)},
+        "secondary": report.get("secondary"),
+        "gene_summary": genes[0],
+    }
 
 
 def locus_bands(svg_path: Path) -> tuple[dict[str, str], list[tuple[str, int, int]]]:
@@ -623,6 +667,11 @@ def compose(args: argparse.Namespace) -> dict[str, Any]:
     output_embl = getattr(args, "output_embl", None)
     output_embl = output_embl.resolve() if output_embl else None
     gentle_cli = args.gentle_cli.resolve()
+    comparison_values = [getattr(args, name, None) for name in (
+        "annotation_comparison_report", "annotation_comparison_receipt", "annotation_comparison_svg"
+    )]
+    require(not any(comparison_values) or all(comparison_values),
+            "annotation comparison requires report, receipt and SVG together")
     require(len({output_pdf, output_fasta, output_receipt}) == 3,
             "output PDF, FASTA and receipt must be distinct")
     require(not output_pdf.exists() and not output_fasta.exists() and not output_receipt.exists(),
@@ -650,6 +699,17 @@ def compose(args: argparse.Namespace) -> dict[str, Any]:
     require(normalized_digest(tss_index.get("report_sha256")) == sha256(tss_report_path),
             "TSS index/report binding mismatch")
 
+    comparison_binding = None
+    comparison_svg = None
+    if all(comparison_values):
+        comparison_report_path = args.annotation_comparison_report.resolve()
+        comparison_receipt_path = args.annotation_comparison_receipt.resolve()
+        comparison_svg = args.annotation_comparison_svg.resolve()
+        comparison_binding = annotation_comparison_page(
+            args.gene, comparison_report_path, comparison_receipt_path, comparison_svg,
+            tss_report_path, tss_report,
+        )
+
     detail_pages, bindings = select_pages(
         args.gene, tss_report, tss_index, tss_dir, tss_receipt, bands,
     )
@@ -667,14 +727,20 @@ def compose(args: argparse.Namespace) -> dict[str, Any]:
                                     if output_genbank else (None, []))
     embl_bytes, embl_sources = (selected_embl(tss_index, tss_receipt, tss_dir, args.gene, bindings)
                               if output_embl else (None, []))
-    page_paths = [locus_svg, *detail_pages]
-    transcript_presentation_sha256 = validate_transcript_svg_pages(locus_report, page_paths)
+    transcript_presentation_sha256 = validate_transcript_svg_pages(
+        locus_report, [locus_svg, *detail_pages]
+    )
+    page_paths = [locus_svg, *([comparison_svg] if comparison_svg else []), *detail_pages]
+    page_order = ["locus_context"]
+    if comparison_svg:
+        page_order.append("transcript_start_annotation_comparison")
+    page_order.extend("selected_tss_tfbs" for _ in detail_pages)
     receipt = {
         "schema": OUTPUT_SCHEMA,
         "gene_symbol": args.gene,
         "gene_id": bindings[0]["gene_id"],
         "join_policy": "selected promoter_id plus gene/chromosome/TSS/strand; TSS must fall inside a bound locus background band",
-        "page_order": ["locus_context", *["selected_tss_tfbs" for _ in detail_pages]],
+        "page_order": page_order,
         "page_count": len(page_paths),
         "selected_tss_count": len(bindings),
         "selected_tss_bindings": bindings,
@@ -718,6 +784,8 @@ def compose(args: argparse.Namespace) -> dict[str, Any]:
         receipt["inputs"]["selected_tss_embl"] = embl_sources
     if transcript_presentation_sha256:
         receipt["inputs"]["transcript_presentation_sha256"] = transcript_presentation_sha256
+    if comparison_binding:
+        receipt["inputs"]["annotation_comparison"] = comparison_binding
     return publish_composite(receipt, page_paths, fasta_text, gentle_cli,
                              output_pdf, output_fasta, output_receipt, genbank_bytes, output_genbank,
                              embl_bytes, output_embl,
@@ -741,6 +809,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-fasta", type=Path, required=True)
     parser.add_argument("--output-genbank", type=Path, help="Optional annotated selected windows from indexed, receipt-bound GenBank exports")
     parser.add_argument("--output-embl", type=Path, help="Optional annotated selected windows from indexed, receipt-bound EMBL exports")
+    parser.add_argument("--annotation-comparison-report", type=Path,
+                        help="Optional checksum-bound Ensembl/secondary TSS comparison report")
+    parser.add_argument("--annotation-comparison-receipt", type=Path,
+                        help="Receipt for --annotation-comparison-report")
+    parser.add_argument("--annotation-comparison-svg", type=Path,
+                        help="Requested gene page from --annotation-comparison-report")
     parser.add_argument("--output-receipt", type=Path, required=True)
     parser.add_argument("--output-svg-directory", type=Path, help="New directory for ordered SVG pages, hover-preserving HTML index, sequences and page manifest")
     parser.add_argument("--output-svg-zip", type=Path, help="Optional deterministic ZIP of --output-svg-directory; hash bound by the composite receipt")
