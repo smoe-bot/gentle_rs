@@ -52,6 +52,14 @@
 
 ## 2026-09-14 - Prepared NCBI Transcript Joins And Indexing Progress
 
+- Permit a catalog-recognized official NCBI build/accession pair (currently
+  `GRCh38.p14` / `GCF_000001405.40`) to join a family-labelled locus
+  (`GRCh38`). Both GFF provenance headers must match the recognized pair and
+  the request. Exact builds remain accepted; unknown pairs, other patches,
+  missing accession bindings and near names fail closed. This enables
+  source-coherent RefSeq presentation without deleting or rewriting the
+  official GFF provenance header.
+
 - Integrate Glen's independent `edc776bc`, `f66aff41` and `a6916702` fixes:
   distinguish NCBI gene symbols from transcript names, group exon/CDS records
   by genomic sequence plus GFF3 relationship ID, and retain separate alignments

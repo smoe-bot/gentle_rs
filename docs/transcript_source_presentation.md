@@ -98,7 +98,13 @@ assembly mismatch and failed hashes fail the join; partial joins are not publish
   lacks normalized release, MANE and CDS phase. Release/accession are explicit
   request declarations bound to the file; phases stay unavailable. Use GFF3
   tags for MANE/RefSeq Select rather than assuming them.
-- A GFF3 `#!genome-build` header must match the assembly when present. Release
+- A GFF3 `#!genome-build` header must match the assembly when present. A
+  patch-qualified build may bind a family-labelled locus only for a recognized
+  exact build/accession pair (currently `GRCh38.p14` /
+  `GCF_000001405.40`), when the GFF declares both values and the accession also
+  matches the source request. Unknown pairs, other patches, near-substrings and
+  unbound family aliases fail.
+  Release
   declarations are provenance, not live-provider verification. Partial,
   start/end-range and exception attributes are retained as notes; annotated
   starts do not prove a complete experimentally observed TSS.
