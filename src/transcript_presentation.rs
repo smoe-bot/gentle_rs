@@ -10,6 +10,42 @@ fn bare_hash(raw: &str) -> &str {
     raw.strip_prefix("sha256:").unwrap_or(raw)
 }
 
+fn ncbi_assembly_accession(raw: &str) -> &str {
+    raw.trim()
+        .strip_prefix("NCBI_Assembly:")
+        .unwrap_or(raw.trim())
+}
+
+fn accession_bound_ncbi_build(accession: &str) -> Option<&'static str> {
+    match ncbi_assembly_accession(accession) {
+        "GCF_000001405.40" => Some("GRCh38.p14"),
+        _ => None,
+    }
+}
+
+fn gff3_build_matches_source(
+    requested_assembly: &str,
+    declared_build: &str,
+    requested_accession: &str,
+    declared_accession: Option<&str>,
+) -> bool {
+    let accession_matches = declared_accession.is_none_or(|value| {
+        ncbi_assembly_accession(value) == ncbi_assembly_accession(requested_accession)
+    });
+    if requested_assembly == declared_build {
+        return accession_matches;
+    }
+    let Some((family, patch)) = declared_build.rsplit_once(".p") else {
+        return false;
+    };
+    requested_assembly == family
+        && !patch.is_empty()
+        && patch.bytes().all(|byte| byte.is_ascii_digit())
+        && declared_accession.is_some()
+        && accession_matches
+        && accession_bound_ncbi_build(requested_accession) == Some(declared_build)
+}
+
 /// Check source-coherent content at report ingestion, including its enclosing locus.
 pub fn validate_locus(
     locus: &gentle_protocol::isoform_evidence::GeneLocusEvidenceDisplayReport,
@@ -165,12 +201,23 @@ fn gff3(
     let text = std::str::from_utf8(bytes).map_err(|e| e.to_string())?;
     // Embedded FASTA is not an annotation row. The complete file is still hashed.
     let annotation = text.split("##FASTA").next().ok_or("Empty GFF3")?;
-    for line in annotation.lines() {
-        if let Some(build) = line.strip_prefix("#!genome-build ") {
-            if build.trim() != input.assembly {
-                return Err("GFF3 genome-build contradicts the declared assembly".into());
-            }
-        }
+    let declared_build = annotation
+        .lines()
+        .find_map(|line| line.strip_prefix("#!genome-build "))
+        .map(str::trim);
+    let declared_accession = annotation
+        .lines()
+        .find_map(|line| line.strip_prefix("#!genome-build-accession "))
+        .map(str::trim);
+    if declared_accession.is_some_and(|value| {
+        ncbi_assembly_accession(value) != ncbi_assembly_accession(&input.accession)
+    }) {
+        return Err("GFF3 assembly accession contradicts the declared source accession".into());
+    }
+    if declared_build.is_some_and(|build| {
+        !gff3_build_matches_source(&input.assembly, build, &input.accession, declared_accession)
+    }) {
+        return Err("GFF3 genome-build contradicts the declared assembly".into());
     }
     let all = gff::Reader::new(annotation.as_bytes(), gff::GffType::GFF3)
         .records()
@@ -431,6 +478,59 @@ mod tests {
             );
             gentle_engine::transcript_presentation::validate(&p).unwrap();
         }
+    }
+    #[test]
+    fn transcript_source_gff3_accepts_only_accession_bound_patch_assembly_identity() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("patched.gff3");
+        let patched = gff("+").replace(
+            "#!genome-build synthetic\n",
+            "#!genome-build GRCh38.p14\n#!genome-build-accession NCBI_Assembly:GCF_000001405.40\n",
+        );
+        std::fs::write(&path, &patched).unwrap();
+        let mut source = input(&path, &patched);
+        source.assembly = "GRCh38".into();
+        source.accession = "GCF_000001405.40".into();
+        assert!(
+            load(
+                &[source.clone()],
+                dir.path(),
+                "GRCh38",
+                "test",
+                &"a".repeat(64)
+            )
+            .is_ok()
+        );
+
+        for (build, accession) in [
+            ("GRCh38.p13", "GCF_000001405.40"),
+            ("GRCh38.p13", "GCF_000001405.39"),
+            ("hg38.p14", "GCF_000001405.40"),
+            ("Human GRCh38.p14", "GCF_000001405.40"),
+            ("GRCh38.p14-extra", "GCF_000001405.40"),
+            ("GRCh38", "GCF_000001405.39"),
+        ] {
+            let changed = patched
+                .replace("GRCh38.p14", build)
+                .replace("GCF_000001405.40", accession);
+            std::fs::write(&path, &changed).unwrap();
+            let mut candidate = source.clone();
+            candidate.sha256 = crate::digest_utils::sha256_hex_bytes(changed.as_bytes());
+            assert!(
+                load(&[candidate], dir.path(), "GRCh38", "test", &"a".repeat(64)).is_err(),
+                "unexpectedly accepted build={build}, accession={accession}"
+            );
+        }
+
+        let missing_accession = patched
+            .lines()
+            .filter(|line| !line.starts_with("#!genome-build-accession "))
+            .collect::<Vec<_>>()
+            .join("\n")
+            + "\n";
+        std::fs::write(&path, &missing_accession).unwrap();
+        source.sha256 = crate::digest_utils::sha256_hex_bytes(missing_accession.as_bytes());
+        assert!(load(&[source], dir.path(), "GRCh38", "test", &"a".repeat(64)).is_err());
     }
     #[test]
     fn transcript_source_independent_file_assembly_locus_and_gene_bindings_reject_tamper() {
