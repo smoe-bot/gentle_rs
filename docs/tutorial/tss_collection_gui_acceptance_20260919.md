@@ -15,10 +15,12 @@ biology or broader release readiness.
 
 Baseline: `c2dead07aa021fb5b3f84274ba088d7bb923a05f`.
 
-Runtime candidate after reproduced fixes:
-`c3c06da35acd01814cd0630d278d8a1660888d1a`. The PR may contain a later
-report-only commit; runtime claims remain bound to the exact candidate and
-binary hashes below.
+Final automated runtime candidate after reproduced fixes and documentation:
+`e13553ac9cd1a8b9f34a239fd488e418af8c87ae`. The separate manual lifecycle
+was completed against its code-identical parent
+`c3c06da35acd01814cd0630d278d8a1660888d1a`; the final commit changes only
+documentation and generated tutorial projections. Runtime claims remain bound
+to these exact revisions and the binary hashes below.
 
 ## Frozen Environment
 
@@ -37,9 +39,9 @@ Candidate binaries were built together with
 
 | Binary | SHA-256 |
 | --- | --- |
-| `gentle` | `5736f693571afd9e87fba3d4bf2bad2dd98b62088d747eeef53c86b869321ba1` |
-| `gentle_cli` | `8c606f205001e87c3bf7f95cbf4caffd80303fba14e8537e0405e4e8b98465c8` |
-| `gentle_examples_docs` | `7252fc77f9ec7455351625b90de55a28ce2f324dc8d1110a3dca82e2ddd34644` |
+| `gentle` | `aa1001a18e87c6233dfda6eac9542ff262cb488ac80a9b842fd63f67f5fed513` |
+| `gentle_cli` | `14a7bfff7dc2e17595215b4a32f28a4d0740aff78585cad686788d5693553f74` |
+| `gentle_examples_docs` | `73a7a1bd946a1818eb02f57568f591fc94995bdadcba4d0f11e95c50489a8570` |
 
 ## Reproduced Defects And Narrow Fixes
 
@@ -61,9 +63,9 @@ approval, stale-member or scientific-verification rule was weakened.
 ## Automated GUI Checkpoints
 
 Both runs started from a generated starter project, never the completed oracle.
-Every row passed twice. Run A ledger SHA-256 is
-`077c36161761845206552a7bf60d979bf54719b22997c42d3a3326b39da1704a`;
-run B is `5f513e8e5a02651c8366415e93d540df8874ae4f33b745018c7d83e032884994`.
+Every row passed twice on the final revision. Run A ledger SHA-256 is
+`749fda7ea480090499e017cf97e7c90ea2d1fc0ee0fd9fe5ad5ae5e5ff7bc35d`;
+run B is `1654544e672451d74e3a6ea6fba406af19a98dcbf26a89750f6e13c1e19c7bb5`.
 
 | Checkpoint | Expected and observed result | Verdict | Evidence |
 | --- | --- | --- | --- |
@@ -108,8 +110,10 @@ The manual run used a disposable copy of run A's intact saved project.
 
 Before live acceptance, the baseline passed 32 Python runner/publication/
 checkout tests, 15 focused Rust tests, catalog 58/58, manifest/tutorial 29/29,
-locked Cargo check, formatting and whitespace checks. Final-revision reruns are
-recorded in the PR handoff and external evidence manifest.
+locked Cargo check, formatting and whitespace checks. On the final revision,
+32 Python tests and 19 unique focused Rust tests passed, together with the
+three-binary locked build, locked Cargo check, catalog 58/58,
+manifest/tutorial 29/29, formatting and whitespace checks.
 
 The direct Rust test binary requires the repository's configured
 `RUST_MIN_STACK=16777216`; running that binary outside Cargo without the setting
@@ -118,8 +122,11 @@ is not an equivalent test environment.
 ## Evidence And Remaining Boundaries
 
 Raw PNGs, semantic snapshots, typed receipts, project copies, command output and
-logs are retained outside Git in a checksum-manifest bundle. Only this small,
-publication-safe synthetic summary is committed. No private input is present.
+logs are retained outside Git in the 79 MiB checksum-manifest bundle
+`tss-gui-acceptance-20260919-e13553ac`. Its `SHA256SUMS` file has SHA-256
+`f198cc7ee714c21558ee3af5c9b6157541589915ff64daec22e9cf0bc1520d80`
+and verifies every retained file. Only this small, publication-safe synthetic
+summary is committed. No private input is present.
 
 Two pre-existing tutorial human-review staleness warnings remain unrelated to
 this chapter. No real-data or inner-agent check was run, no production report
