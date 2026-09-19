@@ -21,6 +21,10 @@
 - Wake the root viewport when a collection-open request originates in a child
   DNA viewer. Without that cross-viewport repaint, an idle root left the
   validated request queued and no subject-bound member windows appeared.
+- Record two independent network-isolated 18-step runs and the separate
+  save/restart, visual-orientation and stale-member Forget/Undo lifecycle in a
+  revision-bound public synthetic acceptance report. Real-data and inner-agent
+  acceptance remain explicitly out of scope.
 
 ## 2026-09-19 - Splicing Intent and Collection Smoke Regressions
 

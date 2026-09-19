@@ -89,6 +89,8 @@ record the container/network-namespace policy. Keep the checkpoint ledger,
 semantic snapshots, raw screenshots, typed reports, project hashes and binary
 identities. Missing/ambiguous controls are a `harness_gap`, not guessed clicks.
 Authoring and unit-testing the contract does not establish a Linux GUI pass.
+The retained synthetic run for this candidate is summarized in the
+[2026-09-19 acceptance report](tss_collection_gui_acceptance_20260919.md).
 
 ## Manual Lifecycle Checks
 
@@ -117,6 +119,11 @@ The automated Forget/Undo cycle uses an intact collection. Steps 3-5 above test
 the separate stale-member case; restoring its registry must not repair or hide
 the deliberate edit. Engine regressions cover this distinction, but GUI editing
 and application restart still need their own retained live evidence.
+
+Those separate lifecycle checks were completed for the candidate documented in
+the [2026-09-19 acceptance report](tss_collection_gui_acceptance_20260919.md).
+That result is revision-specific and does not turn this checklist into an
+automatic claim for later binaries.
 
 Changing collection ID cancels a pending forget confirmation. Forgetting does
 not authorize sequence overwrite; a new derivation normally needs a new name.

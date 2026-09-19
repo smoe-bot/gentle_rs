@@ -1493,7 +1493,7 @@
         "wet_lab_biologists",
         "contributors"
       ],
-      "notes": "Synthetic GUI lifecycle acceptance plus a manual restart/stale-member checklist. Codex source review 2026-09-19: wet-lab readability, coordinates and reproducibility; native GUI, human scientific approval and live TP73 sign-off remain pending.",
+      "notes": "Synthetic GUI lifecycle acceptance plus a manual restart/stale-member checklist. Codex source review 2026-09-19 covered wet-lab readability, coordinates and reproducibility. Glen's Linux/Xvfb synthetic acceptance is recorded in docs/tutorial/tss_collection_gui_acceptance_20260919.md; human scientific approval and live TP73 sign-off remain pending.",
       "review_status": "codex_reviewed",
       "codex_reviewed_at": "2026-09-19"
     }

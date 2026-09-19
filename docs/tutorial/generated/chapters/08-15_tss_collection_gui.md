@@ -22,7 +22,7 @@ generated_artifact_dir: "docs/tutorial/generated/artifacts/tss_collection_gui"
 
 Preview and approve annotated starts, validate and reopen their windows, then cancel or confirm metadata-only forgetting and undo it.
 
-Two transcripts can share a first base without being the same transcript. In this artificial 2 kb locus, plus_a and plus_b share start 601; plus_c starts at 901; minus_a starts at 1500 on the opposite strand. Their common TOY label selects two separate gene IDs without merging them. Three 701 bp windows result, oriented in transcript direction with the annotated start at local base 501. These annotations are not experimental evidence for active promoters. The repetitive toy DNA is not suitable for primer or biological TFBS conclusions. The generated passing status refers to engine workflow replay only, not to a completed Linux/Xvfb acceptance run.
+Two transcripts can share a first base without being the same transcript. In this artificial 2 kb locus, plus_a and plus_b share start 601; plus_c starts at 901; minus_a starts at 1500 on the opposite strand. Their common TOY label selects two separate gene IDs without merging them. Three 701 bp windows result, oriented in transcript direction with the annotated start at local base 501. These annotations are not experimental evidence for active promoters. The repetitive toy DNA is not suitable for primer or biological TFBS conclusions. Engine replay and the recorded Linux/Xvfb synthetic acceptance have separate verdicts; neither is live TP73 or broader release acceptance.
 
 See also: guided walkthrough [docs/tutorial/08-15_tss_collection_gui.md](../../08-15_tss_collection_gui.md). Use that page first when you want a human-led path; this chapter is the executable reference.
 
@@ -50,7 +50,7 @@ See also: guided walkthrough [docs/tutorial/08-15_tss_collection_gui.md](../../0
 6. Open TSS collection twice. Expect exactly three member viewers plus the original locus, with no duplicate windows. Compare persisted members with the independent oracle.
 7. Request Forget registry entry, then Cancel. Verify the collection still validates. Request again and confirm the named entry: the registry disappears, but all sequences and open viewers remain.
 8. Choose Edit > Undo in the main window. Inspect stored collection again: its report and member content must match the original oracle.
-9. Continue the separate manual checklist for save/close/reopen and deliberately editing a member. Rejection of a stale member after undoing forget is not yet certified by the automated GUI subset.
+9. Consult the separate acceptance report for save/close/reopen and deliberate member editing. Those manual lifecycle results remain separate from the 18-step automated GUI verdict.
 
 ## Walkthrough: GUI, CLI and Inner Agent
 
@@ -166,19 +166,19 @@ Choose Edit > Undo in the main window. Inspect stored collection again: its repo
 
 > Undo restores the collection; a fresh inspection validates the restored members.
 
-### Step 9: Continue the separate manual checklist for save/close/reopen and deliberately editing a member. Rejection of a stale member after undoing forget is not yet certified by the automated GUI subset
+### Step 9: Consult the separate acceptance report for save/close/reopen and deliberate member editing. Those manual lifecycle results remain separate from the 18-step automated GUI verdict
 
 **GUI**
 
-Continue the separate manual checklist for save/close/reopen and deliberately editing a member. Rejection of a stale member after undoing forget is not yet certified by the automated GUI subset.
+Consult the separate acceptance report for save/close/reopen and deliberate member editing. Those manual lifecycle results remain separate from the 18-step automated GUI verdict.
 
 **Ask the inner agent**
 
-> In the current GENtle project, help me perform this tutorial step: Continue the separate manual checklist for save/close/reopen and deliberately editing a member. Rejection of a stale member after undoing forget is not yet certified by the automated GUI subset. Show the exact GENtle operation or command and its expected result for my review. State any missing input. Do not execute it until I approve.
+> In the current GENtle project, help me perform this tutorial step: Consult the separate acceptance report for save/close/reopen and deliberate member editing. Those manual lifecycle results remain separate from the 18-step automated GUI verdict. Show the exact GENtle operation or command and its expected result for my review. State any missing input. Do not execute it until I approve.
 
 **Expected**
 
-> Manual restart and stale-member GUI acceptance remain separately recorded.
+> Manual restart and stale-member GUI acceptance are recorded separately from the automated subset.
 
 
 ## Complete Workflow Replay

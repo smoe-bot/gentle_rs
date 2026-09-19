@@ -13,7 +13,7 @@
       "wet_lab_biologists",
       "contributors"
     ],
-    "notes": "Synthetic GUI lifecycle acceptance plus a manual restart/stale-member checklist. Codex source review 2026-09-19: wet-lab readability, coordinates and reproducibility; native GUI, human scientific approval and live TP73 sign-off remain pending.",
+    "notes": "Synthetic GUI lifecycle acceptance plus a manual restart/stale-member checklist. Codex source review 2026-09-19 covered wet-lab readability, coordinates and reproducibility. Glen's Linux/Xvfb synthetic acceptance is recorded in docs/tutorial/tss_collection_gui_acceptance_20260919.md; human scientific approval and live TP73 sign-off remain pending.",
     "group": "08",
     "group_position": 15
   },
@@ -23,7 +23,7 @@
     "example_id": "tss_collection_gui_oracle",
     "tier": "core",
     "summary": "Preview and approve annotated starts, validate and reopen their windows, then cancel or confirm metadata-only forgetting and undo it.",
-    "narrative": "Two transcripts can share a first base without being the same transcript. In this artificial 2 kb locus, plus_a and plus_b share start 601; plus_c starts at 901; minus_a starts at 1500 on the opposite strand. Their common TOY label selects two separate gene IDs without merging them. Three 701 bp windows result, oriented in transcript direction with the annotated start at local base 501. These annotations are not experimental evidence for active promoters. The repetitive toy DNA is not suitable for primer or biological TFBS conclusions. The generated passing status refers to engine workflow replay only, not to a completed Linux/Xvfb acceptance run.",
+    "narrative": "Two transcripts can share a first base without being the same transcript. In this artificial 2 kb locus, plus_a and plus_b share start 601; plus_c starts at 901; minus_a starts at 1500 on the opposite strand. Their common TOY label selects two separate gene IDs without merging them. Three 701 bp windows result, oriented in transcript direction with the annotated start at local base 501. These annotations are not experimental evidence for active promoters. The repetitive toy DNA is not suitable for primer or biological TFBS conclusions. Engine replay and the recorded Linux/Xvfb synthetic acceptance have separate verdicts; neither is live TP73 or broader release acceptance.",
     "use_cases": [
       "Learn why a transcript count differs from a distinct-start count.",
       "Separate an unchecked stored record from a currently validated collection.",
@@ -38,7 +38,7 @@
       "Open TSS collection twice. Expect exactly three member viewers plus the original locus, with no duplicate windows. Compare persisted members with the independent oracle.",
       "Request Forget registry entry, then Cancel. Verify the collection still validates. Request again and confirm the named entry: the registry disappears, but all sequences and open viewers remain.",
       "Choose Edit > Undo in the main window. Inspect stored collection again: its report and member content must match the original oracle.",
-      "Continue the separate manual checklist for save/close/reopen and deliberately editing a member. Rejection of a stale member after undoing forget is not yet certified by the automated GUI subset."
+      "Consult the separate acceptance report for save/close/reopen and deliberate member editing. Those manual lifecycle results remain separate from the 18-step automated GUI verdict."
     ],
     "cli_steps": [],
     "step_expectations": [
@@ -50,7 +50,7 @@
       "Repeated opening reuses the same four subject-bound DNA viewers; queued is not yet opened.",
       "Cancellation changes nothing; confirmed forgetting removes only collection registry metadata, not the member sequences.",
       "Undo restores the collection; a fresh inspection validates the restored members.",
-      "Manual restart and stale-member GUI acceptance remain separately recorded."
+      "Manual restart and stale-member GUI acceptance are recorded separately from the automated subset."
     ],
     "learning_objectives": [
       "Interpret transcript-oriented starts without inferring a preferred biological TSS.",

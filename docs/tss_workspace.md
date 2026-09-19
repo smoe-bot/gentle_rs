@@ -233,6 +233,9 @@ for Glen's clean-profile walkthrough and typed repeated-opening, cancellation,
 Forget/Undo checkpoints. Save/restart, visual orientation and deliberately
 stale-member GUI checks remain separate manual acceptance. Neither authoring
 the contract nor running its unit tests establishes a live GUI pass.
+The synthetic Linux/Xvfb and manual lifecycle results for the 2026-09-19
+candidate are recorded in the
+[revision-bound acceptance report](tutorial/tss_collection_gui_acceptance_20260919.md).
 
 Deterministic synthetic tests exercise shared/opposite-strand starts, overlapping
 genes, missing/partial annotation, flank refusal, all four local/genomic strand
