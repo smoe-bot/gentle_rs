@@ -402,6 +402,15 @@ preserve production profiles and benchmark semantics, and remeasure build cost
 at named revisions. Root source size alone does not prove which extraction
 helps, and no broad engine/GUI split is authorized by this plan.
 
+The `.11` Unix package failures do not yet admit a B0 extraction. The next
+approved build-only replay first records the optimized root compiler's sampled
+RSS plus host pressure/swap state. A root-package profile override ranks ahead
+of B0 only when those samples implicate compiler resources, but it would create
+a third native build recipe and require Build Profile Context plus DEC-039 to
+name the new measurement identity. Ubuntu swap ranks behind that cross-platform
+test because it cannot address macOS. Until such evidence exists, retain the
+current profile and treat B0 as a proposal rather than a release-build repair.
+
 This is distinct from a single-root **GUI workspace** (replacing native child
 windows with one application workspace), which remains a conditional UX/runtime
 change. Neither faster linking nor a different audit profile establishes a

@@ -64,7 +64,7 @@ Release acceptance:
   external resources; CI uses tiny local fixtures without restricting the
   engine or GUI contracts to those fixture sizes.
 - Bind all verdicts to one SHA, lockfile, toolchain/profile and input hashes; rerun gates on candidate changes, never combine nearby revisions' passes.
-- CI must still prove all native packages at one SHA with `lto="off"`, other Cargo defaults, one build job and five binaries (no JS/Lua), fresh receipts and extracted-package smokes. Runs `35968255595` (`ad0338a7`) and `36010984447` (`ffe5c637`) both lost the Unix native build; Windows passed in both. The macOS root-library compiler SIGKILL and Ubuntu runner exit 143 do not prove OOM. Add child-compiler/resource diagnostics before choosing a profile or swap mitigation; runtime acceptance remains Glen's.
+- CI must still prove all native packages at one SHA with `lto="off"`, other Cargo defaults, one build job and five binaries (no JS/Lua), fresh receipts and extracted-package smokes. Runs `35968255595` (`ad0338a7`) and `36010984447` (`ffe5c637`) both lost the Unix native build; Windows passed in both. The macOS root-library compiler SIGKILL and Ubuntu runner exit 143 do not prove OOM. The next approved build-only replay must retain sampled compiler RSS, pressure/swap and live-log evidence before any root-profile, swap or B0 change; runtime acceptance remains Glen's.
 - Headless `runtime-cli` container validation is closed for `.11`: tag-push run `35995175749` at `ffe5c637` passed final-image linking and the no-network RNAPKIN SVG/PNG smoke. Release-event runs `35968255639` and `36010984241` published GHCR images. This does not close native package or GUI acceptance.
 
 Release cut line:
