@@ -242,6 +242,13 @@ Expected interpretation:
 - the insert does not need to already contain those overlaps because the primer
   suggestions add them at the `5'` end
 
+The deterministic cartoon below is the visual model for the expected preview.
+Read it left to right: opened destination, overlap-bearing insert primers,
+overlap annealing, and the final dual-junction product. It is an engine render,
+not a screenshot of the specialist window.
+
+![Single-insert Gibson mechanism with both destination-insert junctions](../figures/gibson_single_insert_protocol_cartoon.svg)
+
 ## Step 8: Apply and Export the Outputs
 
 GUI:
@@ -275,6 +282,13 @@ What to verify:
 - the primer summary is human-readable
 - the SVG opens and matches the resolved cartoon logic described by the
   textual review blocks
+
+After apply, the lineage view should resemble the capture below: the destination
+and insert feed one Gibson operation, while primer and assembled-product nodes
+remain explicit. Use it to recognize the graph structure; exact node positions
+are presentation details.
+
+![GENtle lineage graph after applying the single-insert Gibson tutorial plan](../screenshots/tutorial_gibson_specialist_testing_08_lineage_graph.png)
 
 ## Step 9: Check Shared CLI Parity
 

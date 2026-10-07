@@ -69,6 +69,10 @@ gentle_cli shell 'genbank fetch NM_001126241.3 --as-id tp73_cdna'
 
 > The GenBank route imports the TP73 cDNA accession under the stable id `tp73_cdna`.
 
+![The accession-fetch dialog used to import NM_001126241.3 as the TP73 cDNA input.](../../../screenshots/tutorial_cdna_genomic_02_fetch_cdna_dialog.png)
+
+*Figure: The accession-fetch dialog used to import NM_001126241.3 as the TP73 cDNA input. Screenshot captured 2026-03-16.*
+
 ### Step 2: Prepare Human GRCh38 Ensembl 116, retrieve gene TP73 as tp73_genomic
 
 **GUI**
@@ -90,6 +94,14 @@ gentle_cli genomes extract-gene "Human GRCh38 Ensembl 116" TP73 --occurrence 1 -
 
 > The reference is prepared if needed and TP73 is extracted into the stable genomic sequence id `tp73_genomic`.
 
+![Reference preparation for the GRCh38 genome used by the genomic half of the comparison.](../../../screenshots/tutorial_cdna_genomic_03_prepare_genome_dialog.png)
+
+*Figure: Reference preparation for the GRCh38 genome used by the genomic half of the comparison. Screenshot captured 2026-03-18.*
+
+![The gene-retrieval dialog after choosing TP73 from the prepared reference annotation.](../../../screenshots/tutorial_cdna_genomic_04_retrieve_tp73_genomic_dialog.png)
+
+*Figure: The gene-retrieval dialog after choosing TP73 from the prepared reference annotation. Screenshot captured 2026-03-18.*
+
 ### Step 3: Open tp73_cdna, switch to Dotplot map, set pair mode against tp73_genomic, and compute with word<=7, step=1, mismatches=0
 
 **GUI**
@@ -109,6 +121,14 @@ gentle_cli shell 'dotplot compute tp73_cdna --reference-seq tp73_genomic --mode 
 **Expected**
 
 > The dotplot compute route creates `tp73_cdna_vs_genomic_dotplot` with the same high-sensitivity seed settings used by the GUI.
+
+![The pair-forward dotplot window. Exon-aligned blocks are the biological pattern to inspect; window placement is not part of the result.](../../../screenshots/tutorial_cdna_genomic_07_dotplot_window.png)
+
+*Figure: The pair-forward dotplot window. Exon-aligned blocks are the biological pattern to inspect; window placement is not part of the result. Screenshot captured 2026-03-20.*
+
+![The saved dotplot as a project/lineage node, showing that the comparison remains inspectable after computation.](../../../screenshots/tutorial_cdna_genomic_09_dotplot_as_node.png)
+
+*Figure: The saved dotplot as a project/lineage node, showing that the comparison remains inspectable after computation. Screenshot captured 2026-03-20.*
 
 
 ## Interpretation and Reference

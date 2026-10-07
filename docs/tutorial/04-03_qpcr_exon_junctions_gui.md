@@ -58,6 +58,13 @@ Do not start by manually typing exon coordinates unless you are deliberately
 testing a low-level coordinate case. For biological exon-junction assays, seed
 from Splicing Expert so the qPCR request carries transcript identity.
 
+This deterministic protocol strip summarizes the assay geometry before you
+enter the transcript-specific details: forward primer, reverse primer and probe
+must form one coherent amplicon, while the transcript evidence determines
+whether that geometry is actually specific enough.
+
+![qPCR assay geometry with forward primer, reverse primer and internal probe](../figures/qpcr_assay_protocol_cartoon.svg)
+
 ## Fastest Path
 
 1. Open `File -> Open Tutorial Project... -> Core -> 18. Simple PCR From a Selected Core Region`.
@@ -226,6 +233,16 @@ The most important question is:
 
 > Does the retained assay satisfy the biological intent, not just the primer
 > length and Tm filters?
+
+The two transcript maps below illustrate why that question matters. The first
+assay produces the same product across all three bundled TP73-AS3 transcript
+rows; the second retains a product only for `NR_187362.1`. These are
+deterministic cDNA-assay exports, not promises that the tutorial's newly
+designed oligos will have identical sequences.
+
+![Shared TP73-AS3 qPCR assay across three annotated transcripts](../figures/tp73_as3_shared_cdna_qpcr.svg)
+
+![TP73-AS3 qPCR assay specific to NR_187362.1 in the bundled annotation](../figures/tp73_as3_nr187362_cdna_qpcr.svg)
 
 ### Step 7: Export the Handoff Artifacts
 

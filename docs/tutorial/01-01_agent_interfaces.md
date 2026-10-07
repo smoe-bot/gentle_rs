@@ -102,6 +102,21 @@ interchangeably with GUI operations and GUI Shell commands. The audit trail is
 the concrete reviewed GENtle command, not the natural-language prompt that led
 to it.
 
+The capture below shows that shared-state idea in practice. The open DNA viewer
+contains the same TP73 evidence project that an inner agent can inspect through
+reviewed GENtle commands. Use the project anchor, sequence viewport and evidence
+tracks to orient yourself; the image is a GUI teaching capture, not a claim that
+the agent independently verified the biology.
+
+![GENtle DNA viewer showing the TP73 evidence project available to the in-app agent](../screenshots/tp73_inner_agent_evidence_viewer.png)
+
+For comparison, the deterministic outer-agent export of the same `1..1200`
+viewport is shown next. Matching coordinates make GUI and exported evidence
+easy to compare without pretending that a screenshot is the reproducible
+result.
+
+![Deterministic outer-agent export of the same TP73 evidence viewport](../figures/tp73_outer_agent_evidence_viewer.svg)
+
 ## 3) Bringing sequences into that shared state
 
 The same project-state rule becomes most useful once a sequence exists in the

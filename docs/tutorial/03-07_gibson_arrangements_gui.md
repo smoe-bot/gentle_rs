@@ -194,6 +194,12 @@ What to verify in the SVG:
 This is the practical payoff of storing the arrangement: you no longer have to
 reconstruct the lane order by hand each time.
 
+The expected arrangement-level export is shown below. The ladders bracket the
+three sample lanes, while the vector, insert and assembled product retain the
+stored arrangement order.
+
+![Arrangement-level Gibson gel with flanking ladders and ordered sample lanes](../figures/gibson_single_insert_arrangement_gel.svg)
+
 ## Step 6: Inspect the Graph View
 
 GUI:
@@ -214,6 +220,11 @@ Interpretation:
 - the arrangement is a reusable downstream plan for lane ordering and gel export
 - keeping them separate is useful because the same output sequences could later
   participate in more than one arrangement
+
+The deterministic lineage export below makes that distinction visible without
+depending on a particular GUI window size.
+
+![Gibson inputs, operation, products and downstream arrangement in the lineage graph](../figures/gibson_single_insert_lineage.svg)
 
 ## CLI Parity
 

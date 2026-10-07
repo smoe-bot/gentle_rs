@@ -108,6 +108,10 @@ cargo run --bin gentle_examples_docs -- tutorial-catalog-check
 
 > The tutorial catalog remains linked so the generated starter chapter points readers to the hand-written Gibson specialist walkthrough.
 
+![The Gibson tutorial opened in GENtle Help after loading the starter project. Continue with the specialist steps rather than re-importing the bundled inputs.](../../../screenshots/screenshot_GUI_help_tutorial_testing_gibson.png)
+
+*Figure: The Gibson tutorial opened in GENtle Help after loading the starter project. Continue with the specialist steps rather than re-importing the bundled inputs. Screenshot captured 2026-03-22.*
+
 
 ## Interpretation and Reference
 

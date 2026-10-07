@@ -261,6 +261,14 @@ Why this matters:
   retain the unresolved checkpoint rather than changing quality values or
   lowering expectations to force a pass
 
+The confirmation overview below shows the intended visual hierarchy: expected
+construct, evidence spans, checkpoint/variant markers and their relationship to
+the sequence ruler. It is a deterministic report figure from the bundled blunt
+construct example, so use it to understand the layout rather than as evidence
+for the ABI trace you are currently reviewing.
+
+![Sequencing-confirmation overview aligning construct, evidence spans and variant loci](../figures/pgex_blunt_sequence_confirmation_hero.svg)
+
 ## Step 8: Reopen the Stored Report from Lineage
 
 This step verifies the closing loop: sequencing confirmation is now a

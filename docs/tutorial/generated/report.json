@@ -103,11 +103,11 @@
     "artifacts/regulatory_fragment_panel_planning_offline/artifacts/regulatory_fragment_panel.locus.svg": "0a7f3875a8bc0acba35e982bbeb93c9bd3cad29939ca21d96c9629ce59072e50",
     "chapters/01-02_contribute_to_gentle_development.md": "84c01b3f89c704c9c05a709a0b2918d1483b89a64343877766f835aa8524361a",
     "chapters/02-01_load_branch_reverse_complement_pgex_fasta.md": "f9d7093f443282c1f53580f1f43fff3de0c04769e5184d2d4e8fb5c0d9aaa9ea",
-    "chapters/02-04_tp73_cdna_genomic_dotplot_online.md": "dcf065d3b4ae3c85470648b2efecdacca52800185c9fcf48967e793b841db3c9",
+    "chapters/02-04_tp73_cdna_genomic_dotplot_online.md": "6b005c452960edf9509b2ac0807e4ced4a1c29afaa40fbe54bb8c5a80126f677",
     "chapters/03-01_load_and_digest_pgex.md": "f237960e166aebc491373c7a43b257d104ab37a3c0a2115cf86319d80b93bc14",
     "chapters/03-02_digest_ligation_extract_region_minimal.md": "86688486743fd39f7b3264e5d59ee3bc2288f84f95d4da55ba5b62780d857d14",
     "chapters/03-03_gibson_two_fragment_overlap_preview.md": "5bd55c4cbe333606150850979a3a67b8e61eb71b3ea67a3a51bc1e094c9e6e39",
-    "chapters/03-04_gibson_specialist_testing_baseline.md": "c75ef145218194d6a9dd58a2523d8e991cb79dfbfc29c54025f6561d0addb2fb",
+    "chapters/03-04_gibson_specialist_testing_baseline.md": "0b4fdd1708271a96801d1c9d676640804c2baccbfa9e06968f65e6e68fdb42db",
     "chapters/03-06_gibson_arrangements_baseline.md": "1c924a909fb2b61366b54f2080443e99360d09e19d20a3877585055d2ebf02ee",
     "chapters/04-01_simple_pcr_selection_gui.md": "a38df39a13b0d7d82c2d547913c366512ae24b98c8b74c1a63e054f9879f98c2",
     "chapters/04-02_pcr_selection_batch_primer_pairs_offline.md": "aa91ec372866cdf301eef5d6342d007a5816a441253102c10e60c14345538cba",
@@ -115,7 +115,7 @@
     "chapters/04-05_guides_export_csv_and_protocol.md": "12ac1eb859aa9663912d0a790f374af91f34e47d4be7c7a19c25766879c9671a",
     "chapters/04-06_patz1_transcript_assay_panels_cli.md": "328b6d7e3e9c561e83abdbf40126bae21aa59545491e45445bd7e89d035eac10",
     "chapters/05-01_find_and_extend_genomic_target_local_catalog.md": "477686e6fb5d5922d038ac2832c6e221369f86b31ba0cf1820f43a27cfe7757d",
-    "chapters/05-02_prepare_reference_genome_online.md": "ca5df4ec244bfb1dfc68781a6f3cf0431257580a9c162ae98205607692eab75c",
+    "chapters/05-02_prepare_reference_genome_online.md": "7046a7dd150c214a205602980f094a3ad6af5175e5c1f733948d24beacb3f396",
     "chapters/05-03_tp63_anchor_extension_online.md": "986f32007d7417d9f3ec01701f80220f3b594f67e1170ab1668fe5ac44fdc2e3",
     "chapters/06-03_tp53_isoform_architecture_online.md": "affb6cd67d8cd8f8068e52c576473bd5dbc6ad4f935541a76d19a2931a59bc09",
     "chapters/06-04_tp53_uniprot_projection_online.md": "a93eab67db6a7166b3426bc2f25c0497e76c3622d70d9abadd5b3216cc942795",
@@ -392,6 +392,15 @@
       "review_status": "unreviewed",
       "review_issue_template": "Tutorial confusion",
       "review_issue_template_path": ".github/ISSUE_TEMPLATE/tutorial-confusion.md",
+      "graphics": [
+        {
+          "kind": "screenshot",
+          "path": "docs/screenshots/screenshot_GUI_prepare_reference_genome.png",
+          "caption": "The reference-genome preparation window. Verify genome identity, catalog and cache location before starting the network-dependent preparation.",
+          "illustrates_step": 2,
+          "capture_date": "2026-03-08"
+        }
+      ],
       "retained_artifacts": []
     },
     {
@@ -516,6 +525,43 @@
       "review_status": "unreviewed",
       "review_issue_template": "Tutorial confusion",
       "review_issue_template_path": ".github/ISSUE_TEMPLATE/tutorial-confusion.md",
+      "graphics": [
+        {
+          "kind": "screenshot",
+          "path": "docs/screenshots/tutorial_cdna_genomic_02_fetch_cdna_dialog.png",
+          "caption": "The accession-fetch dialog used to import NM_001126241.3 as the TP73 cDNA input.",
+          "illustrates_step": 1,
+          "capture_date": "2026-03-16"
+        },
+        {
+          "kind": "screenshot",
+          "path": "docs/screenshots/tutorial_cdna_genomic_03_prepare_genome_dialog.png",
+          "caption": "Reference preparation for the GRCh38 genome used by the genomic half of the comparison.",
+          "illustrates_step": 2,
+          "capture_date": "2026-03-18"
+        },
+        {
+          "kind": "screenshot",
+          "path": "docs/screenshots/tutorial_cdna_genomic_04_retrieve_tp73_genomic_dialog.png",
+          "caption": "The gene-retrieval dialog after choosing TP73 from the prepared reference annotation.",
+          "illustrates_step": 2,
+          "capture_date": "2026-03-18"
+        },
+        {
+          "kind": "screenshot",
+          "path": "docs/screenshots/tutorial_cdna_genomic_07_dotplot_window.png",
+          "caption": "The pair-forward dotplot window. Exon-aligned blocks are the biological pattern to inspect; window placement is not part of the result.",
+          "illustrates_step": 3,
+          "capture_date": "2026-03-20"
+        },
+        {
+          "kind": "screenshot",
+          "path": "docs/screenshots/tutorial_cdna_genomic_09_dotplot_as_node.png",
+          "caption": "The saved dotplot as a project/lineage node, showing that the comparison remains inspectable after computation.",
+          "illustrates_step": 3,
+          "capture_date": "2026-03-20"
+        }
+      ],
       "retained_artifacts": []
     },
     {
@@ -539,6 +585,15 @@
       "review_status": "unreviewed",
       "review_issue_template": "Tutorial confusion",
       "review_issue_template_path": ".github/ISSUE_TEMPLATE/tutorial-confusion.md",
+      "graphics": [
+        {
+          "kind": "screenshot",
+          "path": "docs/screenshots/screenshot_GUI_help_tutorial_testing_gibson.png",
+          "caption": "The Gibson tutorial opened in GENtle Help after loading the starter project. Continue with the specialist steps rather than re-importing the bundled inputs.",
+          "illustrates_step": 3,
+          "capture_date": "2026-03-22"
+        }
+      ],
       "retained_artifacts": []
     },
     {

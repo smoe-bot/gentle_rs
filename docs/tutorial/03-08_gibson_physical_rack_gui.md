@@ -25,6 +25,12 @@ The figure result this tutorial aims for is:
 
 - [`docs/figures/gibson_single_insert_rack_isometric.svg`](../figures/gibson_single_insert_rack_isometric.svg)
 
+![Isometric physical-rack projection for the Gibson arrangement](../figures/gibson_single_insert_rack_isometric.svg)
+
+The image is a deterministic SVG export rather than a GUI screenshot. It is
+more useful for bench communication because labels and carrier geometry remain
+sharp when zoomed or printed.
+
 That SVG is suitable as a bench-facing communication artifact and as a README
 hero figure because it is exported from the same shared project state rather
 than drawn by hand.
@@ -174,6 +180,11 @@ What each one is for:
   - front strip + module labels
 - `OpenSCAD`
   - parameterized printable geometry for later refinement or printing
+
+The top-down companion view is useful when the pseudo-3D view makes exact
+positions harder to read:
+
+![Top-down rack projection with exact A1-style sample positions](../figures/gibson_single_insert_rack_topdown.svg)
 
 Practical macOS note:
 

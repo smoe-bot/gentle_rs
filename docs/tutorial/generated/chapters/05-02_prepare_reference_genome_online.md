@@ -87,6 +87,10 @@ gentle_cli genomes status "Human GRCh38 Ensembl 116" --catalog assets/genomes.js
 
 > The status payload names `Human GRCh38 Ensembl 116` and reports the effective cache directory.
 
+![The reference-genome preparation window. Verify genome identity, catalog and cache location before starting the network-dependent preparation.](../../../screenshots/screenshot_GUI_prepare_reference_genome.png)
+
+*Figure: The reference-genome preparation window. Verify genome identity, catalog and cache location before starting the network-dependent preparation. Screenshot captured 2026-03-08.*
+
 ### Step 3: Confirm prepared status in the GUI before attempting extraction workflows
 
 **GUI**

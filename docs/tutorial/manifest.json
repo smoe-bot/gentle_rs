@@ -1128,6 +1128,15 @@
       "checkpoints": [
         "Genome preparation runs only when GENTLE_TEST_ONLINE is enabled.",
         "Offline generation still emits the chapter with execution status noted."
+      ],
+      "graphics": [
+        {
+          "kind": "screenshot",
+          "path": "docs/screenshots/screenshot_GUI_prepare_reference_genome.png",
+          "caption": "The reference-genome preparation window. Verify genome identity, catalog and cache location before starting the network-dependent preparation.",
+          "illustrates_step": 2,
+          "capture_date": "2026-03-08"
+        }
       ]
     },
     {
@@ -1572,6 +1581,43 @@
         "Dotplot artifact is created and can be listed/shown by id (`tp73_cdna_vs_genomic_dotplot`).",
         "Pair-forward map shows exon-block style structure rather than one continuous full-length diagonal.",
         "GUI tutorial and workflow JSON describe the same parameter baseline."
+      ],
+      "graphics": [
+        {
+          "kind": "screenshot",
+          "path": "docs/screenshots/tutorial_cdna_genomic_02_fetch_cdna_dialog.png",
+          "caption": "The accession-fetch dialog used to import NM_001126241.3 as the TP73 cDNA input.",
+          "illustrates_step": 1,
+          "capture_date": "2026-03-16"
+        },
+        {
+          "kind": "screenshot",
+          "path": "docs/screenshots/tutorial_cdna_genomic_03_prepare_genome_dialog.png",
+          "caption": "Reference preparation for the GRCh38 genome used by the genomic half of the comparison.",
+          "illustrates_step": 2,
+          "capture_date": "2026-03-18"
+        },
+        {
+          "kind": "screenshot",
+          "path": "docs/screenshots/tutorial_cdna_genomic_04_retrieve_tp73_genomic_dialog.png",
+          "caption": "The gene-retrieval dialog after choosing TP73 from the prepared reference annotation.",
+          "illustrates_step": 2,
+          "capture_date": "2026-03-18"
+        },
+        {
+          "kind": "screenshot",
+          "path": "docs/screenshots/tutorial_cdna_genomic_07_dotplot_window.png",
+          "caption": "The pair-forward dotplot window. Exon-aligned blocks are the biological pattern to inspect; window placement is not part of the result.",
+          "illustrates_step": 3,
+          "capture_date": "2026-03-20"
+        },
+        {
+          "kind": "screenshot",
+          "path": "docs/screenshots/tutorial_cdna_genomic_09_dotplot_as_node.png",
+          "caption": "The saved dotplot as a project/lineage node, showing that the comparison remains inspectable after computation.",
+          "illustrates_step": 3,
+          "capture_date": "2026-03-20"
+        }
       ]
     },
     {
@@ -1652,6 +1698,15 @@
         "The tutorial project opens with exactly the expected destination and insert IDs already loaded.",
         "The destination remains circular and the insert remains linear before entering `Patterns -> Gibson...`.",
         "The hand-written Gibson testing guide can start from this baseline without any additional sequence imports."
+      ],
+      "graphics": [
+        {
+          "kind": "screenshot",
+          "path": "docs/screenshots/screenshot_GUI_help_tutorial_testing_gibson.png",
+          "caption": "The Gibson tutorial opened in GENtle Help after loading the starter project. Continue with the specialist steps rather than re-importing the bundled inputs.",
+          "illustrates_step": 3,
+          "capture_date": "2026-03-22"
+        }
       ]
     },
     {
