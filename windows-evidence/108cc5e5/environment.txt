@@ -1,0 +1,8 @@
+tested_sha=108cc5e51d02b31f7af90d941821a2733ad50059
+runner_os=Windows
+runner_arch=X64
+python=Python 3.15.2
+platform=Microsoft Windows NT 10.0.26100.0
+filesystem=NTFS
+command=python -m unittest discover -s tests -p test_compare_rna_read_end_metrics.py -v
+exit_code=0
