@@ -1,0 +1,61 @@
+{
+  "schema": "gentle.manual_gui_tutorial_evidence.v1",
+  "status": "captured_and_visually_checked",
+  "capture_date": "2026-11-04",
+  "tutorial_id": "cd44_genome_transcript_protein_gui",
+  "automated_gui_acceptance": false,
+  "producer": {
+    "revision": "503cb391dadf2fe8ed7e00080abb8cae7204b6af",
+    "package_version": "0.1.0-internal.13",
+    "build_id": "1793760120293",
+    "gentle_gui_sha256": "c0c97a29d7f7d5fbba9d1eaecac213b69e46020f2fc934f06ad354f0835af6d0",
+    "source_clean_at_build": true,
+    "host": "Linux x86_64, isolated Xvfb"
+  },
+  "capture": {
+    "method": "isolated Xvfb plus Openbox; full X11 screen for the command palette and window-only ImageMagick import for the comparison views",
+    "reencoded_or_annotated": false,
+    "image_transforms": []
+  },
+  "project": {
+    "path": "/home/clawbio/.openclaw/workspace/artifacts/cd44-transcript-protein-20261103/cd44.state.json",
+    "sha256": "d9996812c8bda5c5d7002cbfd277d91fa410352cc4b271e448430c1db0fc5b37",
+    "public_data": "Ensembl and UniProt derived CD44 locus retained in a copied per-run state"
+  },
+  "captures": [
+    {
+      "id": "command_palette",
+      "illustrates_step": 2,
+      "raw_png": "01-command-palette.raw.png",
+      "raw_png_sha256": "568954985d5615de1cb93a8d187b21f177ca9f6189e482d84c6c6e045f91ecf5",
+      "png_dimensions_px": [1600, 1000],
+      "observed_state": "The query protein selects Genome / Transcript / Protein Comparison in the command palette.",
+      "observation_method": "manual visual inspection"
+    },
+    {
+      "id": "canonical_742aa",
+      "illustrates_step": 2,
+      "raw_png": "02-canonical-742aa.raw.png",
+      "raw_png_sha256": "4f0d0975430116f31a508bc974441f329eacad0c89d73b8a941e0b0e0c94e00d",
+      "png_dimensions_px": [1120, 700],
+      "observed_transcript": "ENST00000428726",
+      "observed_derived_protein_length_aa": 742,
+      "observation_method": "manual visual inspection"
+    },
+    {
+      "id": "cd44rc_139aa",
+      "illustrates_step": 4,
+      "raw_png": "03-cd44rc-139aa.raw.png",
+      "raw_png_sha256": "0ad00d8024538ee6fb224cdf2f51175a4b530d66c2c3f02e0319884c6d64f9f7",
+      "png_dimensions_px": [1120, 700],
+      "observed_transcript": "ENST00000278386",
+      "observed_derived_protein_length_aa": 139,
+      "observation_method": "manual visual inspection"
+    }
+  ],
+  "limits": [
+    "The images are Linux/Xvfb observations, not automated cross-platform GUI acceptance.",
+    "The retained public annotations are a dated reference and may drift upstream.",
+    "The screenshots establish presentation and displayed lengths, not sample-specific CD44 expression or secretion."
+  ]
+}

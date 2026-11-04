@@ -2432,7 +2432,30 @@
         "Optional persisted UniProt P16070 projections"
       ],
       "review_status": "codex_reviewed",
-      "codex_reviewed_at": "2026-11-03"
+      "codex_reviewed_at": "2026-11-03",
+      "graphics": [
+        {
+          "kind": "screenshot",
+          "path": "docs/screenshots/tutorial_gui_acceptance/cd44_genome_transcript_protein_gui/01-command-palette.raw.png",
+          "caption": "The command palette exposes the Genome / Transcript / Protein Comparison directly when searching for protein.",
+          "illustrates_step": 2,
+          "capture_date": "2026-11-04"
+        },
+        {
+          "kind": "screenshot",
+          "path": "docs/screenshots/tutorial_gui_acceptance/cd44_genome_transcript_protein_gui/02-canonical-742aa.raw.png",
+          "caption": "The transcript-native comparison for ENST00000428726 links genomic CDS blocks to the actual 742-aa product axis; the terminal stop remains genomic geometry rather than residue 743.",
+          "illustrates_step": 2,
+          "capture_date": "2026-11-04"
+        },
+        {
+          "kind": "screenshot",
+          "path": "docs/screenshots/tutorial_gui_acceptance/cd44_genome_transcript_protein_gui/03-cd44rc-139aa.raw.png",
+          "caption": "The same saved CD44 locus filtered to ENST00000278386 yields the short 139-aa CD44RC product and makes its reduced CDS-to-protein architecture visible.",
+          "illustrates_step": 4,
+          "capture_date": "2026-11-04"
+        }
+      ]
     },
     {
       "id": "microarray_evidence_gui_cli",

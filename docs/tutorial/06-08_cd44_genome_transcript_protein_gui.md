@@ -15,6 +15,14 @@ It contrasts canonical membrane CD44 with the short CD44RC product. It does
 splicing: proteolytic shedding and extracellular-vesicle-associated CD44 are
 separate mechanisms.
 
+## What You Will Accomplish
+
+Starting from one public CD44 locus, you will open two transcript-filtered
+native comparison windows. In each window you will trace colored genomic exons
+through CDS segments to the derived protein axis, then check the reported
+product length. The canonical and CD44RC windows use the same saved locus, so
+the structural difference is not confounded by two separate imports.
+
 ## Expected Reference Result
 
 The bounded acceptance run on 2026-11-03 used Ensembl gene
@@ -57,16 +65,25 @@ Use the newly explicit route:
 3. enter transcript `ENST00000428726`
 4. click `Open Genome / Transcript / Protein View`
 
+The same comparison is available from the command palette. Searching for
+`protein` is a quick way to find it without remembering its menu location:
+
+![Command palette with the genome/transcript/protein comparison selected](../screenshots/tutorial_gui_acceptance/cd44_genome_transcript_protein_gui/01-command-palette.raw.png)
+
 Read the view from top to bottom:
 
-- the upper lanes retain genomic exon/intron and CDS geometry
-- matching exon-family colors connect genomic structure to the product
-- the lower lane uses the transcript-local protein axis
+- the upper lane retains genomic exon/intron and CDS geometry
+- connector lines and matching colors show which CDS segment contributes to
+  which part of the protein
+- the lower lane uses the transcript-local protein axis, with residue 1 at the
+  left and the actual derived product length at the right
 - the details table reports the derived sequence length and derivation mode
 
 The protein axis must end at 742 aa for the reviewed reference result. A
 terminal stop codon belongs to CDS geometry but is not an amino acid and must
 not appear as residue 743.
+
+![Canonical CD44 transcript connected to its 742-aa product](../screenshots/tutorial_gui_acceptance/cd44_genome_transcript_protein_gui/02-canonical-742aa.raw.png)
 
 ## Step 3: Add UniProt Context
 
@@ -110,6 +127,20 @@ inspect-feature-expert cd44_ensembl_locus uniprot-projection cd44_uniprot_p16070
 The comparison is evidence for a splice-defined product lacking the canonical
 membrane anchor. It is not evidence that a particular sample expresses or
 secretes that product.
+
+![CD44RC transcript connected to its 139-aa product](../screenshots/tutorial_gui_acceptance/cd44_genome_transcript_protein_gui/03-cd44rc-139aa.raw.png)
+
+## If the View Is Empty or Misleading
+
+- If the window contains tables but no architecture overview, the running
+  binary predates the visual comparison; record `Help -> About` and update it.
+- If no transcript is mapped, remove the version suffix and retry the stable
+  `ENST...` identifier used above.
+- If the protein ends at 743 or 140, stop: the terminal stop codon has been
+  counted as an amino acid and the result fails this tutorial's checkpoint.
+- If only an external UniProt lane is visible, reopen the transcript-native
+  comparison; UniProt is optional evidence, not the source of transcript
+  identity.
 
 ## Interpretation Boundaries
 

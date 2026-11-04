@@ -1,9 +1,15 @@
 # Tutorial Coverage and Screenshot Backlog
 
-Updated 2026-10-14 at source `024ed6c0520d38c4221517219d44c792084de4e5`.
+Updated 2026-11-04 at source `6dd18fb428790c1d8817b27bc330ede04c6fc67e`.
 This is the current working list; `coverage_audit.md` remains a historical
 snapshot. Catalog presence, executable replay, native interaction, screenshot
 quality and human scientific review are separate states.
+
+The 2026-11-04 catalog review counted 70 entries: 30 executable manifest
+chapters, 6 typed GUI contracts and 40 hand-written/reference pages (these
+categories overlap). Thirty-six entries had no catalogued graphic and 20 were
+still marked unreviewed. Structural regularity is strongest in the generated
+chapters; a green replay does not by itself make their prose easy to follow.
 
 ## Screenshot queue
 
@@ -27,6 +33,29 @@ sidecars; label crops and annotations as derived teaching images.
    created DNA and same-session undo/redo.
 7. **03.05 and 10.02 handoff points:** review-before-apply and sequence-
    confirmation save/reopen, for the new Synthetic Biology learning route.
+
+Completed on 2026-11-04: **06.08 CD44 genome/transcript/protein comparison**
+now retains exact-binary captures of command-palette discovery, the canonical
+742-aa product and the 139-aa CD44RC product, all from one saved public locus.
+
+## Human-clarity queue
+
+Review one page at a time and prefer orientation, a visible result and a
+recovery hint over additional background prose.
+
+1. **10.04 targeted Nanopore panel:** split or layer the roughly 10,000-word
+   page; provide a short successful path before the audit/reference material.
+2. **10.03 measured gel sizing:** move the long appendices behind the primary
+   GUI/CLI walkthrough and add visual checkpoints.
+3. **09.03 protein-expression handoff:** explain the retained evidence status
+   before presenting the four screenshots; distinguish teaching capture from
+   accepted runtime parity.
+4. **08.04 and 08.02 VKORC1:** add screenshots at the first native decision
+   points. Replace machine-specific absolute paths with repository-relative
+   links.
+5. **07.04 microarray evidence:** replace the explicit screenshot-pending note
+   with current native captures, then ask a domain reader to check the evidence
+   interpretation.
 
 Do not reopen the completed 08.18 repeat-cohort run, tutorial-CI registration
 or release-link repair merely to obtain more images.
