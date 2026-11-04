@@ -1,5 +1,65 @@
 # GENtle Changelog
 
+## 2026-11-03 - Restore Exact Pins For Glen's Flagged Dependencies
+
+- With owner authorization, replace only the eight flagged manifest constraints
+  with their existing locked versions: bio `=4.0.1`, egui/eframe/egui_extras
+  `=0.37.0`, mlua `=0.12.2`, rustyline `=19.0.0`, lopdf `=0.46.0` and scraper
+  `=0.29.0`. Preserve features, optional/default-feature flags, workspace
+  inheritance, all other requirements and the exact `Cargo.lock` bytes.
+- Add a guard to the existing offline release-policy suite for exact locked
+  requirements in LF/CRLF TOML, with loose/unlocked negative controls. It fails
+  on all eight old constraints before the repair. This checks manifest/lock
+  consistency, not Cargo resolution or compiler/platform compatibility.
+- Keep Rust verification with Glen/CI through the scoped handoff. No local
+  Cargo invocation, lockfile regeneration, dependency upgrade, push, dispatch
+  or goal resumption is part of this separate repair.
+- Verification: all 51 offline release-policy tests pass, including both new
+  guards. Structured TOML comparison confirms only the eight version fields
+  changed; the lockfile SHA-256 is unchanged. Documentation/maturity and
+  whitespace checks pass; session-close has four OK, two reminders, zero failures.
+
+## 2026-11-03 - Link Panel Results To Retained Specificity Review
+
+- Add a copy action to the transcript-panel report for the existing
+  `primers transcript-assay-specificity-matrix` reader. Bind the exact visible
+  report ID with the shared shell quoting helper; do not execute on paint/copy,
+  add a new matrix model, launch BLAST or change readiness.
+- Explain unassessed evidence and the separate reference/policy scopes beside
+  the action. Add parser/clipboard/no-identity regressions and an offline source
+  guard; document the native Shell continuation and bounded Glen checks.
+- This closes a presentation/discovery gap only. Multi-reference panel fan-out,
+  probe-specific matrices and automatic acceptance remain outside this slice.
+  No local Rust build, push, CI dispatch or scientific acceptance is claimed.
+
+## 2026-11-03 - Preserve Glen's Robotics Roadmap And Add Offline Equipment Projection
+
+- Merge Glen's three forward-ported roadmap commits intact from the
+  checksum-verified bundle based on `888e49ce`. Preserve the later-release,
+  equipment/world ownership, private-lab and physical-safety boundaries; no
+  new release gate, simulator installation or robot execution is authorized.
+- Add shared `ExportRackEquipmentJson` / `racks equipment-json` and the
+  separately versioned `gentle.rack_equipment_description.v1`. Reuse existing
+  template geometry/slot helpers and drawing profiles; bind template revision,
+  canonical source and report content. Explicit rack-local metre frames,
+  carrier-top slot centres and an unverified body envelope are descriptions,
+  not collision/inertial models, liquid/grasp poses or equipment capabilities.
+- Preserve every physical slot and blocking policy; exclude occupants,
+  sequences, sample names and room geometry. Keep mass/inertia unknown and
+  permitted actions empty. Return the same typed description in `OpResult`;
+  normalize its embedded f32 serialization across typed API, shell/MCP JSON
+  values and saved files without changing existing geometry or legacy exports.
+- Publish complete files without overwriting destinations, closing staging
+  handles before publication. Preserve project content/history checkpoints and
+  derive agent write approval from the decoded operation, not model flags.
+  Refresh required discovery/provenance projections without upgrading maturity.
+- Add deterministic geometry/legacy-output, serialization, hash/tamper,
+  blocking/pitch, budget/refusal, path-quoting, no-clobber, introspection and
+  forged-agent-approval tests. The [implementation ledger](robotic_wetlab_simulation_plan.md#verification-ledger)
+  records exact verification and remaining native/physical/full-suite limits.
+  A [read-only Claude review prompt](robotic_wetlab_equipment_review_prompt_20261103.md)
+  is prepared; no Claude review or scientific acceptance is claimed.
+
 ## 2026-11-03 - Port Publication Fault Tests And Preserve Audit Evidence
 
 - Port the two pending test-only changes from
@@ -20,6 +80,27 @@
   native-Windows/full-suite boundary in the
   [handoff](glen_next_verification_handoff.md#publication-fault-test-port-2026-11-03).
   No push, CI dispatch, release or package upload.
+
+## 2026-11-03 - Protein Expression Named Scripting Bindings
+
+- Add first-class JS/Lua `protein_expression_handoff(project, options)` readers
+  of the existing shared report. Extract inline admission from MCP while
+  preserving its state-path/error boundary. Keep defaults, missing questions,
+  explicit provider selection and no-action/no-write behavior in the shared
+  parser/executor; no new operation, schema or agent authorization is added.
+- Preserve Lua reviewed empty lists/false through typed nested decoding; reject
+  null fields, unknown options and implicit file ingress. JS transports options
+  as JSON without changing the project codec and refuses unsafe timestamps.
+- Add per-interface discovery signatures, report/state-preservation and invalid
+  input tests, and one-line tutorial 09.03 rehearsals. Existing GUI screenshots
+  remain bound to their historical source, not scripting acceptance. Generator
+  builds are owner-authorized; Rust checks/tests and VM/native execution remain
+  unrun here and delegated to Glen/CI. Capability maturity is not upgraded.
+- Authoring verification: 127 offline Python tests pass with seven expected
+  binary-dependent skips, including LF/CRLF checks. Canonical parity/tutorial,
+  maturity/manual/documentation and whitespace checks pass. The generation-only
+  headless build succeeds with existing warnings; this is not scripting or
+  native acceptance. Session-close reports four OK, two reminders, zero failures.
 
 ## 2026-11-03 - Primer3 Preflight Reader Parity
 

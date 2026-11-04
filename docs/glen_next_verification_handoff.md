@@ -7,6 +7,69 @@ not install it on Glen's host or establish a Rust pass. Earlier plain-Cargo
 results cannot be resumed as recordings. Keep failed-subset reruns diagnostic,
 finish with a complete intended scope plus doctests, and retain normal CI gates.
 
+## Flagged Dependency Pins, 2026-11-03
+
+The owner authorized a separate manifest-only follow-up for Glen's eight
+flagged constraints. Pin the versions already present in the lock:
+bio `=4.0.1`; egui, eframe and egui_extras `=0.37.0`; mlua `=0.12.2`;
+rustyline `=19.0.0`; lopdf `=0.46.0`; scraper `=0.29.0`. No feature, optional
+flag, default-feature setting, workspace inheritance or other requirement is
+changed. This does not pin the entire transitive graph or other wildcard
+dependencies outside the finding.
+
+`Cargo.lock` remains byte-identical, with SHA-256
+`7ad5b2dc9485675a75d272fa945c75342dceb60ef582f2885015f3e14df41e76` before and
+after the change. The two offline `DependencyPinTests` in
+`scripts/test_release_candidate.py` check exact locked requirements and reject
+wildcard/caret/unlocked controls; the actual-manifest guard failed for all eight
+old constraints under both LF and CRLF before repair. CI already executes this
+Python module. Semantic TOML checks are not Cargo resolution or Rust acceptance.
+
+Local authoring verification: `python3 -m unittest scripts.test_release_candidate`
+passes all 51 tests with no skips. A structured before/after TOML comparison
+confirms only the eight version requirements changed; raw lockfile comparison
+and the SHA-256 above confirm unchanged bytes. Documentation/maturity and
+whitespace checks pass. Session-close reports four OK, two reminders (intentional
+worktree changes and manual scope fidelity), zero failures.
+
+Glen/CI should run, without changing the lockfile:
+
+```sh
+python3 -m unittest scripts.test_release_candidate.DependencyPinTests
+cargo check -q --locked --tests
+cargo check -q --locked --no-default-features --tests
+cargo check -q --locked --features script-interfaces --tests
+git diff --exit-code -- Cargo.lock
+```
+
+No local Rust build/check/test, Cargo resolution/update, network operation,
+push or CI dispatch was performed for this repair. Preserve unrelated local
+files and the paused goal; no compiler-floor or scientific verdict changes.
+
+## Panel Specificity Review Shortcut, 2026-11-03
+
+The transcript-panel result now offers `Copy specificity matrix command`, bound
+to the displayed report ID through the shared shell's quoting helper. This is
+clipboard-only: no searches, project reads/writes, reference selection or
+readiness attachment. Missing evidence remains unassessed. The existing engine
+matrix/CLI/MCP contracts and conditional multi-reference fan-out remain unchanged.
+Authoring checks: 26 offline tutorial/source/documentation checks passed,
+including LF/CRLF documentation checkouts; scoped rustfmt, manual/status and
+whitespace checks passed. The three new Rust tests have not been executed.
+
+After the owner's push, run the three new tests with nonzero counts:
+
+```sh
+cargo test --locked --lib specificity_matrix_copy_ -- --test-threads=1
+```
+
+Then natively open a saved transcript-panel result, copy/paste into `Shell...`
+and run the printed command. Confirm the ID identifies the displayed report,
+copying alone does not execute, and no-receipt results remain unassessed. Include
+quoted IDs and native Windows clipboard/paste separately. Do not repeat completed
+Primer3 or whole-reference campaigns. Offline/source checks are not Rust/native
+acceptance; no local Rust build, push or dispatch is performed for this slice.
+
 ## Publication Fault-Test Port, 2026-11-03
 
 The owner requested the two pending test fixes from
@@ -58,6 +121,80 @@ ordinary CI. Native Windows must exercise both replacement/refusal and unowned
 file preservation on the committed source; macOS cannot establish Windows
 file-handle behavior. Full-suite, package and provider/scientific acceptance
 remain separate. Uploads and CI dispatch remain with the owner.
+
+## Protein Expression Named Scripting Bindings, 2026-11-03
+
+Authored from `fa5de553`, preserving its preflight readers: named JS/Lua
+`protein_expression_handoff(project, options)` returns the existing v2 report.
+Shared inline admission also serves MCP; its saved-state/error boundary stays
+intact. No new operation, provider action, write, agent-plan permission or
+project codec is introduced. Lua nested typed decode preserves reviewed empty
+lists/false. JS options, not the project, travel as JSON; unsafe timestamps are
+refused. Per-interface glossary signatures and tutorial 09.03 describe these
+first-class bindings, not a previously impossible execution route.
+
+Rust checks/tests and JS/Lua VM execution have **not** run here. The owner's
+exception covers only canonical generator builds/runs; their successful output
+is not runtime or native acceptance. Current CI scripting jobs compile optional
+features and smoke-test binaries but do not execute these new tests. Run each
+adapter filter explicitly and require at least two tests, not a zero-test pass:
+
+```sh
+cargo test --locked --features js-interface --lib js_interface::tests::js_protein_expression_handoff_ -- --test-threads=1
+cargo test --locked --features lua-interface --lib lua_interface::tests::lua_protein_expression_handoff_ -- --test-threads=1
+cargo check -q --locked --features script-interfaces --tests
+cargo test --locked --no-default-features --lib mcp_server::protein_expression:: -- --test-threads=1
+cargo test --locked --no-default-features --lib engine_shell::protein_expression_handoff:: -- --test-threads=1
+cargo test --locked --test capability_registry_parity protein_expression_handoff_named_scripting_bindings_preserve_canonical_usage
+cargo test --locked --test parity_matrix_freshness
+```
+
+Use the same effective profile/provider catalog for the in-process oracle and
+adapters. Compare every report field except `generated_at_unix_ms`; projected
+provider status depends on that catalog, not a universal GeneArt guarantee.
+The existing MCP positive control assumes the bundled catalog; run it with an
+isolated configuration. Check saved and in-memory project preservation, saved
+versus explicit-empty objectives, JSON/text, missing product, partial/withheld
+requirements, unknown/null/path options and timestamp refusals. Read the named
+signature back from capabilities and call the actual registered VM function.
+
+Rehearse the one-line Lua/JS examples in tutorial 09.03 using source-built
+REPLs; no `--script` flag exists. Retain manual/hybrid status and the four
+historical macOS GUI captures at `9f01098b`; they prove no new scripting path.
+Native/platform/live-agent/provider/biological acceptance remains separate.
+No push or CI dispatch is authorized by this handoff.
+
+Authoring verification at `fa5de553` plus this uncommitted diff on macOS:
+127 offline tests passed, with seven expected binary-dependent skips, across
+`scripts.test_specialist_tutorials`, `scripts.test_release_workflow_tutorials`,
+`scripts.test_capability_maturity` and `scripts.test_tutorial_checkouts`.
+The canonical generator-only build/run below succeeded; its parity and
+tutorial-catalog check modes, maturity/manual/documentation checks and
+whitespace checks pass. This build has the existing headless dead-code and
+macOS linker warnings; it does not compile or execute optional scripting tests.
+Whole-file JS/Lua rustfmt still reports pre-existing SAM-block formatting;
+new hunks are formatted and those unrelated blocks were preserved.
+Session-close reports four OK, two reminders (intentional dirty/generated
+files and manual plan fidelity), zero failures. The old goal and unrelated
+`outputs/` remain untouched; manifest/lock, agent prompt and screenshots are
+unchanged.
+
+```sh
+cargo run --locked --no-default-features -j1 --bin gentle_examples_docs -- parity-matrix-generate
+target/debug/gentle_examples_docs tutorial-catalog-generate
+python3 scripts/generate_capability_maturity.py --write
+python3 scripts/manual_docs.py --write
+```
+
+Changed code is in `src/engine_shell/protein_expression_handoff.rs`, its module
+declaration, `src/{js_interface,lua_interface}.rs`,
+`src/mcp_server/protein_expression.rs`, `src/test_support{.rs,/protein_expression.rs}`
+and `tests/capability_registry_parity.rs`. Teaching checks are in
+`scripts/test_specialist_tutorials.py`. Documentation covers README,
+`docs/cli/{javascript,lua,planning}.md`, protocol/agent docs, changelog, roadmap,
+this handoff and the status-prefixed original review prompt. Tutorial 09.03's
+Markdown/source notes and generated catalog changed, along with the glossary,
+parity matrix and glossary hashes in the four existing maturity catalogs.
 
 ## egui 0.37 And Ported Glossary Repair, 2026-11-02
 

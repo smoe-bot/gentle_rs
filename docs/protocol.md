@@ -7379,6 +7379,18 @@ Adapter-equivalence guarantee for UI-intent tools:
     Read-only execution never persists state or runs suggested actions. MCP
     sees saved state, not unsaved GUI edits. Inner-agent guidance points to
     the same report/inspector with no inferred product or default provider.
+  - JS/Lua `protein_expression_handoff(project, [options])` is a first-class
+    report-only binding to the same parser/executor, not a new operation/schema.
+    The project is required; options default to an empty object/table. Fields
+    are `seq_id`, inline `objective`, inline `requirements`, `provider`,
+    `profile_scope` (`effective`) and `format` (`json|text`). Unknown fields,
+    explicit top-level null fields and object-as-path/string operands are
+    InvalidInput. Omitted objective retains the saved objective; an explicit
+    empty objective selects its defaults. Lua directly decodes typed nested
+    records to preserve false and reviewed empty lists. JS stringifies options,
+    never the project; reviewed timestamps must be nonnegative safe integers.
+    The report-only boundary refuses unexpected state changes as Internal.
+    No new agent-plan route, consent, provider default or execution is granted.
 - `planning profile show [--scope global|project_override|confirmed_agent_overlay|effective]`
   - inspect one planning profile scope or merged effective profile
 - `planning profile set JSON_OR_@FILE [--scope global|project_override|confirmed_agent_overlay]`
@@ -10264,6 +10276,54 @@ Feature-distance geometry controls (candidate generation and distance scoring):
     - blocked status
     - physical center in mm
     - occupant/arrangement metadata when occupied
+
+`ExportRackEquipmentJson { rack_id, path, template }` semantics:
+
+- Shared engine/shell `racks equipment-json` route, reachable via CLI, GUI
+  Shell, generic MCP `op`, JS/Lua shell wrappers and inner-agent suggestions.
+  No dedicated GUI or simulator adapter is introduced. Approval is derived
+  from the decoded write operation, not agent-supplied mutation flags.
+- Returns `OpResult.rack_equipment` and publishes the same complete typed
+  `gentle.rack_equipment_description.v1` record without replacing an existing
+  destination. The temporary file is flushed and closed before publication;
+  this does not claim crash durability or transactional directory updates. Project
+  content and undo/redo remain unchanged; the ordinary operation journal is
+  retained. Legacy simulation JSON, CAD/SVG and persisted rack formats do not
+  change. Absent `rack_equipment` remains omitted in other operation results.
+- `source` embeds the exact existing physical-template projection, canonical
+  rack profile (blocked positions sorted/deduplicated) and referenced drawing
+  profiles, including their source hashes/unknowns/nonclaims. It is not a new
+  equipment catalog, universal CAD representation or inventory record.
+- `asset_id` identifies the built-in template, while `asset_revision_sha256`
+  binds canonical JSON of `[projection, physical_template, tube_profiles]`.
+  It includes dimensions/grid but excludes rack identity and blocking policy.
+  `source_sha256` binds canonical `source`; `content_sha256` binds the complete
+  report with only its own value set to the empty string. Object keys are
+  recursively sorted using GENtle's existing canonical JSON convention;
+  array order remains significant. These are consistency hashes, not signatures
+  or proofs of source authenticity. `producer_version` records the GENtle
+  package version and the projection version must change with interpretation.
+  The embedded template's f32 fields serialize through the same JSON-value
+  projection in typed API, shell and file output. Expanded machine decimals do
+  not establish additional measurement precision or manufacturing tolerances.
+- `length_unit=metre` applies to derived `*_m` frames/envelope; the embedded
+  `*_mm` dimensions retain millimetres. `rack_base` has no parent; +X follows
+  increasing columns, +Y increasing rows, +Z up. Slot origins are carrier-top
+  centres with identity `xyzw` quaternion. No world pose, tube insertion depth,
+  liquid/grasp frame or robot-specific handedness conversion is invented.
+  All physical slots, including blocked ones, are retained in row-major order.
+  Processing retains the existing 1,536-slot bound and refuses invalid geometry.
+- The descriptive body envelope is not a collision mesh, detached-lid envelope
+  or physical-fit approval. `mass_kg` and `inertia_kg_m2` are null;
+  `permitted_actions` is empty. Source limitations and top-level nonclaims are
+  retained. Occupancy/sample/sequence data and private room geometry are absent;
+  exported rack ID/blocking remain explicit instance metadata.
+- `GentleEngine::verify_rack_equipment_description` rebuilds local frames and
+  every binding from the embedded source without reopening project/files.
+  It detects inconsistent fields even if the top-level digest was recomputed;
+  it cannot authenticate supplied source data or establish simulator safety.
+  Review/physical/native-platform acceptance and broader robotics milestones
+  remain separate, as recorded in the [roadmap plan](robotic_wetlab_simulation_plan.md).
 
 `RenderDotplotSvg` semantics:
 
