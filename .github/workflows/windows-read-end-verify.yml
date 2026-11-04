@@ -1,0 +1,65 @@
+name: Exact-SHA Windows read-end comparator verification
+
+on:
+  push:
+    branches:
+      - glen/windows-verify-108cc5e5
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout workflow wrapper
+        uses: actions/checkout@v5
+
+      - name: Checkout exact upstream candidate
+        uses: actions/checkout@v5
+        with:
+          repository: smoe/gentle_rs
+          ref: 108cc5e51d02b31f7af90d941821a2733ad50059
+          path: candidate
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+
+      - name: Run exact focused command and retain environment
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force evidence | Out-Null
+          $tested = (git -C candidate rev-parse HEAD).Trim()
+          if ($tested -ne '108cc5e51d02b31f7af90d941821a2733ad50059') {
+            throw "Unexpected candidate SHA: $tested"
+          }
+          @(
+            "tested_sha=$tested"
+            "runner_os=$env:RUNNER_OS"
+            "runner_arch=$env:RUNNER_ARCH"
+            "python=$(python --version 2>&1)"
+            "platform=$([System.Environment]::OSVersion.VersionString)"
+            "filesystem=$((Get-Volume -DriveLetter $env:GITHUB_WORKSPACE.Substring(0,1)).FileSystem)"
+            "command=python -m unittest discover -s tests -p test_compare_rna_read_end_metrics.py -v"
+          ) | Set-Content -Encoding utf8 evidence/environment.txt
+          Push-Location candidate
+          & python -m unittest discover -s tests -p test_compare_rna_read_end_metrics.py -v 2>&1 |
+            Tee-Object -FilePath ../evidence/test.log
+          $testExit = $LASTEXITCODE
+          Pop-Location
+          "exit_code=$testExit" | Add-Content -Encoding utf8 evidence/environment.txt
+          Get-FileHash -Algorithm SHA256 evidence/environment.txt, evidence/test.log |
+            Format-Table -AutoSize | Out-String | Set-Content -Encoding utf8 evidence/SHA256.txt
+          if ($testExit -ne 0) { exit $testExit }
+
+      - name: Retain exact-SHA Windows evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: windows-read-end-comparator-108cc5e5
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 30
