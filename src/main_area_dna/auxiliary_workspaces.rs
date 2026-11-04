@@ -7641,6 +7641,8 @@ impl MainAreaDna {
             }
         }
 
+        self.render_isoform_architecture_overview_ui(ui, view);
+
         ui.separator();
         ui.label(
             egui::RichText::new("Transcript/exon architecture")
@@ -7866,6 +7868,261 @@ impl MainAreaDna {
                     ui.end_row();
                 }
             });
+    }
+
+    pub(super) fn isoform_architecture_axis_x(
+        value: usize,
+        start: usize,
+        end: usize,
+        left: f32,
+        right: f32,
+    ) -> f32 {
+        if end <= start || right <= left {
+            return left;
+        }
+        let clamped = value.clamp(start, end);
+        left + (clamped.saturating_sub(start) as f32 / end.saturating_sub(start) as f32)
+            * (right - left)
+    }
+
+    fn isoform_architecture_exon_color(start_1based: usize) -> egui::Color32 {
+        const PALETTE: [egui::Color32; 8] = [
+            egui::Color32::from_rgb(37, 99, 235),
+            egui::Color32::from_rgb(5, 150, 105),
+            egui::Color32::from_rgb(217, 119, 6),
+            egui::Color32::from_rgb(124, 58, 237),
+            egui::Color32::from_rgb(219, 39, 119),
+            egui::Color32::from_rgb(8, 145, 178),
+            egui::Color32::from_rgb(101, 163, 13),
+            egui::Color32::from_rgb(220, 38, 38),
+        ];
+        PALETTE[(start_1based.wrapping_mul(2_654_435_761usize) >> 5) % PALETTE.len()]
+    }
+
+    fn render_isoform_architecture_overview_ui(
+        &self,
+        ui: &mut egui::Ui,
+        view: &IsoformArchitectureExpertView,
+    ) {
+        let lane_count = view.transcript_lanes.len().clamp(1, 6);
+        let desired_height = 54.0 + lane_count as f32 * 116.0;
+        let desired_width = ui.available_width().max(680.0);
+        let (response, painter) = ui.allocate_painter(
+            egui::vec2(desired_width, desired_height),
+            egui::Sense::hover(),
+        );
+        let rect = response.rect.shrink2(egui::vec2(10.0, 8.0));
+        let label_width = 150.0;
+        let axis_left = rect.left() + label_width;
+        let axis_right = rect.right() - 18.0;
+        let text_color = ui.visuals().text_color();
+        let faint = ui.visuals().weak_text_color();
+        let track_color = ui.visuals().widgets.noninteractive.fg_stroke.color;
+        let font = egui::FontId::proportional(12.0);
+        let small = egui::FontId::proportional(10.0);
+
+        painter.rect_filled(rect, 6.0, ui.visuals().faint_bg_color);
+        painter.text(
+            egui::pos2(rect.left() + 8.0, rect.top() + 4.0),
+            egui::Align2::LEFT_TOP,
+            format!(
+                "Genomic {}..{} bp → transcript CDS → protein product",
+                view.region_start_1based, view.region_end_1based
+            ),
+            font.clone(),
+            text_color,
+        );
+
+        for (lane_index, transcript) in view.transcript_lanes.iter().take(6).enumerate() {
+            let lane_top = rect.top() + 34.0 + lane_index as f32 * 116.0;
+            let genome_y = lane_top + 18.0;
+            let protein_y = lane_top + 78.0;
+            let protein = view
+                .protein_lanes
+                .iter()
+                .find(|candidate| candidate.isoform_id == transcript.isoform_id);
+            let protein_length = protein
+                .and_then(|lane| lane.comparison.as_ref())
+                .and_then(|comparison| comparison.derived.as_ref())
+                .map(|derived| derived.protein_length_aa)
+                .or_else(|| protein.and_then(|lane| lane.expected_length_aa))
+                .unwrap_or(0);
+
+            painter.text(
+                egui::pos2(rect.left() + 8.0, genome_y),
+                egui::Align2::LEFT_CENTER,
+                transcript
+                    .transcript_id
+                    .as_deref()
+                    .unwrap_or(transcript.label.as_str()),
+                font.clone(),
+                text_color,
+            );
+            painter.line_segment(
+                [
+                    egui::pos2(axis_left, genome_y),
+                    egui::pos2(axis_right, genome_y),
+                ],
+                egui::Stroke::new(1.0, track_color),
+            );
+            for exon in &transcript.exons {
+                let x1 = Self::isoform_architecture_axis_x(
+                    exon.start_1based,
+                    view.region_start_1based,
+                    view.region_end_1based,
+                    axis_left,
+                    axis_right,
+                );
+                let x2 = Self::isoform_architecture_axis_x(
+                    exon.end_1based,
+                    view.region_start_1based,
+                    view.region_end_1based,
+                    axis_left,
+                    axis_right,
+                );
+                painter.rect_filled(
+                    egui::Rect::from_min_max(
+                        egui::pos2(x1, genome_y - 7.0),
+                        egui::pos2(x2.max(x1 + 2.0), genome_y + 7.0),
+                    ),
+                    2.0,
+                    Self::isoform_architecture_exon_color(exon.start_1based),
+                );
+            }
+
+            painter.text(
+                egui::pos2(rect.left() + 8.0, protein_y),
+                egui::Align2::LEFT_CENTER,
+                if protein_length > 0 {
+                    format!("protein · {protein_length} aa")
+                } else {
+                    "protein · unavailable".to_string()
+                },
+                font.clone(),
+                text_color,
+            );
+            painter.line_segment(
+                [
+                    egui::pos2(axis_left, protein_y),
+                    egui::pos2(axis_right, protein_y),
+                ],
+                egui::Stroke::new(7.0, egui::Color32::from_rgb(148, 163, 184)),
+            );
+            if protein_length > 0 {
+                for segment in &transcript.cds_to_protein_segments {
+                    let genomic_mid = segment
+                        .genomic_start_1based
+                        .saturating_add(segment.genomic_end_1based)
+                        / 2;
+                    let protein_mid = segment.aa_start.saturating_add(segment.aa_end) / 2;
+                    let genomic_x = Self::isoform_architecture_axis_x(
+                        genomic_mid,
+                        view.region_start_1based,
+                        view.region_end_1based,
+                        axis_left,
+                        axis_right,
+                    );
+                    let protein_x = Self::isoform_architecture_axis_x(
+                        protein_mid,
+                        1,
+                        protein_length.max(1),
+                        axis_left,
+                        axis_right,
+                    );
+                    painter.line_segment(
+                        [
+                            egui::pos2(genomic_x, genome_y + 9.0),
+                            egui::pos2(protein_x, protein_y - 8.0),
+                        ],
+                        egui::Stroke::new(0.8, faint),
+                    );
+                    let x1 = Self::isoform_architecture_axis_x(
+                        segment.aa_start,
+                        1,
+                        protein_length.max(1),
+                        axis_left,
+                        axis_right,
+                    );
+                    let x2 = Self::isoform_architecture_axis_x(
+                        segment.aa_end,
+                        1,
+                        protein_length.max(1),
+                        axis_left,
+                        axis_right,
+                    );
+                    painter.line_segment(
+                        [
+                            egui::pos2(x1, protein_y),
+                            egui::pos2(x2.max(x1 + 2.0), protein_y),
+                        ],
+                        egui::Stroke::new(
+                            7.0,
+                            Self::isoform_architecture_exon_color(segment.genomic_start_1based),
+                        ),
+                    );
+                }
+                if let Some(protein) = protein {
+                    for domain in &protein.domains {
+                        let x1 = Self::isoform_architecture_axis_x(
+                            domain.start_aa,
+                            1,
+                            protein_length.max(1),
+                            axis_left,
+                            axis_right,
+                        );
+                        let x2 = Self::isoform_architecture_axis_x(
+                            domain.end_aa,
+                            1,
+                            protein_length.max(1),
+                            axis_left,
+                            axis_right,
+                        );
+                        painter.rect_stroke(
+                            egui::Rect::from_min_max(
+                                egui::pos2(x1, protein_y - 9.0),
+                                egui::pos2(x2.max(x1 + 3.0), protein_y + 9.0),
+                            ),
+                            2.0,
+                            egui::Stroke::new(2.0, egui::Color32::from_rgb(15, 23, 42)),
+                            egui::StrokeKind::Inside,
+                        );
+                        painter.text(
+                            egui::pos2(x1 + 2.0, protein_y + 12.0),
+                            egui::Align2::LEFT_TOP,
+                            domain.name.as_str(),
+                            small.clone(),
+                            faint,
+                        );
+                    }
+                }
+                painter.text(
+                    egui::pos2(axis_left, protein_y + 12.0),
+                    egui::Align2::LEFT_TOP,
+                    "1",
+                    small.clone(),
+                    faint,
+                );
+                painter.text(
+                    egui::pos2(axis_right, protein_y + 12.0),
+                    egui::Align2::RIGHT_TOP,
+                    protein_length.to_string(),
+                    small.clone(),
+                    faint,
+                );
+            }
+        }
+        if view.transcript_lanes.len() > 6 {
+            painter.text(
+                egui::pos2(rect.right() - 8.0, rect.bottom() - 4.0),
+                egui::Align2::RIGHT_BOTTOM,
+                format!(
+                    "{} additional transcript(s) in tables below",
+                    view.transcript_lanes.len() - 6
+                ),
+                small,
+                faint,
+            );
+        }
     }
 
     fn isoform_evidence_list(text: &str) -> Vec<String> {
@@ -10543,7 +10800,12 @@ impl MainAreaDna {
 
     pub(crate) fn collect_open_auxiliary_window_entries_with_help(
         &self,
-    ) -> Vec<(egui::ViewportId, String, String, crate::app::help_topics::HelpTopic)> {
+    ) -> Vec<(
+        egui::ViewportId,
+        String,
+        String,
+        crate::app::help_topics::HelpTopic,
+    )> {
         use crate::app::help_topics::HelpTopic;
         let mut entries = Vec::new();
         if self.show_dotplot_window

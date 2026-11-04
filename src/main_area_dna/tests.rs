@@ -9739,11 +9739,20 @@ fn collect_open_auxiliary_window_entries_includes_splicing_and_isoform_windows()
     assert_eq!(entries.len(), 2);
     let help_entries = area.collect_open_auxiliary_window_entries_with_help();
     assert_eq!(
-        help_entries.iter().map(|(id, title, detail, _)| (*id, title.clone(), detail.clone())).collect::<Vec<_>>(),
+        help_entries
+            .iter()
+            .map(|(id, title, detail, _)| (*id, title.clone(), detail.clone()))
+            .collect::<Vec<_>>(),
         entries
     );
-    assert_eq!(help_entries[0].3, crate::app::help_topics::HelpTopic::Splicing);
-    assert_eq!(help_entries[1].3, crate::app::help_topics::HelpTopic::Isoforms);
+    assert_eq!(
+        help_entries[0].3,
+        crate::app::help_topics::HelpTopic::Splicing
+    );
+    assert_eq!(
+        help_entries[1].3,
+        crate::app::help_topics::HelpTopic::Isoforms
+    );
     assert!(
         entries
             .iter()
@@ -9777,6 +9786,26 @@ fn isoform_expert_window_title_uses_protein_expert_for_transcript_native_source(
     assert_eq!(
         MainAreaDna::isoform_expert_window_title("protein_compare@seq1", "seq1", &view),
         "Protein Expert - TP73 (seq1)"
+    );
+}
+
+#[test]
+fn isoform_architecture_overview_axis_clamps_and_maps_both_ends() {
+    assert_eq!(
+        MainAreaDna::isoform_architecture_axis_x(100, 100, 200, 10.0, 110.0),
+        10.0
+    );
+    assert_eq!(
+        MainAreaDna::isoform_architecture_axis_x(150, 100, 200, 10.0, 110.0),
+        60.0
+    );
+    assert_eq!(
+        MainAreaDna::isoform_architecture_axis_x(250, 100, 200, 10.0, 110.0),
+        110.0
+    );
+    assert_eq!(
+        MainAreaDna::isoform_architecture_axis_x(150, 100, 100, 10.0, 110.0),
+        10.0
     );
 }
 
