@@ -1,5 +1,13 @@
 # GENtle Changelog
 
+## 2026-11-04 - Compare RNA Read-End Metrics Across Cohorts
+
+- Add a deterministic RNA-read cohort metric comparison utility that emits
+  checksum-bound summaries, all-pairs Q-Q tables, and per-metric SVG matrices
+  while preserving censored/missing read-end observations separately from
+  measured lengths. Transcript-aware UTR projection remains an explicit
+  upstream boundary rather than being guessed from raw read length.
+
 ## 2026-11-04 - Annotate The MCP Primer Preflight Contract
 
 - Add the missing fact-annotated `primers_preflight` descriptor alongside

@@ -1,5 +1,32 @@
 # RNA Read Interpretation
 
+## Cohort read-length and read-end metric comparison
+
+`scripts/compare_rna_read_end_metrics.py INPUT.tsv OUTPUT_DIR` creates a
+checksum-bound descriptive comparison of precomputed RNA-read metrics across
+samples. The exact input columns are:
+
+```text
+sample_id\tmetric\tvalue_bp\tobservation_status
+```
+
+`observation_status` is `observed`, `left_censored`, `right_censored`, or
+`missing`. Censored and missing values must have an empty `value_bp`; they are
+reported separately and are never converted to zero. Every sample must provide
+at least two observed values for every metric. The output contains per-sample
+summaries, all unique sample-pair Q-Q values, one SVG matrix per metric, and a
+JSON report bound to the source SHA-256. With six samples, each metric has 15
+unique pairwise comparisons.
+
+The utility deliberately does **not** infer UTR coordinates. For metrics such
+as `utr5_reach_bp` and `utr3_reach_bp`, project each read against an explicit,
+frozen transcript model and strand before preparing the TSV. Reads lacking a
+required CDS anchor or having an unresolved transcript/end must remain
+censored or missing rather than becoming apparent zero-length UTRs. The report
+is descriptive: library preparation, read truncation, mapping and transcript
+selection remain possible explanations, and no replicate-level significance
+is inferred.
+
 <!-- manual-counterparts:start -->
 Related GUI reference: [RNA-Read Mapping Workspace](../gui/rna-read-mapping-workspace.md).
 These topic links do not imply identical feature coverage across interfaces.
