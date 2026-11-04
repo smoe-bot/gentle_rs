@@ -16,19 +16,17 @@ chapters; a green replay does not by itself make their prose easy to follow.
 Use only synthetic or public inputs. Retain raw captures and provenance
 sidecars; label crops and annotations as derived teaching images.
 
-1. **07.04 microarray evidence:** native locus navigation, readable evidence
-   configuration/results and GUI save/reopen.
-2. **10.03 measured gel sizing:** native lane navigation, calibrated and null
+1. **10.03 measured gel sizing:** native lane navigation, calibrated and null
    out-of-calibration results, and GUI save/reopen.
-3. **FLNA draft:** normal-size native overview/detail and orientation. The
+2. **FLNA draft:** normal-size native overview/detail and orientation. The
    2400-px render and human 24-bp teaching-exon choice are already retained;
    historical annotation-release provenance remains missing.
-4. **04.09 primer specificity:** native Shell/report presentation. Defer the
+3. **04.09 primer specificity:** native Shell/report presentation. Defer the
    full real-reference import until the measured post-BLAST performance issue
    has a verified fix.
-5. **06.07 synthetic sequence design:** preview, exact proposed output,
+4. **06.07 synthetic sequence design:** preview, exact proposed output,
    created DNA and same-session undo/redo.
-6. **03.05 and 10.02 handoff points:** review-before-apply and sequence-
+5. **03.05 and 10.02 handoff points:** review-before-apply and sequence-
    confirmation save/reopen, for the new Synthetic Biology learning route.
 
 Completed on 2026-11-04: **06.08 CD44 genome/transcript/protein comparison**
@@ -39,6 +37,12 @@ Completed on 2026-11-04: **08.16 imported TSS evidence** now retains separate
 complete-window and partial-query lanes plus an imported-hit detail with
 strand-aware coordinates, signed score units and source hashes. Windows/macOS
 and automated GUI acceptance remain pending.
+
+Completed on 2026-11-04: **07.04 TP73 microarray evidence** now retains a
+checksum-bound saved-project view of both synthetic-statistics contrast groups,
+one selected vendor-derived feature with provenance and the native nearest-
+feature navigation menu. Cross-platform GUI acceptance, genuine CEL replay and
+independent domain interpretation remain pending.
 
 ## Human-clarity queue
 
@@ -55,9 +59,8 @@ recovery hint over additional background prose.
 4. **08.04 and 08.02 VKORC1:** add screenshots at the first native decision
    points. Replace machine-specific absolute paths with repository-relative
    links.
-5. **07.04 microarray evidence:** replace the explicit screenshot-pending note
-   with current native captures, then ask a domain reader to check the evidence
-   interpretation.
+5. **07.04 microarray evidence:** native captures are now present; ask a domain
+   reader to check the evidence interpretation against a genuine CEL replay.
 
 Do not reopen the completed 08.18 repeat-cohort run, tutorial-CI registration
 or release-link repair merely to obtain more images.
