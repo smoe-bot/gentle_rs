@@ -16,27 +16,29 @@ chapters; a green replay does not by itself make their prose easy to follow.
 Use only synthetic or public inputs. Retain raw captures and provenance
 sidecars; label crops and annotations as derived teaching images.
 
-1. **08.16 imported TSS evidence:** complete and partial lanes, strand
-   inversion, clipped footprints, signed/zero scores, coverage warnings and
-   readable normal-size presentation.
-2. **07.04 microarray evidence:** native locus navigation, readable evidence
+1. **07.04 microarray evidence:** native locus navigation, readable evidence
    configuration/results and GUI save/reopen.
-3. **10.03 measured gel sizing:** native lane navigation, calibrated and null
+2. **10.03 measured gel sizing:** native lane navigation, calibrated and null
    out-of-calibration results, and GUI save/reopen.
-4. **FLNA draft:** normal-size native overview/detail and orientation. The
+3. **FLNA draft:** normal-size native overview/detail and orientation. The
    2400-px render and human 24-bp teaching-exon choice are already retained;
    historical annotation-release provenance remains missing.
-5. **04.09 primer specificity:** native Shell/report presentation. Defer the
+4. **04.09 primer specificity:** native Shell/report presentation. Defer the
    full real-reference import until the measured post-BLAST performance issue
    has a verified fix.
-6. **06.07 synthetic sequence design:** preview, exact proposed output,
+5. **06.07 synthetic sequence design:** preview, exact proposed output,
    created DNA and same-session undo/redo.
-7. **03.05 and 10.02 handoff points:** review-before-apply and sequence-
+6. **03.05 and 10.02 handoff points:** review-before-apply and sequence-
    confirmation save/reopen, for the new Synthetic Biology learning route.
 
 Completed on 2026-11-04: **06.08 CD44 genome/transcript/protein comparison**
 now retains exact-binary captures of command-palette discovery, the canonical
 742-aa product and the 139-aa CD44RC product, all from one saved public locus.
+
+Completed on 2026-11-04: **08.16 imported TSS evidence** now retains separate
+complete-window and partial-query lanes plus an imported-hit detail with
+strand-aware coordinates, signed score units and source hashes. Windows/macOS
+and automated GUI acceptance remain pending.
 
 ## Human-clarity queue
 

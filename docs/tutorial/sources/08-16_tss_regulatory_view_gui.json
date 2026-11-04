@@ -16,6 +16,20 @@
       "caption": "The lower part of the same viewer after attaching its hash-bound profile report; the report-provided MA0004.1 lane is present without rescoring or a database query, and this tiny fixture's negative scores are explicitly clipped to a flat zero display trace.",
       "illustrates_step": 3,
       "capture_date": "2026-09-28"
+    },
+    {
+      "kind": "screenshot",
+      "path": "docs/screenshots/tss_regulatory_view_gui/imported_20261104/03-imported-full-partial.raw.png",
+      "caption": "The enriched report keeps complete-window and partial-query DuckDB sources in separate lanes even though both return the same three synthetic hits; PARTIAL remains visible rather than being mistaken for complete absence evidence.",
+      "illustrates_step": 4,
+      "capture_date": "2026-11-04"
+    },
+    {
+      "kind": "screenshot",
+      "path": "docs/screenshots/tss_regulatory_view_gui/imported_20261104/04-imported-hit-hover.raw.png",
+      "caption": "Hovering the positive imported hit reveals its 1.25 log2_relative_risk score, minus-genome/local coordinates, footprint, report hash and limitations without converting a synthetic score into occupancy.",
+      "illustrates_step": 4,
+      "capture_date": "2026-11-04"
     }
   ],
   "catalog": {

@@ -1,0 +1,73 @@
+{
+  "schema": "gentle.manual_gui_tutorial_evidence.v1",
+  "status": "captured_and_visually_checked",
+  "capture_date": "2026-11-04",
+  "tutorial_id": "tss_regulatory_view_gui",
+  "automated_gui_acceptance": false,
+  "producer": {
+    "revision": "503cb391dadf2fe8ed7e00080abb8cae7204b6af",
+    "package_version": "0.1.0-internal.13",
+    "build_id": "1793760120293",
+    "gentle_gui_sha256": "c0c97a29d7f7d5fbba9d1eaecac213b69e46020f2fc934f06ad354f0835af6d0",
+    "host": "Linux x86_64, isolated Xvfb"
+  },
+  "report_producer": {
+    "revision": "3839426f284f2309a6eb0bc3c77f19f1cc3b335e",
+    "build_id": "1793761257635",
+    "gentle_cli_sha256": "01d5b767d3f59ac461772261cf094a744f7c17aa5c6e25119ec7895b242cf6c3"
+  },
+  "capture": {
+    "method": "isolated Xvfb plus Openbox; native window-only ImageMagick import after GUI-hosted direct-command report attachment",
+    "reencoded_or_annotated": false,
+    "image_transforms": []
+  },
+  "inputs": {
+    "annotated_tss": {
+      "path": "docs/tutorial/reproducibility/tss_regulatory_view_gui/synthetic-minus.annotated-tss.gb",
+      "sha256": "8acf0b32a52d8f6f16cbdce57cefb52372fab9cee57e6e276b2fc63e8c197692"
+    },
+    "full_query_report": {
+      "sha256": "3f8ca61010f947be42bbd30ea2e5c7b83689ab8765e2396b8a59ffaa028bb6c8",
+      "returned_hits": 3,
+      "coverage": "whole 11-bp TSS window"
+    },
+    "partial_query_report": {
+      "sha256": "c39f1e31ff52712b072ce9194f97074b108736b34cf9ef3533ef0d5b2f5c5f9d",
+      "returned_hits": 3,
+      "coverage": "genomic interval [294,301), partial for the 11-bp TSS window"
+    },
+    "enriched_profile_report": {
+      "sha256": "2cfa86789fc35a03a8230a00773b2016e54100b47fe5cfc67aab0a5a6d9e6172",
+      "attachment_command": "ui open tss-view --report /tmp/tss-import-lesson.4utnSD/enriched/report.json"
+    },
+    "project": {
+      "sha256": "9b5818067bb00a36c73b3d99ed5609f44ec58668bf1c97a4de242087b86a84bc",
+      "sequence_id": "synthetic_minus_tss"
+    }
+  },
+  "captures": [
+    {
+      "id": "imported_full_and_partial",
+      "illustrates_step": 4,
+      "raw_png": "03-imported-full-partial.raw.png",
+      "raw_png_sha256": "d8f69dd971f0be0e116948a98354af95dee4e89497e26cb65c966382a4df734e",
+      "png_dimensions_px": [1900, 1161],
+      "observed_state": "Two separate DuckDB lanes each show three hits; one states whole-window coverage and one states PARTIAL query coverage.",
+      "observation_method": "manual visual inspection"
+    },
+    {
+      "id": "imported_hit_hover",
+      "illustrates_step": 4,
+      "raw_png": "04-imported-hit-hover.raw.png",
+      "raw_png_sha256": "cc0b836bf1ce73ee288efe771a63332dd82bb30d59535d7d18679eab0fdcc3db",
+      "png_dimensions_px": [1900, 1161],
+      "observed_state": "Hover identifies the imported 1.25 log2_relative_risk hit, local/genomic footprint and source binding without relabelling it as measured occupancy.",
+      "observation_method": "manual visual inspection"
+    }
+  ],
+  "limits": [
+    "The screenshots are Linux/Xvfb observations, not automated cross-platform GUI acceptance.",
+    "The hits and scores are hand-crafted synthetic teaching evidence, not an Arnt scan or experiment.",
+    "Identical returned hits do not make the partial source complete for the displayed window."
+  ]
+}

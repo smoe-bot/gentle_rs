@@ -18,7 +18,9 @@ for experienced wet-lab biologists.
 Reviewed source: `0024fab11d64e8d455c903e6e36f47354d0f8ee3`.
 This is not Rust, native GUI, model or human scientific acceptance.
 Glen's execution gates remain open; retained captures keep their original
-revision-bound scope and do not show the new imported-hit companion.
+revision-bound scope. A separate 2026-11-04 Linux/Xvfb capture now covers the
+imported-hit companion; it is a visually checked teaching run, not automated
+cross-platform GUI acceptance.
 
 ## What you will accomplish
 
@@ -212,6 +214,12 @@ ui open tss-view --report /tmp/tss-import-lesson/enriched/report.json
 Use that command through GUI-hosted Agent Assistant, or choose **Load TSS profile
 report…**. Headless execution still cannot adopt a native-window intent.
 
+The two orange DuckDB lanes below come from separate bound reports. Both happen
+to return three hits, but only the upper source covers the complete 11-base
+window. Read the coverage text at the right before interpreting missing hits.
+
+![Complete-window and partial-query imported evidence remain separate](../screenshots/tss_regulatory_view_gui/imported_20261104/03-imported-full-partial.raw.png)
+
 On the minus-strand view, inspect these zero-based, half-open local footprints:
 
 | Genomic footprint | Genomic strand | Local footprint / strand | Raw score |
@@ -232,9 +240,17 @@ treatment-versus-control biology or reporter suitability. Use 08.17 for local
 factor curves, and [08.05](08-05_reporter_construct_handoff_cli.md) and
 [08.09](generated/chapters/08-09_promoter_reporter_panel_planning_offline.md)
 for reporter reasoning.
-New shared-query/export Rust execution and native imported-hit screenshots are
-**pending Glen/CI**. The old screenshots above prove only the original no-hit
-walkthrough, not this companion.
+
+Hovering a hit is the fastest way to audit its coordinate transform and score
+units. In this retained example the positive imported hit is `1.25`
+`log2_relative_risk`; it is not an `llr_bits` report curve or measured binding.
+
+![Imported-hit hover retains coordinates, score kind, hashes and non-claims](../screenshots/tss_regulatory_view_gui/imported_20261104/04-imported-hit-hover.raw.png)
+
+The shared query/export path and these native Linux screenshots are now
+reproduced at the revisions recorded beside the images. Remaining acceptance
+is **pending** for native Windows/macOS presentation and automated GUI
+interaction.
 
 ## How this fits the neighbouring tutorials
 
