@@ -22897,6 +22897,26 @@ fn annotated_introspection_capability_descriptors() -> Vec<Value> {
             descriptor
         },
         json!({
+            "id": "racks equipment-validate", "kind": "operation",
+            "mutating": "false", "requires_confirmation": false,
+            "args": [{"name":"INPUT_PATH", "required":true,
+                      "subject_kind":"other", "detail":"external input path"}],
+            "reads": [], "effects": [], "precondition_expr":{"all":[]},
+            "description":"Validate exact equipment JSON content and producer catalog match; no project mutation, authenticity or safety claim.",
+            "annotation_status":"fact_annotated",
+            "registry":registry_metadata_for_introspection("racks equipment-validate")
+        }),
+        json!({
+            "id": "ValidateRackEquipmentJson", "kind": "operation",
+            "mutating": "false", "requires_confirmation": false,
+            "args": [{"name":"INPUT_PATH", "required":true,
+                      "subject_kind":"other", "detail":"external input path"}],
+            "reads": [], "effects": [], "precondition_expr":{"all":[]},
+            "description":"Inspect regular equipment JSON up to 16 MiB; content findings are data, not execution approval.",
+            "annotation_status":"fact_annotated",
+            "registry":registry_metadata_for_introspection("ValidateRackEquipmentJson")
+        }),
+        json!({
             "id": "history status",
             "kind": "operation",
             "mutating": "false",
@@ -27499,6 +27519,15 @@ fn annotated_introspection_capability_descriptors() -> Vec<Value> {
             vec![
                 json!({"name": "--backend", "required": false, "subject_kind": "other", "detail": "auto, internal, or primer3 backend selector"}),
                 json!({"name": "--primer3-exec", "required": false, "subject_kind": "other", "detail": "optional primer3_core executable path"}),
+            ],
+        ),
+        no_project_inspection_operation_descriptor(
+            "primers_preflight",
+            "Probe the selected primer-design backend through MCP without changing project settings; tool availability is a diagnostic result, not a project-state precondition.",
+            vec![
+                json!({"name": "state_path", "required": false, "subject_kind": "other", "detail": "saved project path; defaults to the MCP server startup state path"}),
+                json!({"name": "backend", "required": false, "subject_kind": "other", "detail": "optional backend override for this probe only"}),
+                json!({"name": "primer3_executable", "required": false, "subject_kind": "other", "detail": "optional executable override for this probe only"}),
             ],
         ),
         json!({
@@ -32684,7 +32713,7 @@ fn capability_precondition_atoms(capability_id: &str) -> Option<Vec<Value>> {
             json!({"fact": "sequence.exists", "subject": {"arg": "DESTINATION_VECTOR_SEQ_ID"}}),
         ]),
         "primers list-restriction-cloning-handoffs" => Some(vec![]),
-        "primers preflight" => Some(vec![]),
+        "primers preflight" | "primers_preflight" => Some(vec![]),
         "primers seed-from-feature"
         | "primers seed-from-splicing"
         | "primers restriction-cloning-vector-suggestions" => Some(vec![
@@ -47035,6 +47064,16 @@ pub fn parse_shell_tokens(tokens: &[String]) -> Result<ShellCommand, String> {
                         arrangement_id,
                         template,
                         preset,
+                    })
+                }
+                "equipment-validate" => {
+                    if tokens.len() != 3 || tokens[2].trim().is_empty() {
+                        return Err("racks equipment-validate requires exactly one non-empty INPUT.json".into());
+                    }
+                    Ok(ShellCommand::Op {
+                        payload: serde_json::to_string(&Operation::ValidateRackEquipmentJson {
+                            path: tokens[2].clone(),
+                        }).map_err(|error| error.to_string())?,
                     })
                 }
                 "equipment-json" => {

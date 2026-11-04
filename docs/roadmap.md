@@ -175,7 +175,7 @@ Keep the next synthetic-biology bridge slices in this order:
    typed withholding, stale-result rejection and unchanged project/history.
    Glen/CI must execute Rust/CLI checks including quote-disabled refusals and native review;
    offline source checks do not establish runtime or native acceptance.
-   Include the inspector, named MCP/JS/Lua and inner-agent command parity regressions; explicitly execute the feature-gated scripting tests, not just compilation;
+   Include the inspector and inner-agent regressions; retain Glen's [89df315a scoped Lua/MCP/shell/parity passes](glen_next_verification_handoff.md#glens-scoped-return-at-89df315a-2026-11-03), but repair the shared JS populated-project `u128` transport before claiming JS acceptance; explicitly execute feature-gated VM tests, not just compilation;
    keep unanswered inputs, copy-only actions and stale/closed-worker rejection.
    Review the four retained macOS 09.03 captures at `9f01098b`; retain integrated typed/snapshot evidence separately.
    Check shared UI intents, semantic locators and canonical tutorial/parity freshness.
@@ -292,13 +292,13 @@ infrastructure expansion that does not reduce release risk.
   crop only if review finds the selected hosted window insufficiently clear.
 
 ## Phase F: Interpretation Later
-Later interpretation work includes image/sketch-to-state patch proposals,
-richer assistant-facing findings records, deeper wet-lab process modeling,
-repeat/mobile-element curation, and cohort-scale comparative reasoning. These
-must remain explicit, inspectable proposals with confirmation before mutation.
-Useful work here improves proposal formats, evidence records, reproducible
-cohort comparisons, and rollback paths for state patches; defer autonomous wet-lab conclusions or unconfirmed mutations.
+
+Later interpretation work includes image/sketch-to-state patch proposals, richer assistant-facing findings records,
+deeper wet-lab process modeling, repeat/mobile-element curation, and cohort-scale comparative reasoning.
+These must remain explicit, inspectable proposals with confirmation before mutation.
+Useful work here improves proposal formats, evidence records, reproducible cohort comparisons, and rollback paths for state patches; defer autonomous wet-lab conclusions or unconfirmed mutations.
 - Later release: [robotic wet-lab simulation and equipment digital twins](robotic_wetlab_simulation_plan.md#first-implementation-slice): review the offline rack-equipment projection, then settle asset ownership/licensing and reviewed protocol/material bindings before simulator adapters. Public synthetic worlds, private real-lab geometry and a CUT&RUN benchmark remain later; no simulation implies physical safety or biological validity.
+
 ## Parking Lot
 - Experimental [synonymous motif/GC design](dna_sequence_optimization_plan.md) stays outside `.12`; retain the [394dd5d regression result](sequence_design_acceptance.md#executed-regression-follow-up-at-394dd5d), earlier [repair/GC acceptance](sequence_design_acceptance.md#executed-audit-at-de9df8af) and [first-slice audit](glen_sequence_design_handoff_20261005.md) at their actual sources. Recheck affected current-source paths at release preparation, with native Windows/macOS/Pi, usefulness/live-model and biological verdicts separate. Verify the private core's standalone compiler contract before extraction/publication; do not restore an untested floor or infer a workspace minimum from core-only tests. Dedicated GUI, codon objectives and richer specifications need their own contracts; bounded Linux/X11/process evidence implies no general performance or suitability claim. The unrelated parity-document repair still needs freshness/CI; no local Rust or interim acceptance freeze.
 - Accession-pinned [TSS TFBS profiles](tss_tfbs_profiles.md#rescoring-existing-reports): Glen to rescore original five-gene inputs after the inclusive-tail correction, then repeat PDF pixel/hash, shared-scale and sparse-peak acceptance; the `44b73e4a` audit does not cover this scoring method. Keep the `.10` gate; native wizard and independent reference verification remain follow-ups.
@@ -355,10 +355,10 @@ cohort comparisons, and rollback paths for state patches; defer autonomous wet-l
 - CUT&RUN controls/replicate comparison, calibrated differential support, formal
   peak calling, and whole-genome read processing beyond the ROI-first release scope.
 - Add viewport-bounded quantitative Ensembl/ENCODE regulatory-signal lanes, retaining assay/biosample/condition/replicate/units and separate activity rules.
-- Deeper Primer3 parity and bounded asynchronous preflight ([audit and reader scope](primer3_parity_audit_20261103.md)); virtual PCR/off-target filtering, multiplex tiling, LAMP, and
+- Deeper Primer3 parity and bounded asynchronous preflight ([audit and reader scope](primer3_parity_audit_20261103.md)); verify the [MCP fact-annotation repair](glen_next_verification_handoff.md#primer-preflight-introspection-repair-2026-11-04); virtual PCR/off-target filtering, multiplex tiling, LAMP, and
   allele-specific assay families.
 - First-class global RT-PCR specificity/redesign workflow: build on the local
-  assembly-aware variant screen and panel-matrix review shortcut (native pending);
+  assembly-aware variant screen and native panel-matrix review (pending);
   combine prepared genome/transcriptome searches, intended-product/paralogue policy,
   junction evidence, Primer3 plus exact-run QC, ranked redesign candidates,
   and one provenance-bound review bundle.

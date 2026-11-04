@@ -7,6 +7,80 @@ not install it on Glen's host or establish a Rust pass. Earlier plain-Cargo
 results cannot be resumed as recordings. Keep failed-subset reruns diagnostic,
 finish with a complete intended scope plus doctests, and retain normal CI gates.
 
+## Primer Preflight Introspection Repair, 2026-11-04
+
+The owner's local library run reported 4,838 passed, two failed and 16 ignored
+(exact source/toolchain not supplied). Both failures name only the new MCP
+`primers_preflight` row as `registry_only`; the shell-spelled command already
+had its descriptor. Add the MCP descriptor using the existing shared read-only
+inspection helper, its exact optional MCP argument names and matching empty
+project-fact preconditions. Keep both whole-registry tests unchanged. This
+does not probe Primer3 during discovery, change approvals or assert that a
+backend is installed. The separate JS `u128` transport issue remains open.
+
+Run only the affected Rust scopes before the ordinary suite, with nonzero counts:
+
+```sh
+cargo test --locked --lib execute_introspect_primer_preflight_mcp_contract_preserves_read_only_semantics -- --test-threads=1
+cargo test --locked --lib execute_introspect_capabilities_projects_full_registry_with_fact_annotations -- --test-threads=1
+cargo test --locked --lib execute_introspect_all_capability_section_has_full_fact_annotations -- --test-threads=1
+```
+
+The new regression compares both introspection routes with the shell contract,
+checks the MCP registry origin/argument names and unchanged engine state. The
+offline source guard fails before adding the descriptor; it is not Rust/runtime
+acceptance. No completed scientific, Lua/MCP execution or publication campaign
+is reopened by this metadata repair. No local Rust build, push or dispatch.
+Authoring verification: 46 offline metadata/GUI/documentation checks passed,
+including LF/CRLF documentation checkouts; manual/status and whitespace checks
+passed. These counts do not establish the pending Rust regression results.
+
+The attempted report transfer has no verified readable source path yet. A
+bounded read-only SSH search through the owner's `gentle` alias received
+`Permission denied` for `/home/clawbio/.openclaw/workspace/artifacts`; no sudo,
+access-policy bypass or large download was attempted. Ask Glen for the small
+report plus its manifest at an explicitly transfer-readable path/URL, rather
+than treating his host-local working path as an established transfer path.
+
+## Glen's Scoped Return At 89df315a, 2026-11-03
+
+Owner-forwarded report for exact source
+`89df315a80e0d3ae02e5685efd7a94e3895fbaa7`: dependency-pin guards 2/2,
+panel-copy GUI regressions 3/3, annotation/SAM publication 40/40, Lua bindings
+2/2, MCP 4/4, shell 3/3 and registry/matrix parity 2/2 passed. Default,
+no-default and script-interface locked checks passed; the lockfile remained
+byte-identical. These are Glen-reported results, not local reruns or independent
+raw-log verification. Retain their scope; do not reissue the completed campaign
+merely because older sections request it. Native GUI/Windows behavior is not
+established by the counts alone. CI was still in progress when Glen reported;
+no terminal full-platform verdict is inferred here.
+
+The independent release-safety failure is the offline egui family parser, which
+did not accept `=0.37.0`. It now accepts an optional leading `=` and preserves
+all family comparisons. Fourteen compatibility/pin checks pass locally,
+including a fail-before/pass-after parser regression. Do not loosen the pins.
+
+Both JS binding tests failed at `load_project` with `u128 is not supported`,
+before reaching their handoff assertions. Source inspection confirms that the
+current `serde_v8` serializer/deserializer do not implement the 128-bit integer
+methods used by populated typed projects. This is not a provider, permission,
+compiler or Lua failure. The JS production transport has not been repaired in
+this guard-only change; the original failing tests and populated fixture remain.
+
+The next JS slice must define a lossless adapter-only transport repair before
+editing it: preserve native byte buffers, engine JSON/schema/hash contracts and
+read-only file/state boundaries; never round timestamps through a JS Number,
+cast away high bits or remove lineage to make the fixture pass. Reuse the two
+failing `js_protein_expression_handoff_` VM tests and add populated-project
+load/inspect/save controls, buffer checks and integer-boundary/refusal cases.
+Keep the options contract's existing unsafe-timestamp refusals. A generic codec
+or dependency patch is not silently authorized by fixing the Python guard.
+Offer an optional read-only Claude critique before finalizing that larger plan.
+
+After the owner's push, rerun the repaired offline compatibility gate and inspect
+normal CI. Repeat only the affected JS/transport scopes after a real JS repair;
+retain the already passing Lua/MCP/shell and core scientific evidence separately.
+
 ## Flagged Dependency Pins, 2026-11-03
 
 The owner authorized a separate manifest-only follow-up for Glen's eight
@@ -45,6 +119,60 @@ git diff --exit-code -- Cargo.lock
 No local Rust build/check/test, Cargo resolution/update, network operation,
 push or CI dispatch was performed for this repair. Preserve unrelated local
 files and the paused goal; no compiler-floor or scientific verdict changes.
+
+## Native Panel Specificity Review, 2026-11-03
+
+PCR Designer's **Review specificity** reads only the currently displayed saved
+panel. Compare it to the unchanged **Copy specificity matrix command** on the
+same project. The GUI has no separate matrix model, search or readiness update.
+The worker uses the read-only snapshot operation; a busy frame defers delivery.
+The GUI host disconnects a pending reply when the specialist closes even if
+the parent DNA view remains alive.
+
+Authoring began at `c6adcb83`, one workflow commit beyond the supplied
+`e7778466`. Local main then advanced to
+`89df315a80e0d3ae02e5685efd7a94e3895fbaa7` (dependency pins). Its status
+entries are retained. Offline checks on macOS arm64 at that base plus the
+viewer patch: eight specificity tutorial/source tests pass, the manual catalog
+check passes, and the three requested GUI files pass scoped rustfmt. The
+parent DNA check retains two pre-existing child-module hunks; the extra PCR
+dialog close hook introduces none of the six existing `app.rs` formatting
+hunks. Whitespace is clean; the roadmap stays at 400 lines. No Rust build or
+test ran. After the owner pushes, record the actual SHA, platform, toolchain
+and test counts; **zero matches are a failure**:
+
+```sh
+cargo check -q --locked
+cargo test --locked --lib transcript_assay_specificity_review_ -- --test-threads=1
+cargo test --locked --lib specificity_matrix_ -- --test-threads=1
+```
+
+The first filter has ten authored cases covering the renderer, both paging
+axes, historical rows/citations, click admission, exact ID and state, engine
+errors, contention, stale replies, post-acceptance edits, reload and close.
+The second includes the existing engine cases and the three copy-action tests
+from `da97696d`. Neither authoring slice ran those tests; Glen subsequently
+reported their 3/3 pass at `89df315a` as retained above. That historical result
+does not accept the new viewer; do not reissue it as an unfinished old campaign.
+
+Record native GUI acceptance separately:
+
+1. Open a saved panel with genomic, transcriptome and superseded receipts.
+   Click **Review specificity**; check responsiveness and compare both grids,
+   receipt details, separate citations and nonclaims with the copied command's
+   JSON. Check that an unverified recorded status is not a verified current verdict.
+2. While loading, separately switch panels, redesign under the same ID, undo
+   and reopen another project. No stale result should appear. Change project
+   state after acceptance and check the request to review again.
+3. Page a large panel to its last assay and receipt in each dimension. Close
+   PCR Designer mid-load, leave the DNA window alive, then reopen the specialist.
+4. Check native Windows separately. A macOS run is not Windows acceptance.
+   Use synthetic/disposable saved evidence: no BLAST, provider contact or private data.
+
+Known limit: a panel already replaced externally **before** the click can
+retain the same ID as the displayed report. The matrix header carries the
+reader's current design digest; the GUI does not independently hash the cached
+panel or claim to detect that prior replacement. No scientific verdict follows.
 
 ## Panel Specificity Review Shortcut, 2026-11-03
 

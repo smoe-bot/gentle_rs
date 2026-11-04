@@ -12572,6 +12572,7 @@ Error: `{err}`"
                 genome_edit_intent: None,
                 tube_profiles: None,
                 rack_equipment: None,
+                rack_equipment_validation: None,
                 rna_read_panel: None,
                 rna_read_panel_screen: None,
                 rna_read_panel_inspection: None,
@@ -15132,6 +15133,7 @@ Error: `{err}`"
 
     fn render_pcr_design_dialog(&mut self, ctx: &egui::Context) {
         if !self.show_pcr_design_dialog {
+            crate::main_area_dna::MainAreaDna::disconnect_hosted_specificity_review(ctx);
             return;
         }
         let mut open = self.show_pcr_design_dialog;
@@ -15163,6 +15165,9 @@ Error: `{err}`"
                 open = false;
             }
             self.show_pcr_design_dialog = open;
+            if !open {
+                crate::main_area_dna::MainAreaDna::disconnect_hosted_specificity_review(ctx);
+            }
             return;
         }
         let builder = crate::egui_compat::viewport_builder_for_hosted_window(&spec);
@@ -15205,6 +15210,9 @@ Error: `{err}`"
             open = false;
         }
         self.show_pcr_design_dialog = open;
+        if !open {
+            crate::main_area_dna::MainAreaDna::disconnect_hosted_specificity_review(ctx);
+        }
     }
 
     fn render_sequencing_confirmation_contents(
@@ -25556,6 +25564,9 @@ Error: `{err}`"
             Operation::ExportRackEquipmentJson { rack_id, path, template } => format!(
                 "Export unqualified rack equipment description: rack_id={}, template={}, path={}",
                 rack_id, template.as_str(), path
+            ),
+            Operation::ValidateRackEquipmentJson { path } => format!(
+                "Validate rack equipment JSON: path={path}"
             ),
             Operation::ExportDnaLadders { path, name_filter } => format!(
                 "Export DNA ladders: path={}, filter={}",
