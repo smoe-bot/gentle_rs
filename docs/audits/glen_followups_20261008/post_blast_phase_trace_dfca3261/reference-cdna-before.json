@@ -1,0 +1,42 @@
+{
+  "cache_dir": null,
+  "catalog_path": "/tmp/gentle-final-candidate-1Ece9l/evidence/artifacts/primer-specificity/catalog.json",
+  "inspection": {
+    "blast_database_version": "5",
+    "blastdbcmd_reachable": true,
+    "compatible_operations": [
+      "genomes blast",
+      "primers specificity (whole-transcriptome cDNA)",
+      "primers specificity-plan",
+      "primers transcript-assay-specificity-plan"
+    ],
+    "content_fingerprint": "sha256:3159519891bd8c0d4690e9c2f3de8eeb9621152b58c749e3d7d4920f4913263f",
+    "fingerprint_algorithm": "sha256:index-file-full-or-edge-sampled-v1",
+    "index_files_present": true,
+    "index_kind": "transcriptome_cdna",
+    "masking": "unmasked",
+    "prefix": "/home/clawbio/GENtle/analysis/tp73_cofactor_primers_20260722/global_specificity_20260728/transcriptome_blastdb/ensembl116_cdna",
+    "schema": "gentle.blast_database_inspection.v1",
+    "sequence_count": 465769,
+    "source_assembly": "Homo_sapiens.GRCh38.cdna.all",
+    "source_genome_id": "Ensembl 116 cDNA",
+    "source_release": "Ensembl 116",
+    "status_code": 0,
+    "subject_annotation_annotated_count": 465769,
+    "subject_annotation_fingerprint": "5f571d5775368aeb4e8a88c3ce4b1c8c138e3acf",
+    "subject_annotation_fingerprint_algorithm": "sha1",
+    "subject_annotation_index_path": "/home/clawbio/GENtle-private/provenance_bound_primer_study_20260803/resources/prepared/ensembl_116_cdna/blast-subject-annotations.json",
+    "subject_annotation_record_count": 465769,
+    "subject_annotation_source_counts": {
+      "ensembl_fasta_defline": 465769
+    },
+    "subject_annotation_status": "ready",
+    "tool_executable": "blastdbcmd",
+    "tool_version": "blastdbcmd: 2.17.0+",
+    "total_bases": 1276790359,
+    "validation_status": "valid",
+    "warnings": []
+  },
+  "prepared": true,
+  "resource_id": "Ensembl 116 cDNA"
+}
