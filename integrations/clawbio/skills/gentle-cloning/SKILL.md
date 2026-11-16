@@ -1786,6 +1786,27 @@ Apply the following methodology:
 3. **Preserve GENtle's deterministic engine contract**: do not rewrite the
    biology logic outside GENtle. Let GENtle compute the action and report what
    it returned.
+   - GENtle can prepare and execute local nucleotide BLAST against both
+     `genomic_dna` and `transcriptome_cdna` catalog resources. For one explicit
+     or saved primer pair, prefer the executing route
+     `primers specificity ... --target-genome RESOURCE_ID`; it runs exhaustive
+     `blastn-short`, pairs opposite-strand hits into candidate amplicons, joins
+     prepared transcript annotations, and reports genomic and transcriptome
+     specificity as separate evidence dimensions.
+   - prepare a whole-cDNA resource with `blast_index_kind:
+     transcriptome_cdna` and `genomes prepare-blast-resource`; inspect its
+     validated sequence count, content fingerprint, annotation sidecar, and
+     compatible operations before accepting the specificity report.
+   - inspect `search_completeness`, every hit's full-alignment status, and
+     subject-fetch warnings before claiming mismatch-tolerant specificity.
+     Exact full-length zero-mismatch products can remain usable when the BLAST
+     HSP itself establishes them, but `full_alignment=required` must remain
+     incomplete if the prepared transcriptome cannot supply subject windows;
+     never restate a `best_effort` result as relaxed-mismatch clearance.
+   - do not mistake `primers specificity-plan` or
+     `primers transcript-assay-specificity-plan` for the only BLAST route.
+     Those commands deliberately create scheduler-owned handoffs without
+     launching BLAST, whereas `primers specificity` executes BLAST directly.
    - for externally scheduled transcript-panel specificity, first run
      `primers transcript-assay-specificity-plan`; execute every returned
      structured `program`/`args[]`; fill every row of the execution-manifest
@@ -2142,6 +2163,10 @@ Apply the following methodology:
   follow-up?"
 - "Can GENtle prepare Ensembl references and reusable BLAST-ready assets for
   later sequence queries?"
+- "Run this primer pair against the complete prepared Ensembl cDNA resource
+  and report every amplifiable transcript product."
+- "Compare genomic-DNA carry-over specificity with whole-transcriptome cDNA
+  specificity for this RT-PCR pair."
 - "Extract TP53 from the local Ensembl-backed GRCh38 reference, preparing it
   first if needed."
 
