@@ -12259,27 +12259,54 @@ impl GentleEngine {
         let query_length = query_sequence.len().max(1);
         let (mut query_coverage_fraction, mut unaligned_query_bases, mut effective_mismatches) =
             Self::primer_specificity_hsp_query_alignment_evidence(query_length, hit);
-        let legacy_three_prime_mismatches = match Self::primer_specificity_three_prime_mismatches(
-            reader,
-            target_genome_id,
-            cache_dir,
-            &canonical_hit,
-            query_sequence,
-            policy.three_prime_window_bp,
-        ) {
-            Ok(value) => value,
-            Err(error) => {
-                warnings.push(format!(
-                    "Could not fetch subject sequence for {} primer on {} to count 3' mismatches exactly: {}",
-                    role.as_str(),
-                    canonical_hit.subject_id,
-                    error
-                ));
-                let aligned_to_three_prime = hit.query_start.max(hit.query_end) >= query_length;
-                if aligned_to_three_prime {
-                    hit.mismatches.min(policy.three_prime_window_bp)
-                } else {
-                    policy.three_prime_window_bp.min(query_length)
+        let blast_string_alignment =
+            match Self::primer_specificity_full_alignment_from_blast_strings(
+                &canonical_hit,
+                query_sequence,
+                policy.three_prime_window_bp,
+                &policy.full_alignment,
+            ) {
+                Ok(alignment) => alignment,
+                Err(error) => {
+                    warnings.push(format!(
+                        "Could not use aligned BLAST strings for the {} primer on {}: {}; falling back to subject-window evidence",
+                        role.as_str(), canonical_hit.subject_id, error
+                    ));
+                    None
+                }
+            };
+        if let Some(alignment) = blast_string_alignment.as_ref() {
+            query_coverage_fraction = 1.0;
+            unaligned_query_bases = 0;
+            effective_mismatches = alignment.effective_mismatches;
+        }
+        let legacy_three_prime_mismatches = if let Some(alignment) =
+            blast_string_alignment.as_ref()
+        {
+            alignment.three_prime_mismatches
+        } else {
+            match Self::primer_specificity_three_prime_mismatches(
+                reader,
+                target_genome_id,
+                cache_dir,
+                &canonical_hit,
+                query_sequence,
+                policy.three_prime_window_bp,
+            ) {
+                Ok(value) => value,
+                Err(error) => {
+                    warnings.push(format!(
+                        "Could not fetch subject sequence for {} primer on {} to count 3' mismatches exactly: {}",
+                        role.as_str(),
+                        canonical_hit.subject_id,
+                        error
+                    ));
+                    let aligned_to_three_prime = hit.query_start.max(hit.query_end) >= query_length;
+                    if aligned_to_three_prime {
+                        hit.mismatches.min(policy.three_prime_window_bp)
+                    } else {
+                        policy.three_prime_window_bp.min(query_length)
+                    }
                 }
             }
         };
@@ -12287,96 +12314,56 @@ impl GentleEngine {
             == PrimerSpecificityFullAlignmentMode::Disabled
         {
             None
+        } else if let Some(alignment) = blast_string_alignment {
+            Some(alignment)
         } else {
-            let aligned_string_result = Self::primer_specificity_full_alignment_from_blast_strings(
+            match Self::primer_specificity_full_alignment(
+                reader,
+                target_genome_id,
+                cache_dir,
                 &canonical_hit,
                 query_sequence,
                 policy.three_prime_window_bp,
                 &policy.full_alignment,
-            );
-            match aligned_string_result {
-                Ok(Some(alignment)) => Some(alignment),
-                Err(error) => {
-                    warnings.push(format!(
-                        "Could not use aligned BLAST strings for the {} primer on {}: {}; falling back to subject-window realignment",
-                        role.as_str(), canonical_hit.subject_id, error
-                    ));
-                    match Self::primer_specificity_full_alignment(
-                        reader,
-                        target_genome_id,
-                        cache_dir,
-                        &canonical_hit,
-                        query_sequence,
-                        policy.three_prime_window_bp,
-                        &policy.full_alignment,
-                    ) {
-                        Ok(alignment) => Some(alignment),
-                        Err(error) => Some(PrimerSpecificityFullAlignment {
-                            status: "unavailable".to_string(),
-                            algorithm: "full_query_semiglobal_subject_window_v1".to_string(),
-                            match_score: policy.full_alignment.match_score,
-                            mismatch_score: policy.full_alignment.mismatch_score,
-                            gap_open_score: policy.full_alignment.gap_open_score,
-                            gap_extend_score: policy.full_alignment.gap_extend_score,
-                            strand: if canonical_hit.subject_start <= canonical_hit.subject_end {
-                                "+".to_string()
-                            } else {
-                                "-".to_string()
-                            },
-                            three_prime_window_bp: policy.three_prime_window_bp,
-                            warning: Some(error),
-                            ..PrimerSpecificityFullAlignment::default()
-                        }),
-                    }
-                }
-                Ok(None) => match Self::primer_specificity_full_alignment(
-                    reader,
-                    target_genome_id,
-                    cache_dir,
-                    &canonical_hit,
-                    query_sequence,
-                    policy.three_prime_window_bp,
-                    &policy.full_alignment,
-                ) {
-                    Ok(alignment) => {
-                        if let Some(warning) = alignment.warning.as_ref() {
-                            warnings.push(format!(
-                                "{} primer full alignment on {}: {}",
-                                role.as_str(),
-                                canonical_hit.subject_id,
-                                warning
-                            ));
-                        }
-                        query_coverage_fraction = 1.0;
-                        unaligned_query_bases = 0;
-                        effective_mismatches = alignment.effective_mismatches;
-                        Some(alignment)
-                    }
-                    Err(error) => {
+            ) {
+                Ok(alignment) => {
+                    if let Some(warning) = alignment.warning.as_ref() {
                         warnings.push(format!(
-                            "Could not globally realign the complete {} primer on {}: {}",
+                            "{} primer full alignment on {}: {}",
                             role.as_str(),
                             canonical_hit.subject_id,
-                            error
+                            warning
                         ));
-                        Some(PrimerSpecificityFullAlignment {
-                            status: "unavailable".to_string(),
-                            algorithm: "full_query_semiglobal_subject_window_v1".to_string(),
-                            match_score: policy.full_alignment.match_score,
-                            mismatch_score: policy.full_alignment.mismatch_score,
-                            gap_open_score: policy.full_alignment.gap_open_score,
-                            gap_extend_score: policy.full_alignment.gap_extend_score,
-                            strand: if canonical_hit.subject_start <= canonical_hit.subject_end {
-                                "+".to_string()
-                            } else {
-                                "-".to_string()
-                            },
-                            three_prime_window_bp: policy.three_prime_window_bp,
-                            warning: Some(error),
-                            ..PrimerSpecificityFullAlignment::default()
-                        })
                     }
-                },
+                    query_coverage_fraction = 1.0;
+                    unaligned_query_bases = 0;
+                    effective_mismatches = alignment.effective_mismatches;
+                    Some(alignment)
+                }
+                Err(error) => {
+                    warnings.push(format!(
+                        "Could not globally realign the complete {} primer on {}: {}",
+                        role.as_str(),
+                        canonical_hit.subject_id,
+                        error
+                    ));
+                    Some(PrimerSpecificityFullAlignment {
+                        status: "unavailable".to_string(),
+                        algorithm: "full_query_semiglobal_subject_window_v1".to_string(),
+                        match_score: policy.full_alignment.match_score,
+                        mismatch_score: policy.full_alignment.mismatch_score,
+                        gap_open_score: policy.full_alignment.gap_open_score,
+                        gap_extend_score: policy.full_alignment.gap_extend_score,
+                        strand: if canonical_hit.subject_start <= canonical_hit.subject_end {
+                            "+".to_string()
+                        } else {
+                            "-".to_string()
+                        },
+                        three_prime_window_bp: policy.three_prime_window_bp,
+                        warning: Some(error),
+                        ..PrimerSpecificityFullAlignment::default()
+                    })
+                }
             }
         };
         let three_prime_mismatches = full_alignment

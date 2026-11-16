@@ -1,5 +1,17 @@
 # GENtle Changelog
 
+## 2026-11-16 - Retain BLAST Alignment Evidence In Direct Primer Specificity
+
+- Run direct `primers specificity` searches with the existing aligned-string
+  BLAST contract (`qlen`, `qseq`, and `sseq`) instead of discarding that
+  evidence and fetching every subject window again.
+- Reuse a complete-query HSP for coverage, total mismatch, 3' mismatch, and
+  full-alignment reporting before consulting the prepared reference reader.
+  Keep the subject-window realignment fallback for partial or malformed HSPs.
+- Add a direct/collection regression that requires the aligned-string output
+  fields, and clarify that prepared `transcriptome_cdna` resources are supported
+  by the executing specificity route as well as scheduler-owned plan routes.
+
 ## 2026-11-15 - Record Glen's Focused C3 Regression Return
 
 - Attribute Glen's fresh-main review at exact `919e7163`, four commits after

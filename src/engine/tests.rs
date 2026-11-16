@@ -11050,6 +11050,12 @@ fn collection_primer_specificity_matches_direct_per_member_assessment() {
                 None,
             )
             .expect("run direct primer specificity");
+        assert!(
+            direct.blast_runs.iter().all(|run| run.command.windows(2).any(|row| {
+                row[0] == "-outfmt" && row[1].ends_with("qcovs qlen qseq sseq")
+            })),
+            "direct primer specificity must retain complete-query BLAST strings"
+        );
         direct_by_design_report.insert(report.report_id.clone(), direct);
     }
     let bindings = resolution

@@ -7306,8 +7306,10 @@ FASTA index='{}'.{}{}",
 
     /// Run an exhaustive BLAST search and retain aligned query/subject strings.
     ///
-    /// This is intended for query-coordinate projections. Existing summary and
-    /// primer-specificity callers keep the legacy 13-field command contract.
+    /// This is intended for query-coordinate projections and direct primer
+    /// specificity, where complete-query HSP strings avoid one prepared-
+    /// reference lookup and realignment per hit. Generic summary callers keep
+    /// the legacy 13-field command contract.
     pub fn blast_sequence_complete_aligned_with_cache(
         &self,
         genome_id: &str,

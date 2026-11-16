@@ -9794,7 +9794,7 @@ impl GentleEngine {
         )?;
         let (catalog, catalog_path) = Self::open_reference_genome_catalog(catalog_path)?;
         let mut report = catalog
-            .blast_sequence_complete_with_cache(
+            .blast_sequence_complete_aligned_with_cache(
                 genome_id,
                 query_sequence,
                 resolved.max_hits,
